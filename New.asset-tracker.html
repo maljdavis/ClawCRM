@@ -1,0 +1,2137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asset Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --surface: #1a1d27; --surface2: #222535; --border: #2e3248;
+      --accent: #4f7cff; --danger: #e05252; --success: #3ecf8e; --warning: #f59e0b;
+      --text: #e2e8f0; --text-muted: #7c85a8; --radius: 8px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Screens ── */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* ── Login ── */
+    #loginScreen.active { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    .login-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 36px; width: 100%; max-width: 400px; }
+    .login-box h1 { font-size: 1.4rem; margin-bottom: 6px; }
+    .login-box h1 span { color: var(--accent); }
+    .login-sub { color: var(--text-muted); font-size: .85rem; margin-bottom: 28px; }
+    .error-msg { color: var(--danger); font-size: .85rem; margin-bottom: 10px; display: none; }
+    .admin-link { text-align: center; margin-top: 16px; font-size: .8rem; }
+    .admin-link a { color: var(--accent); cursor: pointer; }
+    .admin-link a:hover { text-decoration: underline; }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      height: 60px; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; position: sticky; top: 0; z-index: 100; gap: 16px;
+    }
+    .h-left  { display: flex; align-items: center; gap: 14px; }
+    .h-right { display: flex; align-items: center; gap: 10px; }
+    .logo { font-size: 1.1rem; font-weight: 700; }
+    .logo span { color: var(--accent); }
+    .badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
+    .badge-branch  { background: var(--accent); color: #fff; }
+    .badge-admin   { background: var(--warning); color: #000; }
+    .badge-lease   { background: rgba(62,207,142,.15); color: var(--success); }
+    .badge-pending { background: rgba(245,158,11,.15); color: var(--warning); }
+    .badge-approved{ background: rgba(62,207,142,.15); color: var(--success); }
+    .badge-denied  { background: rgba(224,82,82,.15); color: var(--danger); }
+    .badge-pool    { background: rgba(124,133,168,.15); color: var(--text-muted); }
+
+    /* ── Admin Tabs ── */
+    .tab-nav { display: flex; gap: 4px; }
+    .tab-btn {
+      padding: 6px 18px; border-radius: 20px; border: none; background: transparent;
+      color: var(--text-muted); font-size: .85rem; cursor: pointer; font-weight: 500; position: relative;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { background: var(--surface2); color: var(--text); }
+    .tab-btn .req-dot {
+      position: absolute; top: 4px; right: 8px;
+      background: var(--danger); color: #fff; border-radius: 10px;
+      font-size: .65rem; padding: 1px 5px; font-weight: 700;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Layout ── */
+    .page { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+    /* ── Stats ── */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+    .stat-label { font-size: .75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+    .stat-value { font-size: 1.6rem; font-weight: 700; margin-top: 4px; }
+    .c-blue { color: var(--accent); } .c-green { color: var(--success); } .c-yellow { color: var(--warning); }
+
+    /* ── Toolbar ── */
+    .toolbar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .search-wrap { position: relative; flex: 1; min-width: 200px; }
+    .search-wrap input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 12px 9px 36px; color: var(--text); font-size: .9rem; }
+    .search-wrap::before { content: '⌕'; position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 1.1rem; pointer-events: none; }
+
+    /* ── Buttons ── */
+    .btn { padding: 9px 18px; border-radius: var(--radius); border: none; font-size: .9rem; font-weight: 600; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-success { background: var(--success); color: #000; }
+    .btn-danger  { background: var(--danger); color: #fff; }
+    .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-warn    { background: var(--warning); color: #000; }
+    .btn-sm      { padding: 5px 12px; font-size: .8rem; }
+    .btn-xs      { padding: 3px 9px; font-size: .75rem; }
+    .btn-telematics { background: #ff6b00; color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .w-full { width: 100%; }
+
+    /* ── Filter select ── */
+    select, input[type=text], input[type=password], input[type=number], input[type=date], input[type=url], textarea {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 9px 12px; color: var(--text); font-size: .9rem; font-family: inherit;
+    }
+    select { cursor: pointer; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+
+    /* ── Tables ── */
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: auto; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    thead th { background: var(--surface2); padding: 12px 16px; text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); white-space: nowrap; cursor: pointer; user-select: none; }
+    thead th:hover { color: var(--text); }
+    tbody tr { border-top: 1px solid var(--border); transition: background .1s; }
+    tbody tr:hover { background: var(--surface2); }
+    td { padding: 11px 16px; white-space: nowrap; vertical-align: middle; }
+    .actions { display: flex; gap: 6px; }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+    .empty .icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+    /* ── Section headers ── */
+    .section-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; margin-top: 8px; }
+    .section-hdr h2 { font-size: 1rem; font-weight: 700; }
+    .section-hdr p  { font-size: .8rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── Request cards ── */
+    .req-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+    .req-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px 18px; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start;
+    }
+    .req-type-icon { font-size: 1.4rem; }
+    .req-body { min-width: 0; }
+    .req-title { font-weight: 600; font-size: .9rem; }
+    .req-meta  { font-size: .8rem; color: var(--text-muted); margin-top: 3px; }
+    .req-desc  { font-size: .85rem; margin-top: 6px; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+    .req-admin-note { font-size: .8rem; color: var(--text-muted); margin-top: 6px; font-style: italic; }
+    .req-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+
+    /* ── Info banner ── */
+    .info-banner {
+      background: rgba(79,124,255,.1); border: 1px solid rgba(79,124,255,.3);
+      border-radius: var(--radius); padding: 12px 16px; font-size: .85rem; color: var(--accent);
+      margin-bottom: 20px; display: flex; gap: 10px; align-items: center;
+    }
+
+    /* ── Overlay / Modal ── */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 200; overflow-y: auto; padding: 40px 16px; }
+    .overlay.open { display: flex; align-items: flex-start; justify-content: center; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 680px; padding: 28px; }
+    .modal-sm { max-width: 440px; }
+    .modal-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+    .modal-hdr h2 { font-size: 1.1rem; }
+    .close-btn { background: none; border: none; color: var(--text-muted); font-size: 1.4rem; cursor: pointer; line-height: 1; }
+    .close-btn:hover { color: var(--text); }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
+
+    /* ── Forms ── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: .8rem; color: var(--text-muted); font-weight: 500; }
+    .field input, .field select, .field textarea { width: 100%; }
+    .field textarea { resize: vertical; min-height: 90px; }
+    .field .hint { font-size: .75rem; color: var(--text-muted); }
+    .field .lrf-preview { font-size: .75rem; color: var(--success); font-weight: 600; }
+    .field input[readonly] { color: var(--success); font-weight: 600; }
+
+    /* ── Branch admin list ── */
+    .branch-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; }
+    .branch-row .bname { flex: 1; font-weight: 600; }
+    .branch-row .bpw   { color: var(--text-muted); font-size: .85rem; }
+
+    /* ── Asset pool label ── */
+    .pool-tag { color: var(--text-muted); font-size: .8rem; font-style: italic; }
+
+    /* ── Toast ── */
+    .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
+    .toast { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 18px; font-size: .875rem; animation: slideIn .2s ease; max-width: 300px; }
+    .toast.success { border-left: 3px solid var(--success); }
+    .toast.danger  { border-left: 3px solid var(--danger); }
+    .toast.warn    { border-left: 3px solid var(--warning); }
+    @keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+    /* ── File chips ── */
+    .file-chip { display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:.75rem; }
+    .file-chip a { color:var(--accent);text-decoration:none; }
+    .file-chip a:hover { text-decoration:underline; }
+    .file-list { display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;min-height:28px; }
+    .file-empty { color:var(--text-muted);font-size:.85rem;margin-bottom:12px; }
+    .file-remove { background:none;border:none;color:var(--danger);cursor:pointer;font-size:1.1rem;line-height:1;padding:0; }
+
+    /* ── Bulk selection ── */
+    .bulk-bar { background:rgba(79,124,255,.1); border:1px solid rgba(79,124,255,.4); border-radius:var(--radius); padding:10px 16px; margin-bottom:12px; display:none; align-items:center; gap:10px; flex-wrap:wrap; }
+    .bulk-bar.visible { display:flex; }
+    .bulk-count { font-size:.875rem; font-weight:600; color:var(--accent); flex:1; }
+    input[type=checkbox] { width:15px; height:15px; cursor:pointer; accent-color:var(--accent); flex-shrink:0; }
+    th input[type=checkbox], td input[type=checkbox] { display:block; margin:0 auto; }
+
+    @media (max-width: 640px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .form-grid .full { grid-column: 1; }
+      .tab-btn { padding: 6px 12px; font-size: .8rem; }
+      .h-right { gap: 6px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div class="screen active" id="loginScreen">
+  <div class="login-box">
+    <h1>Asset<span>Track</span></h1>
+    <p class="login-sub" id="loginSubtitle">Select your branch and sign in</p>
+    <div class="field" id="loginBranchField" style="margin-bottom:14px;">
+      <label>Branch</label>
+      <select id="loginBranch"></select>
+    </div>
+    <div class="field" id="loginEmailField" style="margin-bottom:14px;display:none;">
+      <label>Email</label>
+      <input id="loginEmail" type="text" placeholder="you@company.com" autocomplete="username" />
+    </div>
+    <div class="field" style="margin-bottom:14px;">
+      <label>Password</label>
+      <input id="loginPw" type="password" placeholder="Password" autocomplete="current-password" />
+    </div>
+    <div class="error-msg" id="loginError">Incorrect password. Try again.</div>
+    <button class="btn btn-primary w-full" onclick="doLogin()">Sign In</button>
+    <div class="admin-link" id="adminLink"><a onclick="adminLogin()">Admin Panel</a></div>
+  </div>
+</div>
+
+<!-- ══════════════ BRANCH VIEW ══════════════ -->
+<div class="screen" id="branchView">
+  <header>
+    <div class="h-left">
+      <div class="logo">Asset<span>Track</span></div>
+      <div class="badge badge-branch" id="branchBadge"></div>
+    </div>
+    <div class="h-right">
+      <a class="btn btn-telematics btn-sm" id="telematicsBtn" href="#" target="_blank" rel="noopener noreferrer">&#9678; T3 Telematics</a>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">Log Out</button>
+    </div>
+  </header>
+  <div class="page">
+    <div class="stats" id="branchStats"></div>
+    <div class="info-banner">&#128274; This is a read-only view. Assets are managed by the admin. Use the buttons below to submit requests.</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <input type="text" id="branchSearch" placeholder="Search your assets…" oninput="renderBranchAssets()" />
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openRequestModal('request_asset', null)">+ Request an Asset</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Asset Name</th>
+            <th>Category</th>
+            <th>Location</th>
+            <th>Status</th>
+            <th>Monthly Lease</th>
+            <th>Lease End</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="branchTableBody"></tbody>
+      </table>
+      <div class="empty" id="branchEmpty" style="display:none">
+        <div class="icon">📦</div>
+        <p>No assets currently leased to this branch.</p>
+      </div>
+    </div>
+
+    <div class="section-hdr">
+      <div>
+        <h2>My Requests</h2>
+        <p>Requests submitted to the admin</p>
+      </div>
+    </div>
+    <div class="req-list" id="myRequests">
+      <div class="empty" style="padding:30px"><p style="color:var(--text-muted)">No requests submitted yet.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ ADMIN VIEW ══════════════ -->
+<div class="screen" id="adminView">
+  <header>
+    <div class="h-left">
+      <div class="logo">Asset<span>Track</span></div>
+      <div class="badge badge-admin">ADMIN</div>
+      <nav class="tab-nav">
+        <button class="tab-btn active" id="tab-assets"   onclick="setAdminTab('assets')">Assets</button>
+        <button class="tab-btn"        id="tab-requests" onclick="setAdminTab('requests')">Requests</button>
+        <button class="tab-btn"        id="tab-branches" onclick="setAdminTab('branches')">Branches</button>
+      </nav>
+    </div>
+    <div class="h-right">
+      <a class="btn btn-telematics btn-sm" id="adminTelematicsBtn" href="#" target="_blank" rel="noopener noreferrer">&#9678; T3</a>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">Log Out</button>
+    </div>
+  </header>
+  <div class="page">
+
+    <!-- ASSETS TAB -->
+    <div class="tab-panel active" id="panel-assets">
+      <div class="toolbar">
+        <div class="search-wrap">
+          <input type="text" id="adminSearch" placeholder="Search all assets…" oninput="renderAdminAssets()" />
+        </div>
+        <select id="adminBranchFilter" onchange="renderAdminAssets()">
+          <option value="">All Branches</option>
+          <option value="__pool__">— Asset Pool (unassigned)</option>
+        </select>
+        <select id="adminCatFilter" onchange="renderAdminAssets()">
+          <option value="">All Categories</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openAssetModal()">+ Add Asset</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Export CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="$('importCsvInput').click()">Import CSV</button>
+        <input type="file" id="importCsvInput" accept=".csv" style="display:none" onchange="importCSV(this)" />
+        <button class="btn btn-ghost btn-sm" onclick="downloadSampleCSV()">Sample CSV</button>
+      </div>
+      <div class="bulk-bar" id="bulkBar">
+        <span class="bulk-count" id="bulkCount">0 selected</span>
+        <button class="btn btn-primary btn-sm" onclick="openBulkReassign()">Reassign</button>
+        <button class="btn btn-ghost btn-sm" onclick="openBulkCategory()">Set Category</button>
+        <button class="btn btn-ghost btn-sm" onclick="openBulkLRF()">Set LRF</button>
+        <button class="btn btn-danger btn-sm" onclick="bulkDelete()">Delete</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearSelection()">Clear selection</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:32px"><input type="checkbox" id="selectAllCb" onchange="toggleSelectAll(this.checked)" /></th>
+              <th onclick="setSort('name')">Asset Name</th>
+              <th onclick="setSort('category')">Category</th>
+              <th>Branch / Status</th>
+              <th onclick="setSort('cost')">Cost</th>
+              <th onclick="setSort('lrf')">LRF</th>
+              <th>Monthly</th>
+              <th onclick="setSort('location')">Location</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+        <div class="empty" id="adminEmpty" style="display:none">
+          <div class="icon">📦</div>
+          <p>No assets found.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- REQUESTS TAB -->
+    <div class="tab-panel" id="panel-requests">
+      <div style="margin-bottom:16px;display:flex;gap:12px;align-items:center;">
+        <select id="reqFilter" onchange="renderRequests()">
+          <option value="">All Requests</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="denied">Denied</option>
+        </select>
+        <select id="reqBranchFilter" onchange="renderRequests()">
+          <option value="">All Branches</option>
+        </select>
+      </div>
+      <div class="req-list" id="adminRequests">
+        <div class="empty" style="padding:30px"><p style="color:var(--text-muted)">No requests yet.</p></div>
+      </div>
+    </div>
+
+    <!-- BRANCHES TAB -->
+    <div class="tab-panel" id="panel-branches">
+      <div class="section-hdr"><div><h2>Branches</h2><p>Manage branch access and passwords</p></div></div>
+      <div id="branchList"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-top:16px;">
+        <div class="field"><label>Branch Name</label><input id="newBranchName" type="text" placeholder="e.g. Dallas" /></div>
+        <div class="field" id="newBranchPwField"><label>Password</label><input id="newBranchPw" type="text" placeholder="e.g. dallas2024" /></div>
+        <button class="btn btn-primary" style="height:38px;margin-bottom:1px" onclick="addBranch()">Add Branch</button>
+      </div>
+
+      <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
+        <div class="section-hdr"><div><h2>T3 Telematics URL</h2><p>The T3 link shown to all branches</p></div></div>
+        <input id="telematicsUrlInput" type="url" placeholder="https://t3.equipmentshare.com/..." style="width:100%;" oninput="saveTelematicsUrl()" />
+      </div>
+
+      <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
+        <div class="section-hdr"><div><h2>Lease Rate Factors (LRF)</h2><p>3 preset lease rate factors you can assign to assets</p></div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="field">
+            <label>Preset 1 Name</label>
+            <input id="rateName1" type="text" placeholder="e.g. Standard" />
+          </div>
+          <div class="field">
+            <label>Preset 1 LRF</label>
+            <input id="rateVal1" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0185" />
+          </div>
+          <div class="field">
+            <label>Preset 2 Name</label>
+            <input id="rateName2" type="text" placeholder="e.g. Promo" />
+          </div>
+          <div class="field">
+            <label>Preset 2 LRF</label>
+            <input id="rateVal2" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0200" />
+          </div>
+          <div class="field">
+            <label>Preset 3 Name</label>
+            <input id="rateName3" type="text" placeholder="e.g. Special" />
+          </div>
+          <div class="field">
+            <label>Preset 3 LRF</label>
+            <input id="rateVal3" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0165" />
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+          <button class="btn btn-primary btn-sm" onclick="saveRatesFromUI()">Save LRF Presets</button>
+        </div>
+      </div>
+
+      <div id="adminPwSection" style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
+        <div class="section-hdr"><div><h2>Admin Password</h2><p>Used to access this panel</p></div></div>
+        <div style="display:flex;gap:10px;align-items:end;">
+          <div class="field" style="flex:1"><input id="newAdminPw" type="text" placeholder="New admin password" /></div>
+          <button class="btn btn-primary btn-sm" onclick="changeAdminPw()">Update</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: ADD / EDIT ASSET (admin) ══════════════ -->
+<div class="overlay" id="assetFormOverlay">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h2 id="assetModalTitle">Add Asset</h2>
+      <button class="close-btn" onclick="closeAssetModal()">×</button>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Asset Name *</label><input id="f-name" type="text" placeholder="e.g. Forklift #3" /></div>
+      <div class="field"><label>Serial / Asset ID</label><input id="f-serial" type="text" placeholder="e.g. SN-00123" /></div>
+      <div class="field"><label>Category</label><input id="f-category" type="text" placeholder="e.g. Heavy Equipment" list="catList" /><datalist id="catList"></datalist></div>
+      <div class="field">
+        <label>Branch Assignment</label>
+        <select id="f-branch">
+          <option value="">— Asset Pool (unassigned) —</option>
+        </select>
+      </div>
+      <div class="field"><label>Location</label><input id="f-location" type="text" placeholder="e.g. Warehouse A" /></div>
+      <div class="field"><label>Assigned To</label><input id="f-assignedTo" type="text" placeholder="Person or department" /></div>
+      <div class="field">
+        <label>Equipment Cost ($)</label>
+        <input id="f-cost" type="number" min="0" step="0.01" placeholder="0.00" oninput="updateLRFPreview()" />
+      </div>
+      <div class="field">
+        <label>LRF Preset (optional)</label>
+        <select id="f-lrfPreset" onchange="applyPresetToAssetForm(this.value)"></select>
+        <div class="hint">Pick a preset to fill the LRF field automatically.</div>
+      </div>
+      <div class="field">
+        <label>LRF — Lease Rate Factor</label>
+        <input id="f-lrf" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0185" oninput="updateLRFPreview()" />
+        <div class="hint">e.g. 0.0185 = 1.85%</div>
+        <div class="lrf-preview" id="lrfPreview"></div>
+      </div>
+      <div class="field"><label>Vendor / Supplier</label><input id="f-vendor" type="text" placeholder="e.g. Caterpillar Inc." /></div>
+      <div class="field"><label>Date Acquired</label><input id="f-acquiredDate" type="date" /></div>
+      <div class="field"><label>Lease Start</label><input id="f-leaseStart" type="date" /></div>
+      <div class="field"><label>Lease End</label><input id="f-leaseEnd" type="date" /></div>
+      <div class="field full"><label>Notes</label><textarea id="f-notes" placeholder="Condition, maintenance history, notes…"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAssetModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAsset()">Save Asset</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: REASSIGN ASSET (admin) ══════════════ -->
+<div class="overlay" id="reassignOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2>Reassign Asset</h2>
+      <button class="close-btn" onclick="closeReassign()">×</button>
+    </div>
+    <p id="reassignAssetName" style="font-weight:600;margin-bottom:16px;"></p>
+    <div class="field">
+      <label>Move to</label>
+      <select id="reassignTarget" style="width:100%;">
+        <option value="">— Asset Pool (unassigned) —</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeReassign()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmReassign()">Move Asset</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: SUBMIT REQUEST (branch) ══════════════ -->
+<div class="overlay" id="requestOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2 id="requestModalTitle">Submit Request</h2>
+      <button class="close-btn" onclick="closeRequestModal()">×</button>
+    </div>
+    <p id="requestAssetContext" style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;"></p>
+    <div class="field">
+      <label id="requestDescLabel">Description / Notes</label>
+      <textarea id="requestDesc" placeholder="Describe your request…"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeRequestModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitRequest()">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: APPROVE "REQUEST ASSET" (admin) ══════════════ -->
+<div class="overlay" id="approveAssetOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2>Approve — Assign Asset</h2>
+      <button class="close-btn" onclick="closeApproveAsset()">×</button>
+    </div>
+    <p id="approveReqMeta" style="font-size:.85rem;color:var(--text-muted);margin-bottom:6px;"></p>
+    <p id="approveReqDesc" style="font-size:.9rem;margin-bottom:16px;white-space:pre-wrap;"></p>
+    <div class="field">
+      <label>Select an asset from the pool to assign</label>
+      <select id="approveAssetSelect" style="width:100%;"></select>
+    </div>
+    <div class="field" style="margin-top:12px;">
+      <label>Admin Note (optional)</label>
+      <input id="approveAdminNote" type="text" placeholder="Any notes for the branch…" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeApproveAsset()">Cancel</button>
+      <button class="btn btn-danger btn-sm" onclick="denyRequest(approvingRequestId)">Deny</button>
+      <button class="btn btn-success" onclick="confirmApproveAsset()">Assign & Approve</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: DENY / APPROVE simple (admin) ══════════════ -->
+<div class="overlay" id="simpleApproveOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2 id="simpleApproveTitle">Approve Request</h2>
+      <button class="close-btn" onclick="closeSimpleApprove()">×</button>
+    </div>
+    <p id="simpleApproveMeta" style="font-size:.85rem;color:var(--text-muted);margin-bottom:6px;"></p>
+    <p id="simpleApproveDesc" style="font-size:.9rem;margin-bottom:16px;white-space:pre-wrap;"></p>
+    <div class="field">
+      <label>Admin Note (optional)</label>
+      <input id="simpleAdminNote" type="text" placeholder="Message for the branch…" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeSimpleApprove()">Cancel</button>
+      <button class="btn btn-danger btn-sm" onclick="denyRequest(approvingRequestId);closeSimpleApprove()">Deny</button>
+      <button class="btn btn-success" onclick="approveSimple()">Approve</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: EDIT BRANCH (admin) ══════════════ -->
+<div class="overlay" id="editBranchOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2>Edit Branch</h2>
+      <button class="close-btn" onclick="closeEditBranch()">×</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="field"><label>Branch Name</label><input id="eb-name" type="text" placeholder="e.g. Dallas" /></div>
+      <div class="field" id="ebPwField"><label>Password</label><input id="eb-pw" type="text" placeholder="Branch password" /></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeEditBranch()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditBranch()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: ASSET FILES (admin) ══════════════ -->
+<div class="overlay" id="filesOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2 id="filesModalTitle">Asset Files</h2>
+      <button class="close-btn" onclick="closeFilesModal()">×</button>
+    </div>
+    <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:14px;">Attach insurance cards, renewal docs, etc. Stored locally in the browser — keep individual files small.</p>
+    <div class="file-list" id="adminFileList"></div>
+    <div class="field">
+      <label>Upload File(s)</label>
+      <input type="file" id="fileUploadInput" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.xls,.xlsx" onchange="handleFileUpload(event)" style="background:transparent;border:none;padding:0;color:var(--text);" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeFilesModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: ASSET FILES (branch view) ══════════════ -->
+<div class="overlay" id="branchFilesOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2 id="branchFilesTitle">Asset Files</h2>
+      <button class="close-btn" onclick="closeBranchFiles()">×</button>
+    </div>
+    <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:14px;">Download documents attached to this asset.</p>
+    <div class="file-list" id="branchFileList"></div>
+    <div id="branchFilesEmpty" style="display:none;" class="file-empty">No files have been attached to this asset yet.</div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeBranchFiles()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: BULK REASSIGN ══════════════ -->
+<div class="overlay" id="bulkReassignOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2>Bulk Reassign</h2>
+      <button class="close-btn" onclick="closeBulkReassign()">×</button>
+    </div>
+    <p id="bulkReassignCount" style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;"></p>
+    <div class="field">
+      <label>Move selected assets to</label>
+      <select id="bulkReassignTarget" style="width:100%;"></select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeBulkReassign()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmBulkReassign()">Move Assets</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: BULK SET CATEGORY ══════════════ -->
+<div class="overlay" id="bulkCategoryOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2>Set Category</h2>
+      <button class="close-btn" onclick="closeBulkCategory()">×</button>
+    </div>
+    <p id="bulkCategoryCount" style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;"></p>
+    <div class="field">
+      <label>New category for selected assets</label>
+      <input id="bulkCategoryValue" type="text" placeholder="e.g. Heavy Equipment" list="catList" style="width:100%;" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeBulkCategory()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmBulkCategory()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: BULK SET LRF ══════════════ -->
+<div class="overlay" id="bulkLRFOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2>Set LRF</h2>
+      <button class="close-btn" onclick="closeBulkLRF()">×</button>
+    </div>
+    <p id="bulkLRFCount" style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;"></p>
+    <div class="field">
+      <label>Choose preset</label>
+      <select id="bulkLRFSelect" style="width:100%;" onchange="onBulkLRFSelectChange(this.value)"></select>
+    </div>
+    <div class="field" style="margin-top:12px;">
+      <label>Custom LRF (optional)</label>
+      <input id="bulkLRFCustom" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0185" />
+      <div class="hint">If you enter a custom value, it overrides the preset.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeBulkLRF()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmBulkLRF()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Supabase (optional live backend) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+// ── Storage ───────────────────────────────────────────────────────────
+const ASSETS_KEY   = 'assetTracker_assets';
+const BRANCHES_KEY = 'assetTracker_branches';
+const REQUESTS_KEY = 'assetTracker_requests';
+const ADMIN_KEY    = 'assetTracker_admin';
+const TELEM_KEY    = 'assetTracker_telematics';
+const RATES_KEY    = 'assetTracker_lrfPresets';
+
+let assets       = JSON.parse(localStorage.getItem(ASSETS_KEY)   || '[]');
+let branches     = JSON.parse(localStorage.getItem(BRANCHES_KEY) || '[]');
+let requests     = JSON.parse(localStorage.getItem(REQUESTS_KEY) || '[]');
+let adminPw      = localStorage.getItem(ADMIN_KEY) || 'admin';
+let telematicsUrl = localStorage.getItem(TELEM_KEY) || '';
+let lrfPresets   = loadLRFPresets();
+
+// ── Session State ─────────────────────────────────────────────────────
+let currentBranch     = null;
+let isAdmin           = false;
+let editingAssetId    = null;
+let reassigningAssetId = null;
+let requestingType    = null;
+let requestingAssetId = null;
+let approvingRequestId = null;
+let sortKey = 'name';
+let sortAsc = true;
+let adminTab = 'assets';
+let selectedAssets = new Set();
+let lastFilteredIds = [];
+
+const $ = id => document.getElementById(id);
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function saveAllLocal() {
+  localStorage.setItem(ASSETS_KEY,   JSON.stringify(assets));
+  localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
+  localStorage.setItem(REQUESTS_KEY, JSON.stringify(requests));
+}
+function saveAll() {
+  saveAllLocal();
+  queueLiveSync();
+}
+function esc(s) { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// ── Live (Supabase) Config ────────────────────────────────────────────
+// To enable live shared mode:
+// 1) Create a Supabase project, run `supabase/schema.sql` (included in this workspace).
+// 2) Paste your URL + anon key below, then host this HTML (Netlify/Vercel/etc).
+const LIVE_CONFIG = {
+  SUPABASE_URL: '',
+  SUPABASE_ANON_KEY: '',
+};
+
+let supa = null;
+let liveEnabled = false;
+let liveReady = false;
+let currentProfile = null; // { role: 'admin'|'branch', branchName: string|null }
+let liveSyncTimer = null;
+let livePollTimer = null;
+
+function isLiveConfigured() {
+  return Boolean(LIVE_CONFIG.SUPABASE_URL && LIVE_CONFIG.SUPABASE_ANON_KEY && window.supabase);
+}
+
+function applyLoginModeUI() {
+  const live = isLiveConfigured();
+  $('loginSubtitle').textContent = live ? 'Sign in with your company email' : 'Select your branch and sign in';
+  $('loginBranchField').style.display = live ? 'none' : '';
+  $('loginEmailField').style.display  = live ? '' : 'none';
+  $('adminLink').style.display        = live ? 'none' : '';
+  $('loginError').textContent         = live ? 'Sign-in failed. Check email/password.' : 'Incorrect password. Try again.';
+}
+
+function applyLiveAdminUI() {
+  if (!liveEnabled) return;
+  const pwField = $('newBranchPwField');
+  if (pwField) pwField.style.display = 'none';
+  const ebPwField = $('ebPwField');
+  if (ebPwField) ebPwField.style.display = 'none';
+  const adminPwSection = $('adminPwSection');
+  if (adminPwSection) adminPwSection.style.display = 'none';
+}
+
+function ensureSupabaseClient() {
+  if (!isLiveConfigured()) return null;
+  if (supa) return supa;
+  supa = window.supabase.createClient(LIVE_CONFIG.SUPABASE_URL, LIVE_CONFIG.SUPABASE_ANON_KEY);
+  liveEnabled = true;
+  return supa;
+}
+
+function queueLiveSync() {
+  if (!liveEnabled || !liveReady || !supa) return;
+  clearTimeout(liveSyncTimer);
+  liveSyncTimer = setTimeout(() => { void liveSync(); }, 450);
+}
+
+async function liveSync() {
+  if (!liveEnabled || !liveReady || !supa || !currentProfile) return;
+  try {
+    const now = new Date().toISOString();
+    const isAdminRole = currentProfile.role === 'admin';
+
+    if (isAdminRole) {
+      const branchRows = branches.map(b => ({ name: b.name, updated_at: now }));
+      if (branchRows.length) await supa.from('branches').upsert(branchRows, { onConflict: 'name' });
+
+      const assetRows = assets.map(a => ({
+        id: a.id,
+        name: a.name,
+        serial: a.serial || null,
+        category: a.category || null,
+        branch_name: a.branch || null,
+        status: a.status || null,
+        location: a.location || null,
+        assigned_to: a.assignedTo || null,
+        cost: (a.cost === '' || a.cost == null) ? null : a.cost,
+        lrf:  (a.lrf  === '' || a.lrf  == null) ? null : a.lrf,
+        vendor: a.vendor || null,
+        acquired_date: a.acquiredDate || null,
+        lease_start: a.leaseStart || null,
+        lease_end: a.leaseEnd || null,
+        notes: a.notes || null,
+        created_at: a.createdAt || now,
+        updated_at: now,
+      }));
+      if (assetRows.length) await supa.from('assets').upsert(assetRows, { onConflict: 'id' });
+
+      const requestRows = requests.map(r => ({
+        id: r.id,
+        type: r.type,
+        branch_name: r.branchName,
+        asset_id: r.assetId || null,
+        asset_name: r.assetName || null,
+        description: r.description || null,
+        status: r.status,
+        admin_note: r.adminNote || null,
+        created_at: r.createdAt || now,
+        resolved_at: r.resolvedAt || null,
+      }));
+      if (requestRows.length) await supa.from('requests').upsert(requestRows, { onConflict: 'id' });
+
+      const presetRows = lrfPresets.map(p => ({ id: p.id, name: p.name, lrf: p.lrf, updated_at: now }));
+      await supa.from('lrf_presets').upsert(presetRows, { onConflict: 'id' });
+
+      await supa.from('settings').upsert([{ key: 'telematics_url', value: telematicsUrl || '' }], { onConflict: 'key' });
+    } else {
+      // Branch users only persist their own requests.
+      const mine = requests.filter(r => r.branchName === currentBranch);
+      const requestRows = mine.map(r => ({
+        id: r.id,
+        type: r.type,
+        branch_name: r.branchName,
+        asset_id: r.assetId || null,
+        asset_name: r.assetName || null,
+        description: r.description || null,
+        status: r.status,
+        admin_note: r.adminNote || null,
+        created_at: r.createdAt || now,
+        resolved_at: r.resolvedAt || null,
+      }));
+      if (requestRows.length) await supa.from('requests').upsert(requestRows, { onConflict: 'id' });
+    }
+  } catch (e) {
+    console.error(e);
+    toast('Live sync failed (check Supabase + internet).', 'warn');
+  }
+}
+
+function defaultLRFPresets() {
+  return [
+    { id: 'p1', name: 'Standard', lrf: 0.0185 },
+    { id: 'p2', name: 'Promo',    lrf: 0.0200 },
+    { id: 'p3', name: 'Special',  lrf: 0.0165 },
+  ];
+}
+
+function normalizeLRFPresets(value) {
+  const defaults = defaultLRFPresets();
+  const list = Array.isArray(value) ? value : [];
+  return defaults.map((d, i) => {
+    const src = list[i] || {};
+    const name = String(src.name ?? d.name).trim() || d.name;
+    const lrfNum = Number(src.lrf);
+    const lrf = Number.isFinite(lrfNum) ? lrfNum : d.lrf;
+    return { id: d.id, name, lrf };
+  });
+}
+
+function loadLRFPresets() {
+  try {
+    const raw = localStorage.getItem(RATES_KEY);
+    if (!raw) {
+      const defaults = defaultLRFPresets();
+      localStorage.setItem(RATES_KEY, JSON.stringify(defaults));
+      return defaults;
+    }
+    const parsed = JSON.parse(raw);
+    const normalized = normalizeLRFPresets(parsed);
+    localStorage.setItem(RATES_KEY, JSON.stringify(normalized));
+    return normalized;
+  } catch {
+    const defaults = defaultLRFPresets();
+    localStorage.setItem(RATES_KEY, JSON.stringify(defaults));
+    return defaults;
+  }
+}
+
+function saveLRFPresets(presets) {
+  lrfPresets = normalizeLRFPresets(presets);
+  localStorage.setItem(RATES_KEY, JSON.stringify(lrfPresets));
+  populateLRFPresetSelects();
+  queueLiveSync();
+}
+
+// ── First run ─────────────────────────────────────────────────────────
+if (!isLiveConfigured() && branches.length === 0) {
+  branches = [{ name: 'Main', password: 'main' }];
+  localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
+}
+
+// Migrate old assets that had no branch field: put them in pool
+assets.forEach(a => { if (a.branch === undefined) a.branch = null; });
+
+// ── Login ─────────────────────────────────────────────────────────────
+function populateLoginBranches() {
+  $('loginBranch').innerHTML = branches.map(b => `<option>${esc(b.name)}</option>`).join('');
+}
+
+async function doLogin() {
+  $('loginError').style.display = 'none';
+  if (isLiveConfigured()) return doLiveLogin();
+  return doLocalLogin();
+}
+
+function doLocalLogin() {
+  const name = $('loginBranch').value;
+  const pw   = $('loginPw').value;
+  const branch = branches.find(b => b.name === name);
+  if (branch && branch.password === pw) {
+    currentBranch = name; isAdmin = false;
+    showBranchView();
+  } else {
+    $('loginError').style.display = 'block';
+  }
+}
+
+async function doLiveLogin() {
+  ensureSupabaseClient();
+  try {
+    const email = $('loginEmail').value.trim();
+    const pw    = $('loginPw').value;
+    const { error } = await supa.auth.signInWithPassword({ email, password: pw });
+    if (error) { $('loginError').style.display = 'block'; return; }
+    await afterLiveAuth();
+  } catch (e) {
+    console.error(e);
+    $('loginError').style.display = 'block';
+  }
+}
+
+function adminLogin() {
+  if (isLiveConfigured()) return;
+  const pw = prompt('Enter admin password:');
+  if (pw === null) return;
+  if (pw === adminPw) { isAdmin = true; currentBranch = null; showAdminView(); }
+  else alert('Incorrect admin password.');
+}
+
+async function logout() {
+  currentBranch = null; isAdmin = false;
+  liveReady = false;
+  currentProfile = null;
+  if (livePollTimer) { clearInterval(livePollTimer); livePollTimer = null; }
+  if (isLiveConfigured()) {
+    ensureSupabaseClient();
+    await supa.auth.signOut();
+  }
+  show('loginScreen');
+  $('loginPw').value = '';
+  if ($('loginEmail')) $('loginEmail').value = '';
+  $('loginError').style.display = 'none';
+  populateLoginBranches();
+  applyLoginModeUI();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && $('loginScreen').classList.contains('active')) doLogin();
+});
+
+async function initApp() {
+  applyLoginModeUI();
+  if (isLiveConfigured()) {
+    ensureSupabaseClient();
+    applyLiveAdminUI();
+    try {
+      const { data } = await supa.auth.getSession();
+      if (data?.session) {
+        await afterLiveAuth();
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    show('loginScreen');
+    $('loginPw').value = '';
+    if ($('loginEmail')) $('loginEmail').value = '';
+    $('loginError').style.display = 'none';
+  } else {
+    populateLoginBranches();
+  }
+}
+
+async function afterLiveAuth() {
+  ensureSupabaseClient();
+  const { data: u } = await supa.auth.getUser();
+  const user = u?.user;
+  if (!user) return;
+
+  const profRes = await supa.from('profiles').select('role, branch_name').eq('id', user.id).maybeSingle();
+  if (profRes.error || !profRes.data) {
+    alert('No profile found for this user. Ask admin to assign role/branch in Supabase.');
+    await supa.auth.signOut();
+    return;
+  }
+
+  currentProfile = { role: profRes.data.role, branchName: profRes.data.branch_name || null };
+  isAdmin = profRes.data.role === 'admin';
+  currentBranch = isAdmin ? null : profRes.data.branch_name;
+
+  await loadLiveData();
+  liveReady = true;
+
+  if (isAdmin) showAdminView(); else showBranchView();
+
+  // Poll for updates (keeps branches up-to-date without realtime plumbing)
+  if (livePollTimer) clearInterval(livePollTimer);
+  livePollTimer = setInterval(() => { void refreshLiveData(); }, isAdmin ? 30000 : 15000);
+}
+
+async function loadLiveData() {
+  // Settings
+  const setRes = await supa.from('settings').select('key,value').eq('key', 'telematics_url').maybeSingle();
+  if (!setRes.error && setRes.data) telematicsUrl = setRes.data.value || '';
+
+  // LRF presets
+  const ratesRes = await supa.from('lrf_presets').select('id,name,lrf').order('id');
+  if (!ratesRes.error && Array.isArray(ratesRes.data) && ratesRes.data.length) {
+    lrfPresets = normalizeLRFPresets(ratesRes.data.map(r => ({ id: r.id, name: r.name, lrf: r.lrf })));
+  } else if (isAdmin) {
+    // Seed defaults once for admin.
+    const now = new Date().toISOString();
+    const defaults = defaultLRFPresets();
+    await supa.from('lrf_presets').upsert(defaults.map(p => ({ id: p.id, name: p.name, lrf: p.lrf, updated_at: now })), { onConflict: 'id' });
+    lrfPresets = defaults;
+  }
+
+  // Branches
+  const brRes = await supa.from('branches').select('name').order('name');
+  if (!brRes.error && Array.isArray(brRes.data)) {
+    branches = brRes.data.map(b => ({ name: b.name, password: '—' }));
+  }
+
+  // Assets
+  let assetQ = supa.from('assets').select('*');
+  if (!isAdmin && currentProfile?.branchName) assetQ = assetQ.eq('branch_name', currentProfile.branchName);
+  const aRes = await assetQ;
+  if (!aRes.error && Array.isArray(aRes.data)) {
+    assets = aRes.data.map(a => ({
+      id: a.id,
+      name: a.name,
+      serial: a.serial || '',
+      category: a.category || '',
+      branch: a.branch_name ?? null,
+      status: a.status || (a.branch_name ? 'On Lease' : 'Available'),
+      location: a.location || '',
+      assignedTo: a.assigned_to || '',
+      cost: a.cost ?? '',
+      lrf: a.lrf ?? '',
+      vendor: a.vendor || '',
+      acquiredDate: a.acquired_date || '',
+      leaseStart: a.lease_start || '',
+      leaseEnd: a.lease_end || '',
+      notes: a.notes || '',
+      files: [], // file storage not live yet
+      createdAt: a.created_at || '',
+      updatedAt: a.updated_at || '',
+    }));
+  }
+
+  // Requests
+  let reqQ = supa.from('requests').select('*');
+  if (!isAdmin && currentProfile?.branchName) reqQ = reqQ.eq('branch_name', currentProfile.branchName);
+  const rRes = await reqQ;
+  if (!rRes.error && Array.isArray(rRes.data)) {
+    requests = rRes.data.map(r => ({
+      id: r.id,
+      type: r.type,
+      branchName: r.branch_name,
+      assetId: r.asset_id,
+      assetName: r.asset_name,
+      description: r.description || '',
+      status: r.status,
+      adminNote: r.admin_note || '',
+      createdAt: r.created_at || '',
+      resolvedAt: r.resolved_at,
+    }));
+  }
+
+  applyLiveAdminUI();
+  populateLRFPresetSelects();
+}
+
+async function refreshLiveData() {
+  if (!liveEnabled || !liveReady || !supa) return;
+  // Don't clobber while editing modals are open.
+  const overlaysOpen = document.querySelector('.overlay.open');
+  if (isAdmin && overlaysOpen) return;
+  await loadLiveData();
+  if (isAdmin) {
+    if (adminTab === 'assets') renderAdminAssets();
+    if (adminTab === 'requests') { populateReqBranchFilter(); renderRequests(); updatePendingBadge(); }
+    if (adminTab === 'branches') { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
+  } else {
+    renderBranchAssets();
+    renderMyRequests();
+  }
+}
+
+// ── Screen routing ────────────────────────────────────────────────────
+function show(id) {
+  ['loginScreen','branchView','adminView'].forEach(s => $s(s).classList.remove('active'));
+  $s(id).classList.add('active');
+}
+function $s(id) { return $(id); }
+
+function showBranchView() {
+  show('branchView');
+  $('branchBadge').textContent = currentBranch;
+  const tBtn = $('telematicsBtn');
+  tBtn.href = telematicsUrl || '#';
+  tBtn.style.display = telematicsUrl ? '' : 'none';
+  renderBranchAssets();
+  renderMyRequests();
+}
+
+function showAdminView() {
+  show('adminView');
+  const tBtn = $('adminTelematicsBtn');
+  tBtn.href = telematicsUrl || '#';
+  tBtn.style.display = telematicsUrl ? '' : 'none';
+  setAdminTab('assets');
+}
+
+// ── Admin Tabs ────────────────────────────────────────────────────────
+function setAdminTab(tab) {
+  adminTab = tab;
+  ['assets','requests','branches'].forEach(t => {
+    $('tab-' + t).classList.toggle('active', t === tab);
+    $('panel-' + t).classList.toggle('active', t === tab);
+  });
+  if (tab === 'assets')   { populateBranchFilter(); renderAdminAssets(); }
+  if (tab === 'requests') { populateReqBranchFilter(); renderRequests(); }
+  if (tab === 'branches') {
+    renderBranchList();
+    $('telematicsUrlInput').value = telematicsUrl;
+    renderRatesUI();
+  }
+  updatePendingBadge();
+}
+
+function updatePendingBadge() {
+  const n = requests.filter(r => r.status === 'pending').length;
+  const btn = $('tab-requests');
+  const existing = btn.querySelector('.req-dot');
+  if (existing) existing.remove();
+  if (n > 0) {
+    const dot = document.createElement('span');
+    dot.className = 'req-dot';
+    dot.textContent = String(n);
+    btn.appendChild(dot);
+  }
+}
+
+// ── Formatting ────────────────────────────────────────────────────────
+function fmt$(n) {
+  if (n === '' || n == null || isNaN(n)) return '—';
+  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+function fmtPct(n) {
+  if (n === '' || n == null || isNaN(n)) return '—';
+  return (Number(n)*100).toFixed(4).replace(/\.?0+$/,'') + '%';
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  const [y,m,day] = d.split('-');
+  return `${m}/${day}/${y}`;
+}
+function monthlyPayment(cost, lrf) {
+  if (!cost || !lrf || isNaN(cost) || isNaN(lrf)) return null;
+  return Number(cost) * Number(lrf);
+}
+
+// ── Branch View ───────────────────────────────────────────────────────
+function branchAssets() {
+  return assets.filter(a => a.branch === currentBranch);
+}
+
+function renderBranchStats() {
+  const mine = branchAssets();
+  const totalMonthly = mine.reduce((s,a) => s + (monthlyPayment(a.cost,a.lrf)||0), 0);
+  const totalCost    = mine.reduce((s,a) => s + (Number(a.cost)||0), 0);
+  $('branchStats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Assets On Lease</div><div class="stat-value c-blue">${mine.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Asset Value</div><div class="stat-value c-yellow">${fmt$(totalCost)}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Monthly Lease</div><div class="stat-value c-green">${fmt$(totalMonthly)}</div></div>
+  `;
+}
+
+function renderBranchAssets() {
+  renderBranchStats();
+  const q = $('branchSearch').value.toLowerCase().trim();
+  let list = branchAssets().filter(a => {
+    if (!q) return true;
+    return [a.name,a.serial,a.category,a.location,a.assignedTo].join(' ').toLowerCase().includes(q);
+  });
+
+  const tbody = $('branchTableBody');
+  if (list.length === 0) {
+    tbody.innerHTML = '';
+    $('branchEmpty').style.display = '';
+    return;
+  }
+  $('branchEmpty').style.display = 'none';
+
+  // Check which assets have pending return/issue requests
+  const pendingReturns = new Set(requests.filter(r => r.type === 'return_asset' && r.status === 'pending').map(r => r.assetId));
+  const pendingIssues  = new Set(requests.filter(r => r.type === 'report_issue'  && r.status === 'pending').map(r => r.assetId));
+  const mp = a => { const v = monthlyPayment(a.cost,a.lrf); return v !== null ? fmt$(v) : '—'; };
+
+  tbody.innerHTML = list.map(a => {
+    const returnBtn = pendingReturns.has(a.id)
+      ? `<span class="badge badge-pending" style="font-size:.7rem">Return Pending</span>`
+      : `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('return_asset','${a.id}')">Return</button>`;
+    const issueBtn = pendingIssues.has(a.id)
+      ? `<span class="badge badge-pending" style="font-size:.7rem">Issue Reported</span>`
+      : `<button class="btn btn-warn btn-xs" onclick="openRequestModal('report_issue','${a.id}')">Report Issue</button>`;
+    return `<tr>
+      <td><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
+      <td>${esc(a.category||'—')}</td>
+      <td>${esc(a.location||'—')}</td>
+      <td><span class="badge badge-lease">On Lease</span></td>
+      <td style="color:var(--success);font-weight:600">${mp(a)}</td>
+      <td>${fmtDate(a.leaseEnd)}</td>
+      <td><div class="actions">${returnBtn}${issueBtn}${(a.files&&a.files.length)?`<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files (${a.files.length})</button>`:''}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderMyRequests() {
+  const mine = requests.filter(r => r.branchName === currentBranch)
+    .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const el = $('myRequests');
+  if (mine.length === 0) {
+    el.innerHTML = `<div class="empty" style="padding:30px"><p style="color:var(--text-muted)">No requests submitted yet.</p></div>`;
+    return;
+  }
+  el.innerHTML = mine.map(r => reqCardHTML(r, false)).join('');
+}
+
+// ── Request Modal (branch) ────────────────────────────────────────────
+const reqTypeLabels = {
+  request_asset: ['📋', 'Request an Asset', 'Describe what type of asset or equipment you need:'],
+  return_asset:  ['↩️', 'Return Asset',     'Reason for returning (optional):'],
+  report_issue:  ['⚠️', 'Report Issue',     'Describe the issue with this asset:'],
+};
+
+function openRequestModal(type, assetId) {
+  requestingType    = type;
+  requestingAssetId = assetId;
+  const [, title, descLabel] = reqTypeLabels[type];
+  $('requestModalTitle').textContent = title;
+  $('requestDescLabel').textContent  = descLabel;
+  const a = assetId ? assets.find(x => x.id === assetId) : null;
+  $('requestAssetContext').textContent = a ? `Asset: ${a.name}${a.serial?' ('+a.serial+')':''}` : '';
+  $('requestDesc').value = '';
+  $('requestOverlay').classList.add('open');
+}
+function closeRequestModal() { $('requestOverlay').classList.remove('open'); }
+
+function submitRequest() {
+  const desc = $('requestDesc').value.trim();
+  if (requestingType !== 'return_asset' && !desc) {
+    toast('Please describe your request.', 'warn'); return;
+  }
+  const a = requestingAssetId ? assets.find(x => x.id === requestingAssetId) : null;
+  requests.push({
+    id: uid(),
+    type: requestingType,
+    branchName: currentBranch,
+    assetId:   requestingAssetId || null,
+    assetName: a ? a.name : null,
+    description: desc,
+    status: 'pending',
+    adminNote: '',
+    createdAt: new Date().toISOString(),
+    resolvedAt: null,
+  });
+  saveAll();
+  closeRequestModal();
+  renderBranchAssets();
+  renderMyRequests();
+  toast('Request submitted.', 'success');
+}
+
+// ── Requests render ───────────────────────────────────────────────────
+function reqCardHTML(r, adminMode) {
+  const [icon, label] = reqTypeLabels[r.type] || ['📄','Request'];
+  const statusBadge = `<span class="badge badge-${r.status}">${r.status}</span>`;
+  const dateStr = new Date(r.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  let adminActions = '';
+  if (adminMode && r.status === 'pending') {
+    if (r.type === 'request_asset') {
+      adminActions = `<button class="btn btn-success btn-xs" onclick="openApproveAsset('${r.id}')">Approve</button>
+                      <button class="btn btn-danger btn-xs"  onclick="denyRequest('${r.id}')">Deny</button>`;
+    } else {
+      adminActions = `<button class="btn btn-success btn-xs" onclick="openSimpleApprove('${r.id}')">Approve</button>
+                      <button class="btn btn-danger btn-xs"  onclick="denyRequest('${r.id}')">Deny</button>`;
+    }
+  }
+  const assetLine = r.assetName ? `<span> · ${esc(r.assetName)}</span>` : '';
+  const branchLine = adminMode ? `<span> · ${esc(r.branchName)}</span>` : '';
+  const noteLine = r.adminNote ? `<div class="req-admin-note">Admin: ${esc(r.adminNote)}</div>` : '';
+
+  return `<div class="req-card">
+    <div class="req-type-icon">${icon}</div>
+    <div class="req-body">
+      <div class="req-title">${label}</div>
+      <div class="req-meta">${dateStr}${branchLine}${assetLine} ${statusBadge}</div>
+      ${r.description ? `<div class="req-desc">${esc(r.description)}</div>` : ''}
+      ${noteLine}
+    </div>
+    <div class="req-actions">${adminActions}</div>
+  </div>`;
+}
+
+function populateReqBranchFilter() {
+  $('reqBranchFilter').innerHTML = '<option value="">All Branches</option>' +
+    branches.map(b => `<option>${esc(b.name)}</option>`).join('');
+}
+
+function renderRequests() {
+  const fStatus = $('reqFilter').value;
+  const fBranch = $('reqBranchFilter').value;
+  let list = requests
+    .filter(r => (!fStatus || r.status === fStatus) && (!fBranch || r.branchName === fBranch))
+    .sort((a,b) => {
+      if (a.status === 'pending' && b.status !== 'pending') return -1;
+      if (b.status === 'pending' && a.status !== 'pending') return 1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+  const el = $('adminRequests');
+  el.innerHTML = list.length
+    ? list.map(r => reqCardHTML(r, true)).join('')
+    : `<div class="empty" style="padding:30px"><p style="color:var(--text-muted)">No requests found.</p></div>`;
+}
+
+// ── Approve: request_asset ─────────────────────────────────────────────
+function openApproveAsset(reqId) {
+  approvingRequestId = reqId;
+  const req = requests.find(r => r.id === reqId);
+  const pool = assets.filter(a => !a.branch);
+  $('approveReqMeta').textContent = `Branch: ${req.branchName}`;
+  $('approveReqDesc').textContent = req.description || '(no description)';
+  $('approveAssetSelect').innerHTML = pool.length
+    ? pool.map(a => `<option value="${a.id}">${esc(a.name)}${a.serial?' — '+a.serial:''}${a.category?' ['+a.category+']':''}</option>`).join('')
+    : '<option disabled>No assets in pool</option>';
+  $('approveAdminNote').value = '';
+  $('approveAssetOverlay').classList.add('open');
+}
+function closeApproveAsset() { $('approveAssetOverlay').classList.remove('open'); }
+
+function confirmApproveAsset() {
+  const sel = $('approveAssetSelect');
+  if (!sel.value || sel.disabled) { toast('No pool assets available.','warn'); return; }
+  const assetId = sel.value;
+  const req = requests.find(r => r.id === approvingRequestId);
+  // Assign asset to branch
+  const asset = assets.find(a => a.id === assetId);
+  asset.branch    = req.branchName;
+  asset.status    = 'On Lease';
+  asset.updatedAt = new Date().toISOString();
+  // Resolve request
+  req.status      = 'approved';
+  req.adminNote   = $('approveAdminNote').value.trim();
+  req.assetId     = assetId;
+  req.assetName   = asset.name;
+  req.resolvedAt  = new Date().toISOString();
+  saveAll();
+  closeApproveAsset();
+  renderRequests();
+  updatePendingBadge();
+  toast(`${asset.name} assigned to ${req.branchName}.`, 'success');
+}
+
+// ── Approve: return / report_issue ────────────────────────────────────
+function openSimpleApprove(reqId) {
+  approvingRequestId = reqId;
+  const req = requests.find(r => r.id === reqId);
+  const [,label] = reqTypeLabels[req.type];
+  $('simpleApproveTitle').textContent = `Approve — ${label}`;
+  $('simpleApproveMeta').textContent  = `Branch: ${req.branchName}${req.assetName?' · '+req.assetName:''}`;
+  $('simpleApproveDesc').textContent  = req.description || '(no description)';
+  $('simpleAdminNote').value = '';
+  $('simpleApproveOverlay').classList.add('open');
+}
+function closeSimpleApprove() { $('simpleApproveOverlay').classList.remove('open'); }
+
+function approveSimple() {
+  const req = requests.find(r => r.id === approvingRequestId);
+  req.status     = 'approved';
+  req.adminNote  = $('simpleAdminNote').value.trim();
+  req.resolvedAt = new Date().toISOString();
+  if (req.type === 'return_asset' && req.assetId) {
+    const asset = assets.find(a => a.id === req.assetId);
+    if (asset) { asset.branch = null; asset.status = 'Available'; asset.updatedAt = new Date().toISOString(); }
+  }
+  saveAll();
+  closeSimpleApprove();
+  renderRequests();
+  updatePendingBadge();
+  toast('Request approved.', 'success');
+}
+
+function denyRequest(reqId) {
+  const req = requests.find(r => r.id === reqId);
+  if (!req) return;
+  const note = prompt('Optional: Enter a reason for denying this request:');
+  if (note === null) return; // cancelled
+  req.status     = 'denied';
+  req.adminNote  = note;
+  req.resolvedAt = new Date().toISOString();
+  saveAll();
+  renderRequests();
+  updatePendingBadge();
+  toast('Request denied.', 'danger');
+}
+
+// ── Admin Assets ──────────────────────────────────────────────────────
+function populateBranchFilter() {
+  const sel = $('adminBranchFilter');
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">All Branches</option>
+    <option value="__pool__">— Asset Pool (unassigned)</option>` +
+    branches.map(b => `<option value="${escAttr(b.name)}"${b.name===cur?' selected':''}>${esc(b.name)}</option>`).join('');
+}
+
+function refreshAdminCatFilter() {
+  const cats = [...new Set(assets.map(a=>a.category).filter(Boolean))].sort();
+  const sel = $('adminCatFilter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All Categories</option>' +
+    cats.map(c => `<option${c===cur?' selected':''}>${esc(c)}</option>`).join('');
+  $('catList').innerHTML = cats.map(c=>`<option value="${esc(c)}">`).join('');
+}
+
+function setSort(key) {
+  if (sortKey === key) sortAsc = !sortAsc; else { sortKey = key; sortAsc = true; }
+  renderAdminAssets();
+}
+
+function sortedAssets(list) {
+  return [...list].sort((a,b) => {
+    let va = a[sortKey]??'', vb = b[sortKey]??'';
+    if (['cost','lrf'].includes(sortKey)) return sortAsc?(Number(va)||0)-(Number(vb)||0):(Number(vb)||0)-(Number(va)||0);
+    va=String(va).toLowerCase(); vb=String(vb).toLowerCase();
+    return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
+  });
+}
+
+function renderAdminAssets() {
+  refreshAdminCatFilter();
+  const q       = $('adminSearch').value.toLowerCase().trim();
+  const fBranch = $('adminBranchFilter').value;
+  const fCat    = $('adminCatFilter').value;
+
+  let list = assets.filter(a => {
+    if (fBranch === '__pool__' && a.branch !== null) return false;
+    if (fBranch && fBranch !== '__pool__' && a.branch !== fBranch) return false;
+    if (fCat && a.category !== fCat) return false;
+    if (q) return [a.name,a.serial,a.category,a.location,a.vendor,a.assignedTo].join(' ').toLowerCase().includes(q);
+    return true;
+  });
+  list = sortedAssets(list);
+
+  // Admin stats
+  const allTotal   = assets.length;
+  const poolCount  = assets.filter(a=>!a.branch).length;
+  const leaseCount = assets.filter(a=>a.branch).length;
+  const totalMonthly = assets.filter(a=>a.branch).reduce((s,a)=>s+(monthlyPayment(a.cost,a.lrf)||0),0);
+
+  // Show stats above table
+  let statsEl = $('adminStats');
+  if (!statsEl) {
+    statsEl = document.createElement('div');
+    statsEl.id = 'adminStats';
+    statsEl.className = 'stats';
+    statsEl.style.marginBottom = '16px';
+    $('panel-assets').prepend(statsEl);
+  }
+  statsEl.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Total Assets</div><div class="stat-value c-blue">${allTotal}</div></div>
+    <div class="stat-card"><div class="stat-label">On Lease (Branches)</div><div class="stat-value c-green">${leaseCount}</div></div>
+    <div class="stat-card"><div class="stat-label">In Pool</div><div class="stat-value" style="color:var(--text-muted)">${poolCount}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Monthly Lease</div><div class="stat-value c-yellow">${fmt$(totalMonthly)}</div></div>
+  `;
+
+  const tbody = $('adminTableBody');
+  lastFilteredIds = list.map(a => a.id);
+  if (list.length === 0) {
+    tbody.innerHTML = '';
+    $('adminEmpty').style.display = '';
+    const scb = $('selectAllCb'); if (scb) { scb.checked = false; scb.indeterminate = false; }
+    return;
+  }
+  $('adminEmpty').style.display = 'none';
+
+  tbody.innerHTML = list.map(a => {
+    const branchCell = a.branch
+      ? `<span class="badge badge-lease" style="font-size:.75rem">${esc(a.branch)}</span>`
+      : `<span class="badge badge-pool" style="font-size:.75rem">Pool</span>`;
+    const mp = monthlyPayment(a.cost, a.lrf);
+    const checked = selectedAssets.has(a.id) ? 'checked' : '';
+    return `<tr>
+      <td><input type="checkbox" class="asset-cb" data-id="${a.id}" onchange="toggleAssetSelect('${a.id}',this.checked)" ${checked}></td>
+      <td><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
+      <td>${esc(a.category||'—')}</td>
+      <td>${branchCell}</td>
+      <td>${fmt$(a.cost)}</td>
+      <td>${fmtPct(a.lrf)}</td>
+      <td>${mp!==null?fmt$(mp):'—'}</td>
+      <td>${esc(a.location||'—')}</td>
+      <td><div class="actions">
+        <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${a.id}')">Edit</button>
+        <button class="btn btn-primary btn-xs" onclick="openReassign('${a.id}')">Reassign</button>
+        <button class="btn btn-ghost btn-xs" onclick="openFilesModal('${a.id}')">📎${(a.files&&a.files.length)?` (${a.files.length})`:''}</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteAsset('${a.id}')">Del</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+
+  // Sync select-all checkbox
+  const scb = $('selectAllCb');
+  if (scb) {
+    const allSel = lastFilteredIds.length > 0 && lastFilteredIds.every(id => selectedAssets.has(id));
+    const someSel = lastFilteredIds.some(id => selectedAssets.has(id));
+    scb.checked = allSel;
+    scb.indeterminate = !allSel && someSel;
+  }
+}
+
+// ── Asset Form Modal ──────────────────────────────────────────────────
+function openAssetModal(id) {
+  editingAssetId = id || null;
+  $('assetModalTitle').textContent = id ? 'Edit Asset' : 'Add Asset';
+  const a = id ? assets.find(x=>x.id===id) : {};
+  ['name','serial','category','location','assignedTo','vendor','acquiredDate','leaseStart','leaseEnd','notes'].forEach(f => {
+    const el = $('f-'+f); if (el) el.value = a?.[f]??'';
+  });
+  $('f-cost').value = a?.cost??'';
+  $('f-lrf').value  = a?.lrf??'';
+  populateLRFPresetSelects();
+  const presetSel = $('f-lrfPreset');
+  if (presetSel) presetSel.value = presetIdForLRF(a?.lrf);
+  // Populate branch dropdown
+  $('f-branch').innerHTML = `<option value="">— Asset Pool (unassigned) —</option>` +
+    branches.map(b => `<option value="${escAttr(b.name)}"${(a?.branch===b.name)?' selected':''}>${esc(b.name)}</option>`).join('');
+  if (a?.branch) $('f-branch').value = a.branch;
+  updateLRFPreview();
+  $('assetFormOverlay').classList.add('open');
+}
+function closeAssetModal() { $('assetFormOverlay').classList.remove('open'); editingAssetId = null; }
+
+function updateLRFPreview() {
+  const cost = parseFloat($('f-cost').value);
+  const lrf  = parseFloat($('f-lrf').value);
+  const mp   = monthlyPayment(cost, lrf);
+  $('lrfPreview').textContent = mp !== null ? `Monthly lease: ${fmt$(mp)}` : '';
+}
+
+function presetIdForLRF(lrf) {
+  const n = Number(lrf);
+  if (!Number.isFinite(n)) return '';
+  const match = lrfPresets.find(p => Math.abs(Number(p.lrf) - n) < 1e-10);
+  return match ? match.id : '';
+}
+
+function populateLRFPresetSelects() {
+  const assetSel = $('f-lrfPreset');
+  if (assetSel) {
+    assetSel.innerHTML = `<option value="">— Select preset —</option>` +
+      lrfPresets.map(p => `<option value="${escAttr(p.id)}">${esc(p.name)} — ${fmtPct(p.lrf)}</option>`).join('');
+  }
+  const bulkSel = $('bulkLRFSelect');
+  if (bulkSel) {
+    bulkSel.innerHTML = `<option value="">— Select preset —</option>` +
+      lrfPresets.map(p => `<option value="${escAttr(p.id)}">${esc(p.name)} — ${fmtPct(p.lrf)}</option>`).join('');
+  }
+}
+
+function applyPresetToAssetForm(presetId) {
+  if (!presetId) return;
+  const preset = lrfPresets.find(p => p.id === presetId);
+  if (!preset) return;
+  $('f-lrf').value = preset.lrf;
+  updateLRFPreview();
+}
+
+function saveAsset() {
+  const name = $('f-name').value.trim();
+  if (!name) { toast('Asset name is required.','warn'); return; }
+  const branchVal = $('f-branch').value || null;
+  const a = {
+    id:          editingAssetId || uid(),
+    name,
+    serial:      $('f-serial').value.trim(),
+    category:    $('f-category').value.trim(),
+    branch:      branchVal,
+    status:      branchVal ? 'On Lease' : 'Available',
+    location:    $('f-location').value.trim(),
+    assignedTo:  $('f-assignedTo').value.trim(),
+    cost:        $('f-cost').value !== '' ? parseFloat($('f-cost').value) : '',
+    lrf:         $('f-lrf').value  !== '' ? parseFloat($('f-lrf').value)  : '',
+    vendor:      $('f-vendor').value.trim(),
+    acquiredDate:$('f-acquiredDate').value,
+    leaseStart:  $('f-leaseStart').value,
+    leaseEnd:    $('f-leaseEnd').value,
+    notes:       $('f-notes').value.trim(),
+    files:       editingAssetId ? (assets.find(x=>x.id===editingAssetId)?.files || []) : [],
+    updatedAt:   new Date().toISOString(),
+  };
+  if (editingAssetId) {
+    const i = assets.findIndex(x=>x.id===editingAssetId);
+    a.createdAt = assets[i].createdAt;
+    assets[i] = a;
+  } else {
+    a.createdAt = new Date().toISOString();
+    assets.push(a);
+  }
+  saveAll();
+  closeAssetModal();
+  renderAdminAssets();
+  toast(editingAssetId ? 'Asset updated.' : 'Asset added.', 'success');
+}
+
+function deleteAsset(id) {
+  if (!confirm('Delete this asset permanently? This cannot be undone.')) return;
+  assets = assets.filter(a=>a.id!==id);
+  saveAll();
+  renderAdminAssets();
+  toast('Asset deleted.','danger');
+}
+
+// ── Reassign Modal ────────────────────────────────────────────────────
+function openReassign(id) {
+  reassigningAssetId = id;
+  const a = assets.find(x=>x.id===id);
+  $('reassignAssetName').textContent = `"${a.name}"${a.serial?' ('+a.serial+')':''}`;
+  $('reassignTarget').innerHTML = `<option value="">— Asset Pool (unassigned) —</option>` +
+    branches.map(b => `<option value="${escAttr(b.name)}"${a.branch===b.name?' selected':''}>${esc(b.name)}</option>`).join('');
+  $('reassignOverlay').classList.add('open');
+}
+function closeReassign() { $('reassignOverlay').classList.remove('open'); reassigningAssetId = null; }
+
+function confirmReassign() {
+  const target = $('reassignTarget').value || null;
+  const a = assets.find(x=>x.id===reassigningAssetId);
+  const from = a.branch;
+  a.branch    = target;
+  a.status    = target ? 'On Lease' : 'Available';
+  a.updatedAt = new Date().toISOString();
+  saveAll();
+  closeReassign();
+  renderAdminAssets();
+  const msg = target ? `Moved to ${target}.` : 'Returned to asset pool.';
+  toast(msg, 'success');
+}
+
+// ── Branch Admin (Branches tab) ───────────────────────────────────────
+function renderBranchList() {
+  const counts = {};
+  assets.forEach(a => { if (a.branch) counts[a.branch] = (counts[a.branch]||0)+1; });
+  $('branchList').innerHTML = branches.length
+    ? branches.map(b => `
+        <div class="branch-row">
+          <div class="bname">${esc(b.name)}</div>
+          ${liveEnabled ? '' : `<div class="bpw">Password: ${esc(b.password)}</div>`}
+          <div style="color:var(--text-muted);font-size:.8rem">${counts[b.name]||0} assets on lease</div>
+          <button class="btn btn-ghost btn-xs" data-action="edit-branch" data-branch="${escAttr(b.name)}">Edit</button>
+          <button class="btn btn-danger btn-xs" data-action="remove-branch" data-branch="${escAttr(b.name)}">Remove</button>
+        </div>`).join('')
+    : '<p style="color:var(--text-muted)">No branches yet.</p>';
+}
+
+function addBranch() {
+  const name = $('newBranchName').value.trim();
+  const pw   = liveEnabled ? '—' : $('newBranchPw').value.trim();
+  if (!name || (!liveEnabled && !pw)) { toast('Name and password required.','warn'); return; }
+  if (branches.some(b=>b.name.toLowerCase()===name.toLowerCase())) { toast('Branch already exists.','danger'); return; }
+  branches.push({ name, password: pw });
+  saveAll();
+  $('newBranchName').value = '';
+  if (!liveEnabled) $('newBranchPw').value = '';
+  renderBranchList();
+  populateBranchFilter();
+  toast('Branch added.','success');
+}
+
+function removeBranch(name) {
+  const count = assets.filter(a=>a.branch===name).length;
+  if (!confirm(`Remove branch "${name}"?${count>0?` ${count} asset(s) will be moved to the pool.`:''}`)) return;
+  assets.filter(a=>a.branch===name).forEach(a=>{ a.branch=null; a.status='Available'; });
+  branches = branches.filter(b=>b.name!==name);
+  // Cancel pending requests for this branch
+  requests.filter(r=>r.branchName===name && r.status==='pending').forEach(r=>{ r.status='denied'; r.adminNote='Branch removed.'; });
+  saveAll();
+  renderBranchList();
+  toast('Branch removed.','danger');
+}
+
+function saveTelematicsUrl() {
+  telematicsUrl = $('telematicsUrlInput').value.trim();
+  localStorage.setItem(TELEM_KEY, telematicsUrl);
+  queueLiveSync();
+}
+
+function changeAdminPw() {
+  const pw = $('newAdminPw').value.trim();
+  if (!pw) { toast('Password cannot be empty.','warn'); return; }
+  adminPw = pw;
+  localStorage.setItem(ADMIN_KEY, adminPw);
+  $('newAdminPw').value = '';
+  toast('Admin password updated.','success');
+}
+
+// ── LRF Presets ───────────────────────────────────────────────────────
+function renderRatesUI() {
+  if (!$('rateName1')) return;
+  const list = normalizeLRFPresets(lrfPresets);
+  $('rateName1').value = list[0].name;
+  $('rateVal1').value  = list[0].lrf;
+  $('rateName2').value = list[1].name;
+  $('rateVal2').value  = list[1].lrf;
+  $('rateName3').value = list[2].name;
+  $('rateVal3').value  = list[2].lrf;
+  populateLRFPresetSelects();
+}
+
+function saveRatesFromUI() {
+  const rows = [
+    { id: 'p1', name: $('rateName1').value.trim(), lrf: Number($('rateVal1').value) },
+    { id: 'p2', name: $('rateName2').value.trim(), lrf: Number($('rateVal2').value) },
+    { id: 'p3', name: $('rateName3').value.trim(), lrf: Number($('rateVal3').value) },
+  ];
+  for (const r of rows) {
+    if (!r.name) { toast('Preset names cannot be empty.', 'warn'); return; }
+    if (!Number.isFinite(r.lrf) || r.lrf <= 0 || r.lrf >= 1) { toast('Each preset LRF must be a number between 0 and 1.', 'warn'); return; }
+  }
+  saveLRFPresets(rows);
+  toast('LRF presets saved.', 'success');
+}
+
+// ── Export CSV ────────────────────────────────────────────────────────
+function exportCSV() {
+  const headers = ['Asset Name','Serial','Category','Branch','Status','Location','Assigned To','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
+  const rows = [headers, ...assets.map(a => {
+    const mp = monthlyPayment(a.cost, a.lrf);
+    return [a.name,a.serial,a.category,a.branch||'Pool',a.status,a.location,a.assignedTo,a.cost,a.lrf,mp!=null?mp.toFixed(2):'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.notes]
+      .map(v=>`"${String(v??'').replace(/"/g,'""')}"`);
+  })];
+  const blob = new Blob([rows.map(r=>r.join(',')).join('\r\n')],{type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const lnk  = document.createElement('a');
+  lnk.href = url; lnk.download = `assets-${new Date().toISOString().slice(0,10)}.csv`;
+  lnk.click(); URL.revokeObjectURL(url);
+  toast('CSV exported.','success');
+}
+
+// ── Edit Branch ───────────────────────────────────────────────────────
+let editingBranchName = null;
+
+function openEditBranch(name) {
+  const b = branches.find(x => x.name === name);
+  if (!b) return;
+  editingBranchName = name;
+  $('eb-name').value = b.name;
+  $('eb-pw').value   = b.password;
+  $('editBranchOverlay').classList.add('open');
+}
+function closeEditBranch() { $('editBranchOverlay').classList.remove('open'); editingBranchName = null; }
+
+function saveEditBranch() {
+  const newName = $('eb-name').value.trim();
+  const newPw   = liveEnabled ? null : $('eb-pw').value.trim();
+  if (!newName || (!liveEnabled && !newPw)) { toast('Name and password are required.', 'warn'); return; }
+  if (newName !== editingBranchName && branches.some(b => b.name.toLowerCase() === newName.toLowerCase())) {
+    toast('A branch with that name already exists.', 'danger'); return;
+  }
+  const b = branches.find(x => x.name === editingBranchName);
+  const oldName = b.name;
+  b.name     = newName;
+  if (!liveEnabled) b.password = newPw;
+  if (newName !== oldName) {
+    assets.filter(a => a.branch === oldName).forEach(a => { a.branch = newName; });
+    requests.filter(r => r.branchName === oldName).forEach(r => { r.branchName = newName; });
+  }
+  saveAll();
+  closeEditBranch();
+  renderBranchList();
+  populateBranchFilter();
+  toast('Branch updated.', 'success');
+}
+
+// ── Import CSV ────────────────────────────────────────────────────────
+function importCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) { toast('CSV has no data rows.', 'warn'); input.value = ''; return; }
+    let added = 0, skipped = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCSVRow(lines[i]);
+      const name = (cols[0] || '').trim();
+      if (!name) { skipped++; continue; }
+      const branchRaw = (cols[3] || '').trim();
+      const branchVal = (!branchRaw || branchRaw.toLowerCase() === 'pool') ? null
+        : (branches.find(b => b.name.toLowerCase() === branchRaw.toLowerCase())?.name || null);
+      const cost = parseFloat(cols[7]);
+      const lrf  = parseFloat(cols[8]);
+      assets.push({
+        id:          uid(),
+        name,
+        serial:      (cols[1]  || '').trim(),
+        category:    (cols[2]  || '').trim(),
+        branch:      branchVal,
+        status:      branchVal ? 'On Lease' : 'Available',
+        location:    (cols[5]  || '').trim(),
+        assignedTo:  (cols[6]  || '').trim(),
+        cost:        isNaN(cost) ? '' : cost,
+        lrf:         isNaN(lrf)  ? '' : lrf,
+        vendor:      (cols[10] || '').trim(),
+        acquiredDate:(cols[11] || '').trim(),
+        leaseStart:  (cols[12] || '').trim(),
+        leaseEnd:    (cols[13] || '').trim(),
+        notes:       (cols[14] || '').trim(),
+        files:       [],
+        createdAt:   new Date().toISOString(),
+        updatedAt:   new Date().toISOString(),
+      });
+      added++;
+    }
+    saveAll();
+    input.value = '';
+    renderAdminAssets();
+    toast(`Imported ${added} asset(s).${skipped ? ' ' + skipped + ' row(s) skipped.' : ''}`, 'success');
+  };
+  reader.readAsText(file);
+}
+
+function parseCSVRow(row) {
+  const cols = [];
+  let cur = '', inQuote = false;
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (ch === '"') {
+      if (inQuote && row[i + 1] === '"') { cur += '"'; i++; }
+      else inQuote = !inQuote;
+    } else if (ch === ',' && !inQuote) {
+      cols.push(cur); cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  cols.push(cur);
+  return cols;
+}
+
+// ── Asset Files ───────────────────────────────────────────────────────
+let filesAssetId = null;
+
+function openFilesModal(assetId) {
+  filesAssetId = assetId;
+  const a = assets.find(x => x.id === assetId);
+  $('filesModalTitle').textContent = `Files — ${a.name}`;
+  $('fileUploadInput').value = '';
+  renderAdminFiles();
+  $('filesOverlay').classList.add('open');
+}
+function closeFilesModal() {
+  $('filesOverlay').classList.remove('open');
+  filesAssetId = null;
+  renderAdminAssets();
+}
+
+function renderAdminFiles() {
+  const a = assets.find(x => x.id === filesAssetId);
+  if (!a) return;
+  const files = a.files || [];
+  const el = $('adminFileList');
+  if (files.length === 0) {
+    el.innerHTML = '<span class="file-empty">No files attached yet.</span>';
+    return;
+  }
+  el.innerHTML = files.map((f, i) => `
+    <div class="file-chip">
+      <a href="${f.data}" download="${escAttr(f.name)}" title="${escAttr(f.name)}">${esc(f.name)}</a>
+      <button class="file-remove" onclick="removeFile(${i})" title="Remove">×</button>
+    </div>`).join('');
+}
+
+function handleFileUpload(e) {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+  const a = assets.find(x => x.id === filesAssetId);
+  if (!a) return;
+  if (!a.files) a.files = [];
+  let loaded = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      a.files.push({ id: uid(), name: file.name, type: file.type, data: ev.target.result, uploadedAt: new Date().toISOString() });
+      loaded++;
+      if (loaded === files.length) { saveAll(); renderAdminFiles(); }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function removeFile(index) {
+  if (!confirm('Remove this file?')) return;
+  const a = assets.find(x => x.id === filesAssetId);
+  if (!a || !a.files) return;
+  a.files.splice(index, 1);
+  saveAll();
+  renderAdminFiles();
+}
+
+function openBranchFiles(assetId) {
+  const a = assets.find(x => x.id === assetId);
+  if (!a) return;
+  $('branchFilesTitle').textContent = `Files — ${a.name}`;
+  const files = a.files || [];
+  const el = $('branchFileList');
+  const empty = $('branchFilesEmpty');
+  if (files.length === 0) {
+    el.innerHTML = '';
+    empty.style.display = '';
+  } else {
+    empty.style.display = 'none';
+    el.innerHTML = files.map(f => `
+      <div class="file-chip">
+        <a href="${f.data}" download="${escAttr(f.name)}" title="${escAttr(f.name)}">${esc(f.name)}</a>
+      </div>`).join('');
+  }
+  $('branchFilesOverlay').classList.add('open');
+}
+function closeBranchFiles() { $('branchFilesOverlay').classList.remove('open'); }
+
+// Branch list actions (delegated; avoids inline JS injection)
+const branchListEl = $('branchList');
+if (branchListEl) {
+  branchListEl.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-action][data-branch]');
+    if (!btn) return;
+    const name = btn.dataset.branch;
+    const action = btn.dataset.action;
+    if (action === 'edit-branch') openEditBranch(name);
+    if (action === 'remove-branch') removeBranch(name);
+  });
+}
+
+// ── Bulk selection ────────────────────────────────────────────────────
+function toggleSelectAll(checked) {
+  lastFilteredIds.forEach(id => checked ? selectedAssets.add(id) : selectedAssets.delete(id));
+  document.querySelectorAll('input.asset-cb').forEach(cb => { cb.checked = checked; });
+  updateBulkBar();
+}
+
+function toggleAssetSelect(id, checked) {
+  if (checked) selectedAssets.add(id); else selectedAssets.delete(id);
+  updateBulkBar();
+  const scb = $('selectAllCb');
+  if (scb) {
+    const allSel = lastFilteredIds.length > 0 && lastFilteredIds.every(i => selectedAssets.has(i));
+    const someSel = lastFilteredIds.some(i => selectedAssets.has(i));
+    scb.checked = allSel;
+    scb.indeterminate = !allSel && someSel;
+  }
+}
+
+function updateBulkBar() {
+  const n = selectedAssets.size;
+  $('bulkBar').classList.toggle('visible', n > 0);
+  $('bulkCount').textContent = `${n} asset${n !== 1 ? 's' : ''} selected`;
+}
+
+function clearSelection() {
+  selectedAssets.clear();
+  updateBulkBar();
+  renderAdminAssets();
+}
+
+function openBulkReassign() {
+  if (!selectedAssets.size) return;
+  $('bulkReassignCount').textContent = `${selectedAssets.size} asset(s) will be moved.`;
+  $('bulkReassignTarget').innerHTML = `<option value="">— Asset Pool (unassigned) —</option>` +
+    branches.map(b => `<option value="${escAttr(b.name)}">${esc(b.name)}</option>`).join('');
+  $('bulkReassignOverlay').classList.add('open');
+}
+function closeBulkReassign() { $('bulkReassignOverlay').classList.remove('open'); }
+
+function confirmBulkReassign() {
+  const target = $('bulkReassignTarget').value || null;
+  const n = selectedAssets.size;
+  selectedAssets.forEach(id => {
+    const a = assets.find(x => x.id === id);
+    if (a) { a.branch = target; a.status = target ? 'On Lease' : 'Available'; a.updatedAt = new Date().toISOString(); }
+  });
+  saveAll();
+  closeBulkReassign();
+  toast(`${n} asset(s) ${target ? 'moved to ' + target : 'returned to pool'}.`, 'success');
+  selectedAssets.clear();
+  updateBulkBar();
+  renderAdminAssets();
+}
+
+function openBulkCategory() {
+  if (!selectedAssets.size) return;
+  $('bulkCategoryCount').textContent = `${selectedAssets.size} asset(s) will be updated.`;
+  $('bulkCategoryValue').value = '';
+  $('bulkCategoryOverlay').classList.add('open');
+}
+function closeBulkCategory() { $('bulkCategoryOverlay').classList.remove('open'); }
+
+function confirmBulkCategory() {
+  const cat = $('bulkCategoryValue').value.trim();
+  const n = selectedAssets.size;
+  selectedAssets.forEach(id => {
+    const a = assets.find(x => x.id === id);
+    if (a) { a.category = cat; a.updatedAt = new Date().toISOString(); }
+  });
+  saveAll();
+  closeBulkCategory();
+  toast(`Category updated for ${n} asset(s).`, 'success');
+  selectedAssets.clear();
+  updateBulkBar();
+  renderAdminAssets();
+}
+
+function openBulkLRF() {
+  if (!selectedAssets.size) return;
+  $('bulkLRFCount').textContent = `${selectedAssets.size} asset(s) will be updated.`;
+  populateLRFPresetSelects();
+  $('bulkLRFSelect').value = '';
+  $('bulkLRFCustom').value = '';
+  $('bulkLRFOverlay').classList.add('open');
+}
+function closeBulkLRF() { $('bulkLRFOverlay').classList.remove('open'); }
+
+function onBulkLRFSelectChange(_presetId) {
+  // Leave custom field untouched; custom overrides preset if provided.
+}
+
+function confirmBulkLRF() {
+  const customRaw = $('bulkLRFCustom').value;
+  const presetId  = $('bulkLRFSelect').value;
+  const hasCustom = customRaw !== '';
+
+  let lrf = null;
+  if (hasCustom) {
+    const n = Number(customRaw);
+    if (!Number.isFinite(n) || n <= 0 || n >= 1) { toast('Custom LRF must be a number between 0 and 1.', 'warn'); return; }
+    lrf = n;
+  } else {
+    if (!presetId) { toast('Select a preset or enter a custom LRF.', 'warn'); return; }
+    const preset = lrfPresets.find(p => p.id === presetId);
+    if (!preset) { toast('Invalid preset selected.', 'warn'); return; }
+    lrf = Number(preset.lrf);
+  }
+
+  const n = selectedAssets.size;
+  selectedAssets.forEach(id => {
+    const a = assets.find(x => x.id === id);
+    if (a) { a.lrf = lrf; a.updatedAt = new Date().toISOString(); }
+  });
+  saveAll();
+  closeBulkLRF();
+  toast(`LRF updated for ${n} asset(s).`, 'success');
+  selectedAssets.clear();
+  updateBulkBar();
+  renderAdminAssets();
+}
+
+function bulkDelete() {
+  if (!selectedAssets.size) return;
+  const n = selectedAssets.size;
+  if (!confirm(`Delete ${n} selected asset(s)? This cannot be undone.`)) return;
+  assets = assets.filter(a => !selectedAssets.has(a.id));
+  saveAll();
+  toast(`${n} asset(s) deleted.`, 'danger');
+  selectedAssets.clear();
+  updateBulkBar();
+  renderAdminAssets();
+}
+
+// ── Sample CSV ────────────────────────────────────────────────────────
+function downloadSampleCSV() {
+  const headers = ['Asset Name','Serial','Category','Branch','Status','Location','Assigned To','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
+  const rows = [
+    ['Forklift #1','SN-10001','Heavy Equipment','Dallas','On Lease','Warehouse A','John Smith','45000','0.0185','','Toyota Industries','2023-01-15','2023-02-01','2025-01-31','Annual inspection due Jan 2025'],
+    ['Scissor Lift #2','SN-10002','Aerial Work Platform','Houston','On Lease','Site B','','32000','0.0200','','JLG Industries','2022-06-10','2022-07-01','2024-06-30',''],
+    ['Generator 50kW','SN-10003','Power Equipment','Pool','Available','Main Warehouse','','18500','0.0175','','Generac','2023-03-20','','','Backup unit'],
+    ['Compactor Roller','SN-10004','Compaction','Austin','On Lease','Job Site 4','Mike Jones','67000','0.0190','','Bomag','2021-11-01','2022-01-01','2024-12-31','Recent service completed'],
+    ['Air Compressor','SN-10005','Pneumatic Equipment','Pool','Available','Storage Yard','','9800','0.0165','','Atlas Copco','2023-08-05','','',''],
+  ];
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const lnk = document.createElement('a');
+  lnk.href = url; lnk.download = 'assets-sample.csv';
+  lnk.click(); URL.revokeObjectURL(url);
+  toast('Sample CSV downloaded.', 'success');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────
+function toast(msg, type='success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  $('toastContainer').appendChild(el);
+  setTimeout(()=>el.remove(), 3000);
+}
+
+// ── Close overlays on backdrop click ─────────────────────────────────
+['assetFormOverlay','reassignOverlay','requestOverlay','approveAssetOverlay','simpleApproveOverlay','editBranchOverlay','filesOverlay','branchFilesOverlay','bulkReassignOverlay','bulkCategoryOverlay','bulkLRFOverlay'].forEach(id => {
+  $(id).addEventListener('click', e => { if (e.target === $(id)) $(id).classList.remove('open'); });
+});
+
+// ── Init ──────────────────────────────────────────────────────────────
+initApp();
+</script>
+</body>
+</html>
