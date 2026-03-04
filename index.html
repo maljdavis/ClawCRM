@@ -2347,8 +2347,9 @@ function approveListing(id) {
   if (!s) return;
   s.status = 'active';
   s.approvedAt = new Date().toISOString();
+  saveSaleListings();
   const a = assets.find(x => x.id === s.assetId);
-  if (a) { a.status = 'For Sale'; saveAll(); } else { saveSaleListings(); }
+  if (a) { a.status = 'For Sale'; saveAll(); }
   renderAdminForSaleTab();
   updatePendingBadge();
   toast(`Listing for "${s.assetName}" approved.`, 'success');
@@ -2358,8 +2359,9 @@ function denyListing(id) {
   const s = saleListings.find(x => x.id === id);
   if (!s || !confirm(`Deny listing for "${s.assetName}"?`)) return;
   saleListings = saleListings.filter(x => x.id !== id);
+  saveSaleListings();
   const a = assets.find(x => x.id === s.assetId);
-  if (a) { a.forSale = false; saveAll(); } else { saveSaleListings(); }
+  if (a) { a.forSale = false; saveAll(); }
   renderAdminForSaleTab();
   updatePendingBadge();
   toast('Listing denied.', 'danger');
