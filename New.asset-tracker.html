@@ -866,10 +866,12 @@ async function loadInspectionsLive(assetId) {
   }));
 }
 
-let inspectionAssetId = null;
+let inspectionAssetId   = null;
+let inspectionUploaderName = null;   // branch name for branches, 'Admin' for admin
 
 async function openInspectionModal(assetId) {
   inspectionAssetId = assetId;
+  inspectionUploaderName = isAdmin ? 'Admin' : currentBranch;
   const a = assets.find(x => x.id === assetId);
   $('inspectionModalTitle').textContent = `Inspection — ${a?.name || ''}`;
   $('inspectionNotes').value = '';
@@ -910,7 +912,7 @@ async function handleInspectionUpload(e) {
   statusEl.innerHTML = '<span class="file-empty">Uploading…</span>';
   try {
     for (const file of files) {
-      await uploadInspectionLive(inspectionAssetId, currentBranch, file, notes);
+      await uploadInspectionLive(inspectionAssetId, inspectionUploaderName, file, notes);
     }
     $('inspectionNotes').value = '';
     inp.value = '';
@@ -1914,6 +1916,7 @@ function renderAdminAssets() {
         <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${a.id}')">Edit</button>
         <button class="btn btn-primary btn-xs" onclick="openReassign('${a.id}')">Reassign</button>
         <button class="btn btn-ghost btn-xs" onclick="openFilesModal('${a.id}')">📎${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button>
+        ${liveEnabled?`<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${a.id}')">📋 Inspect</button>`:''}
         <button class="btn btn-danger btn-xs" onclick="deleteAsset('${a.id}')">Del</button>
       </div></td>
     </tr>`;
