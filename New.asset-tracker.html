@@ -780,17 +780,22 @@ function applyLiveAdminUI() {
 }
 
 async function callEdgeFunction(name, body) {
-  const { data: { session } } = await supa.auth.getSession();
-  const res = await fetch(`${LIVE_CONFIG.SUPABASE_URL}/functions/v1/${name}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session?.access_token}`,
-      'apikey': LIVE_CONFIG.SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify(body),
-  });
-  return res.json();
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    const res = await fetch(`${LIVE_CONFIG.SUPABASE_URL}/functions/v1/${name}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token}`,
+        'apikey': LIVE_CONFIG.SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    try { return JSON.parse(text); } catch { return { error: text || `HTTP ${res.status}` }; }
+  } catch (e) {
+    return { error: e.message || 'Network error' };
+  }
 }
 
 function ensureSupabaseClient() {
@@ -1778,6 +1783,7 @@ async function removeBranch(name) {
   if (liveEnabled) {
     const result = await callEdgeFunction('delete-branch-user', { branchName: name });
     if (result.error) { toast('Error deleting user: ' + result.error, 'danger'); return; }
+    await supa.from('branches').delete().eq('name', name);
   }
 
   assets.filter(a=>a.branch===name).forEach(a=>{ a.branch=null; a.status='Available'; });
