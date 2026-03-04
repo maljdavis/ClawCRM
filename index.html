@@ -7,9 +7,9 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0d1210; --surface: #161d1a; --surface2: #1e2a24; --border: #253328;
-      --accent: #22c55e; --danger: #ef4444; --success: #4ade80; --warning: #facc15;
-      --text: #e2e8e4; --text-muted: #6b8a76; --radius: 8px;
+      --bg: #191919; --surface: #202020; --surface2: #272727; --border: #333333;
+      --accent: #3b82f6; --danger: #ef4444; --success: #34d399; --warning: #fbbf24;
+      --text: #e8e8e8; --text-muted: #737373; --radius: 8px;
     }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
@@ -41,11 +41,11 @@
     .badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
     .badge-branch  { background: var(--accent); color: #fff; }
     .badge-admin   { background: var(--warning); color: #000; }
-    .badge-lease   { background: rgba(34,197,94,.15); color: var(--success); }
-    .badge-pending { background: rgba(250,204,21,.15); color: var(--warning); }
-    .badge-approved{ background: rgba(34,197,94,.15); color: var(--success); }
-    .badge-denied  { background: rgba(224,82,82,.15); color: var(--danger); }
-    .badge-pool    { background: rgba(124,133,168,.15); color: var(--text-muted); }
+    .badge-lease   { background: rgba(52,211,153,.15); color: #34d399; }
+    .badge-pending { background: rgba(251,191,36,.15); color: var(--warning); }
+    .badge-approved{ background: rgba(52,211,153,.15); color: #34d399; }
+    .badge-denied  { background: rgba(239,68,68,.15); color: var(--danger); }
+    .badge-pool    { background: rgba(115,115,115,.15); color: var(--text-muted); }
 
     /* ── Admin Tabs ── */
     .tab-nav { display: flex; gap: 4px; }
@@ -80,16 +80,17 @@
     .search-wrap::before { content: '⌕'; position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 1.1rem; pointer-events: none; }
 
     /* ── Buttons ── */
-    .btn { padding: 9px 18px; border-radius: var(--radius); border: none; font-size: .9rem; font-weight: 600; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
-    .btn:hover { opacity: .85; }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-success { background: var(--success); color: #000; }
-    .btn-danger  { background: var(--danger); color: #fff; }
-    .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--text); }
-    .btn-warn    { background: var(--warning); color: #000; }
+    .btn { padding: 9px 18px; border-radius: var(--radius); border: none; font-size: .9rem; font-weight: 600; cursor: pointer; transition: filter .15s, opacity .15s; white-space: nowrap; }
+    .btn:hover { filter: brightness(1.12); }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-success { background: #10b981; color: #fff; }
+    .btn-danger  { background: #ef4444; color: #fff; }
+    .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--text-muted); transition: color .15s, border-color .15s; }
+    .btn-ghost:hover { filter: none; color: var(--text); border-color: #555; }
+    .btn-warn    { background: #f59e0b; color: #fff; }
     .btn-sm      { padding: 5px 12px; font-size: .8rem; }
     .btn-xs      { padding: 3px 9px; font-size: .75rem; }
-    .btn-telematics { background: #16a34a; color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-telematics { background: #0ea5e9; color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
     .w-full { width: 100%; }
 
     /* ── Filter select ── */
@@ -135,7 +136,7 @@
 
     /* ── Info banner ── */
     .info-banner {
-      background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.25);
+      background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.22);
       border-radius: var(--radius); padding: 12px 16px; font-size: .85rem; color: var(--accent);
       margin-bottom: 20px; display: flex; gap: 10px; align-items: center;
     }
@@ -178,6 +179,33 @@
     .toast.warn    { border-left: 3px solid var(--warning); }
     @keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 
+    /* ── Print / PDF ── */
+    #printHeader { display: none; }
+    @media print {
+      body { background: #fff !important; color: #000 !important; }
+      header, .toolbar, .info-banner, #renewalBanner, .req-list, #branchRenewals,
+      .section-hdr, .actions, .toast-container, .overlay, .notif-panel { display: none !important; }
+      .screen { display: block !important; }
+      #branchView { display: block !important; }
+      #adminView { display: none !important; }
+      #loginScreen { display: none !important; }
+      .page { padding: 0 !important; max-width: 100% !important; }
+      .table-wrap { border: 1px solid #ccc !important; border-radius: 0 !important; overflow: visible !important; box-shadow: none !important; }
+      table { font-size: .8rem !important; }
+      thead th { background: #f0f0f0 !important; color: #333 !important; border-bottom: 1px solid #ccc !important; }
+      tbody tr { border-top: 1px solid #e0e0e0 !important; }
+      td { color: #111 !important; padding: 8px 12px !important; }
+      .badge { border: 1px solid #ccc !important; background: #eee !important; color: #333 !important; }
+      .badge-lease, .badge-approved { background: #d1fae5 !important; color: #065f46 !important; }
+      .badge-denied  { background: #fee2e2 !important; color: #991b1b !important; }
+      .badge-pending { background: #fef3c7 !important; color: #92400e !important; }
+      .badge-pool    { background: #f3f4f6 !important; color: #555 !important; }
+      .stats { display: none !important; }
+      #printHeader { display: block !important; padding-bottom: 12px; border-bottom: 2px solid #000; margin-bottom: 16px; }
+      #printHeader h1 { font-size: 1.1rem; color: #000; font-weight: 700; }
+      #printHeader p  { font-size: .8rem; color: #555; margin-top: 3px; }
+    }
+
     /* ── File chips ── */
     .file-chip { display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:.75rem; }
     .file-chip a { color:var(--accent);text-decoration:none; }
@@ -187,7 +215,7 @@
     .file-remove { background:none;border:none;color:var(--danger);cursor:pointer;font-size:1.1rem;line-height:1;padding:0; }
 
     /* ── Bulk selection ── */
-    .bulk-bar { background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.35); border-radius:var(--radius); padding:10px 16px; margin-bottom:12px; display:none; align-items:center; gap:10px; flex-wrap:wrap; }
+    .bulk-bar { background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.35); border-radius:var(--radius); padding:10px 16px; margin-bottom:12px; display:none; align-items:center; gap:10px; flex-wrap:wrap; }
     .bulk-bar.visible { display:flex; }
     .bulk-count { font-size:.875rem; font-weight:600; color:var(--accent); flex:1; }
     input[type=checkbox] { width:15px; height:15px; cursor:pointer; accent-color:var(--accent); flex-shrink:0; }
@@ -313,6 +341,7 @@
     </div>
   </header>
   <div class="page">
+    <div id="printHeader"><h1 id="printTitle"></h1><p id="printDate"></p></div>
     <div class="stats" id="branchStats"></div>
     <div class="info-banner">&#128274; This is a read-only view. Assets are managed by the admin. Use the buttons below to submit requests.</div>
     <div id="renewalBanner" style="display:none;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.5);border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:.875rem;line-height:1.6;"></div>
@@ -320,6 +349,7 @@
       <div class="search-wrap">
         <input type="text" id="branchSearch" placeholder="Search your assets…" oninput="renderBranchAssets()" />
       </div>
+      <button class="btn btn-ghost btn-sm" onclick="printView()">&#128438; Print / PDF</button>
       <button class="btn btn-primary btn-sm" onclick="openRequestModal('request_asset', null)">+ Request an Asset</button>
     </div>
     <div class="table-wrap">
@@ -477,7 +507,7 @@
     <!-- BRANCHES TAB -->
     <div class="tab-panel" id="panel-branches">
       <div class="section-hdr"><div><h2>Branches / Locations</h2><p>Manage branch access and users</p></div></div>
-      <div id="liveUserHelp" style="display:none;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:16px;margin-bottom:16px;font-size:.85rem;line-height:1.7;">
+      <div id="liveUserHelp" style="display:none;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:16px;margin-bottom:16px;font-size:.85rem;line-height:1.7;">
         <strong>⚡ One-time setup — deploy 3 Edge Functions to unlock full user management</strong><br>
         After this, adding/removing branches and resetting passwords all happens right here.<br><br>
         <strong>Steps:</strong><br>
@@ -1428,7 +1458,16 @@ function adminLogin() {
   else alert('Incorrect admin password.');
 }
 
+function printView() {
+  const branch = currentBranch || 'Branch';
+  const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  document.getElementById('printTitle').textContent = branch + ' — Asset Report';
+  document.getElementById('printDate').textContent = 'Printed ' + date;
+  window.print();
+}
+
 async function logout() {
+  if (!confirm('Log out of Asset Tracker?')) return;
   currentBranch = null; isAdmin = false;
   liveReady = false;
   currentProfile = null;
