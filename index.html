@@ -217,11 +217,51 @@
     .act-action { font-weight:600; text-transform:capitalize; }
     .act-detail { color:var(--text-muted); font-size:.8rem; margin-top:2px; }
 
+    /* ── Mobile ── */
     @media (max-width: 640px) {
       .form-grid { grid-template-columns: 1fr; }
       .form-grid .full { grid-column: 1; }
-      .tab-btn { padding: 6px 12px; font-size: .8rem; }
       .h-right { gap: 6px; }
+      .page { padding: 14px; }
+
+      /* Header: shrink logo, hide telematics label text */
+      header { padding: 0 12px; gap: 8px; }
+      .logo { font-size: .95rem; }
+      .btn-telematics .telem-label { display: none; }
+
+      /* Admin tab nav: scrollable row */
+      .tab-nav { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+      .tab-btn { padding: 6px 12px; font-size: .8rem; white-space: nowrap; }
+
+      /* Stats: 2 columns on mobile */
+      .stats { grid-template-columns: repeat(2, 1fr); }
+
+      /* Branch view: card layout instead of wide table */
+      #branchView .table-wrap { background: none; border: none; overflow: visible; }
+      #branchView table thead { display: none; }
+      #branchView table, #branchView tbody, #branchView tr, #branchView td { display: block; width: 100%; }
+      #branchView tbody tr {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius); margin-bottom: 10px; padding: 12px 14px;
+      }
+      #branchView tbody tr:hover { background: var(--surface2); }
+      #branchView td { padding: 4px 0; border: none; white-space: normal; }
+      #branchView td[data-label]::before {
+        content: attr(data-label);
+        display: inline-block; width: 110px; font-size: .72rem;
+        color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; font-weight: 600;
+      }
+      #branchView td[data-label=""] { margin-top: 10px; }
+      #branchView td[data-label=""]::before { display: none; }
+      #branchView .actions { flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+      /* Branch toolbar: stack on mobile */
+      #branchView .toolbar { flex-direction: column; align-items: stretch; }
+      #branchView .toolbar button { width: 100%; }
+      #branchView .search-wrap { min-width: 0; }
+
+      /* Bulk bar: wrap */
+      .bulk-bar { flex-wrap: wrap; gap: 6px; }
     }
   </style>
 </head>
@@ -268,7 +308,7 @@
           <div id="notifListEl"></div>
         </div>
       </div>
-      <a class="btn btn-telematics btn-sm" id="telematicsBtn" href="#" target="_blank" rel="noopener noreferrer">&#9678; T3 Telematics</a>
+      <a class="btn btn-telematics btn-sm" id="telematicsBtn" href="#" target="_blank" rel="noopener noreferrer">&#9678; <span class="telem-label">T3 Telematics</span></a>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Log Out</button>
     </div>
   </header>
@@ -388,6 +428,7 @@
         <button class="btn btn-primary btn-sm" onclick="openBulkReassign()">Reassign</button>
         <button class="btn btn-ghost btn-sm" onclick="openBulkCategory()">Set Category</button>
         <button class="btn btn-ghost btn-sm" onclick="openBulkLRF()">Set LRF</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportSelectedCSV()">Export CSV</button>
         <button class="btn btn-danger btn-sm" onclick="bulkDelete()">Delete</button>
         <button class="btn btn-ghost btn-sm" onclick="clearSelection()">Clear selection</button>
       </div>
@@ -1710,14 +1751,14 @@ function renderBranchAssets() {
       ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${a.id}')">📋 Inspect</button>`
       : '';
     return `<tr>
-      <td><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
-      <td>${esc(a.category||'—')}</td>
-      <td>${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
-      <td><span class="badge badge-lease">On Lease</span></td>
-      <td style="color:var(--success);font-weight:600">${mp(a)}</td>
-      <td>${fmtDate(a.leaseEnd)}</td>
-      <td>${renewalCell}</td>
-      <td><div class="actions">${returnBtn}${issueBtn}${transferBtn}${inspectBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button></div></td>
+      <td data-label="Asset"><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
+      <td data-label="Category">${esc(a.category||'—')}</td>
+      <td data-label="Make/Model">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
+      <td data-label="Status"><span class="badge badge-lease">On Lease</span></td>
+      <td data-label="Monthly" style="color:var(--success);font-weight:600">${mp(a)}</td>
+      <td data-label="Lease End">${fmtDate(a.leaseEnd)}</td>
+      <td data-label="Renewal">${renewalCell}</td>
+      <td data-label=""><div class="actions">${returnBtn}${issueBtn}${transferBtn}${inspectBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button></div></td>
     </tr>`;
   }).join('');
 }
@@ -2399,6 +2440,22 @@ function exportCSV() {
   lnk.href = url; lnk.download = `assets-${new Date().toISOString().slice(0,10)}.csv`;
   lnk.click(); URL.revokeObjectURL(url);
   toast('CSV exported.','success');
+}
+
+function exportSelectedCSV() {
+  if (!selectedAssets.size) return;
+  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
+  const rows = [headers, ...assets.filter(a => selectedAssets.has(a.id)).map(a => {
+    const mp = monthlyPayment(a.cost, a.lrf);
+    return [a.name,a.serial,a.make,a.model,a.year,a.category,a.branch||'Pool',a.status,a.cost,a.lrf,mp!=null?mp.toFixed(2):'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.notes]
+      .map(v=>`"${String(v??'').replace(/"/g,'""')}"`);
+  })];
+  const blob = new Blob([rows.map(r=>r.join(',')).join('\r\n')],{type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const lnk  = document.createElement('a');
+  lnk.href = url; lnk.download = `assets-selected-${new Date().toISOString().slice(0,10)}.csv`;
+  lnk.click(); URL.revokeObjectURL(url);
+  toast(`Exported ${selectedAssets.size} asset(s) to CSV.`, 'success');
 }
 
 // ── Edit Branch ───────────────────────────────────────────────────────
