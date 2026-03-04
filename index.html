@@ -1970,28 +1970,41 @@ function renderForSaleTab() {
   const forSaleBody = $('forSaleTableBody');
   const forSaleEmpty = $('forSaleEmpty');
   if (forSaleEmpty) forSaleEmpty.style.display = active.length ? 'none' : '';
-  if (forSaleBody) forSaleBody.innerHTML = active.map(s => `<tr>
-    <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
-    <td style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
-    <td style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
-    <td style="color:var(--text-muted);max-width:220px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
-    <td>${fmtDate(s.createdAt?.slice(0,10))}</td>
-    <td><div class="actions">
-      <button class="btn btn-ghost btn-xs" onclick="openEditListing('${s.id}')">Edit</button>
-      <button class="btn btn-success btn-xs" onclick="openMarkSold('${s.id}')">Mark Sold</button>
-      <button class="btn btn-danger btn-xs" onclick="removeListing('${s.id}')">Remove</button>
-    </div></td>
-  </tr>`).join('');
+  if (forSaleBody) forSaleBody.innerHTML = active.map(s => {
+    const a = assets.find(x => x.id === s.assetId);
+    const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
+    const mpFmt = mp !== null ? fmt$(mp) : '—';
+    return `<tr>
+      <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
+      <td style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
+      <td style="color:var(--warning);font-weight:600">${mpFmt}</td>
+      <td style="color:var(--success);font-weight:600">${mpFmt}</td>
+      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
+      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
+      <td style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
+      <td>${fmtDate(s.createdAt?.slice(0,10))}</td>
+      <td><div class="actions">
+        <button class="btn btn-ghost btn-xs" onclick="openEditListing('${s.id}')">Edit</button>
+        <button class="btn btn-success btn-xs" onclick="openMarkSold('${s.id}')">Mark Sold</button>
+        <button class="btn btn-danger btn-xs" onclick="removeListing('${s.id}')">Remove</button>
+      </div></td>
+    </tr>`;
+  }).join('');
 
   const soldBody  = $('soldTableBody');
   const soldEmpty = $('soldEmpty');
   if (soldEmpty) soldEmpty.style.display = sold.length ? 'none' : '';
-  if (soldBody) soldBody.innerHTML = sold.map(s => `<tr>
-    <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
-    <td>${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
-    <td style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>
-    <td>${fmtDate(s.soldDate)}</td>
-  </tr>`).join('');
+  if (soldBody) soldBody.innerHTML = sold.map(s => {
+    const a = assets.find(x => x.id === s.assetId);
+    const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
+    return `<tr>
+      <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
+      <td>${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
+      <td style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>
+      <td style="color:var(--success);font-weight:600">${mp !== null ? fmt$(mp) : '—'}</td>
+      <td>${fmtDate(s.soldDate)}</td>
+    </tr>`;
+  }).join('');
 }
 
 function openListForSaleModal(id) {
@@ -2006,11 +2019,13 @@ function openListForSaleModal(id) {
     $('saleAssetSelect').value    = s.assetId;
     $('saleAskingPrice').value    = s.askingPrice || '';
     $('saleCondition').value      = s.condition   || '';
+    $('saleMileage').value        = s.mileage     || '';
     $('saleDescription').value    = s.description || '';
     $('saleAssetSelect').disabled = true;
   } else {
     $('saleAskingPrice').value    = '';
     $('saleCondition').value      = '';
+    $('saleMileage').value        = '';
     $('saleDescription').value    = '';
     $('saleAssetSelect').disabled = false;
   }
@@ -2029,23 +2044,28 @@ function closeForSaleModal() {
 function submitForSaleListing() {
   const assetId     = $('saleAssetSelect').value;
   const askingPrice = parseFloat($('saleAskingPrice').value) || null;
-  const condition   = $('saleCondition').value.trim();
+  const condition   = $('saleCondition').value;
+  const mileage     = $('saleMileage').value.trim();
   const description = $('saleDescription').value.trim();
   if (!assetId) { toast('Select an asset.', 'warn'); return; }
   const adminMode = $('forSaleOverlay').dataset.adminMode === '1';
   if (editingSaleId) {
     const idx = saleListings.findIndex(s => s.id === editingSaleId);
     if (idx >= 0) {
-      saleListings[idx] = { ...saleListings[idx], askingPrice, condition, description };
-      saveSaleListings();
+      saleListings[idx] = { ...saleListings[idx], askingPrice, condition, mileage, description };
+      // Update mileage on the asset itself if provided
+      const a = assets.find(x => x.id === saleListings[idx].assetId);
+      if (a && mileage) { a.mileage = mileage; saveAll(); } else { saveSaleListings(); }
       adminMode ? renderAdminForSaleTab() : renderForSaleTab();
       toast('Listing updated.', 'success');
     }
   } else {
     const a = assets.find(x => x.id === assetId);
+    // Mark asset as for-sale and update mileage
+    if (a) { a.forSale = true; if (mileage) a.mileage = mileage; saveAll(); }
     saleListings.push({
       id: uid(), assetId, assetName: a?.name || assetId, assetSerial: a?.serial || '',
-      branch: adminMode ? (a?.branch || '—') : currentBranch, askingPrice, condition, description,
+      branch: adminMode ? (a?.branch || '—') : currentBranch, askingPrice, condition, mileage, description,
       status: 'active', createdAt: new Date().toISOString()
     });
     saveSaleListings();
@@ -2056,11 +2076,16 @@ function submitForSaleListing() {
 }
 
 function removeListing(id) {
-  if (!confirm('Remove this listing?')) return;
-  saleListings = saleListings.filter(s => s.id !== id);
+  if (!confirm('Remove this listing? The asset will return to active leases.')) return;
+  const s = saleListings.find(x => x.id === id);
+  saleListings = saleListings.filter(x => x.id !== id);
   saveSaleListings();
+  // Clear forSale flag on the asset so it shows as active again
+  const a = assets.find(x => x.id === s?.assetId);
+  if (a) { a.forSale = false; saveAll(); }
   renderForSaleTab();
-  toast('Listing removed.', 'success');
+  if (typeof renderBranchAssets === 'function') renderBranchAssets();
+  toast('Listing removed. Asset is back in active leases.', 'success');
 }
 
 function openMarkSold(id) {
@@ -2086,6 +2111,9 @@ function confirmMarkSold() {
   saleListings[idx].soldDate  = $('soldDate').value || new Date().toISOString().slice(0,10);
   saveSaleListings();
   const name = saleListings[idx].assetName;
+  // Clear forSale flag on the asset
+  const soldAsset = assets.find(x => x.id === saleListings[idx].assetId);
+  if (soldAsset) { soldAsset.forSale = false; saveAll(); }
   const adminMode = $('markSoldOverlay').dataset.adminMode === '1';
   adminMode ? renderAdminForSaleTab() : renderForSaleTab();
   toast(`${name} marked as sold.`, 'success');
@@ -2140,13 +2168,19 @@ function renderAdminForSaleTab() {
          <button class="btn btn-danger btn-xs" onclick="adminRemoveListing('${s.id}')">Remove</button>`
       : `<button class="btn btn-danger btn-xs" onclick="adminRemoveListing('${s.id}')">Remove</button>`;
     const date = s.status === 'sold' ? fmtDate(s.soldDate) : fmtDate(s.createdAt?.slice(0,10));
+    const a = assets.find(x => x.id === s.assetId);
+    const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
+    const mpFmt = mp !== null ? fmt$(mp) : '—';
     return `<tr>
       <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
       <td><span class="badge badge-branch" style="font-size:.75rem">${esc(s.branch)}</span></td>
       <td style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
       ${soldCells}
+      <td style="color:var(--warning);font-weight:600">${mpFmt}</td>
+      <td style="color:var(--success);font-weight:600">${mpFmt}</td>
       <td style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
-      <td style="color:var(--text-muted);max-width:200px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
+      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
+      <td style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
       <td>${statusBadge}</td>
       <td>${date}</td>
       <td><div class="actions">${actions}</div></td>
@@ -2164,6 +2198,7 @@ function openAdminListForSaleModal() {
   $('saleAssetSelect').disabled = false;
   $('saleAskingPrice').value = '';
   $('saleCondition').value   = '';
+  $('saleMileage').value     = '';
   $('saleDescription').value = '';
   // Override submit to use admin context
   $('forSaleOverlay').dataset.adminMode = '1';
@@ -2178,6 +2213,7 @@ function openAdminEditListing(id) {
   $('saleAssetSelect').disabled  = true;
   $('saleAskingPrice').value     = s.askingPrice || '';
   $('saleCondition').value       = s.condition   || '';
+  $('saleMileage').value         = s.mileage     || '';
   $('saleDescription').value     = s.description || '';
   $('forSaleOverlay').dataset.adminMode = '1';
   $('forSaleOverlay').classList.add('open');
@@ -2195,11 +2231,13 @@ function openAdminMarkSold(id) {
 
 function adminRemoveListing(id) {
   const s = saleListings.find(x => x.id === id);
-  if (!confirm(`Remove listing for "${s?.assetName}"?`)) return;
+  if (!confirm(`Remove listing for "${s?.assetName}"? The asset will return to active leases.`)) return;
   saleListings = saleListings.filter(x => x.id !== id);
   saveSaleListings();
+  const a = assets.find(x => x.id === s?.assetId);
+  if (a) { a.forSale = false; saveAll(); }
   renderAdminForSaleTab();
-  toast('Listing removed.', 'success');
+  toast('Listing removed. Asset is back in active leases.', 'success');
 }
 
 function exportAdminSoldCSV() {
@@ -2281,7 +2319,7 @@ function renderBranchAssets() {
       <td data-label="Asset"><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
       <td data-label="Category">${esc(a.category||'—')}</td>
       <td data-label="Make/Model">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
-      <td data-label="Status"><span class="badge badge-lease">On Lease</span></td>
+      <td data-label="Status"><span class="badge badge-lease">On Lease</span>${a.forSale ? ` <span class="badge badge-pending" style="font-size:.7rem">For Sale</span>` : ''}</td>
       <td data-label="Monthly" style="color:var(--success);font-weight:600">${mp(a)}</td>
       <td data-label="Lease End">${fmtDate(a.leaseEnd)}</td>
       <td data-label="Renewal">${renewalCell}</td>
@@ -2585,7 +2623,7 @@ function renderAdminAssets() {
 
   tbody.innerHTML = list.map(a => {
     const branchCell = a.branch
-      ? `<span class="badge badge-lease" style="font-size:.75rem">${esc(a.branch)}</span>`
+      ? `<span class="badge badge-lease" style="font-size:.75rem">${esc(a.branch)}</span>${a.forSale ? ` <span class="badge badge-pending" style="font-size:.7rem">For Sale</span>` : ''}`
       : `<span class="badge badge-pool" style="font-size:.75rem">Pool</span>`;
     const mp = monthlyPayment(a.cost, a.lrf);
     const checked = selectedAssets.has(a.id) ? 'checked' : '';
