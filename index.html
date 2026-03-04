@@ -1956,7 +1956,7 @@ function setAdminTab(tab) {
   if (tab === 'dashboard')    renderDashboard();
   if (tab === 'assets')       { populateBranchFilter(); renderAdminAssets(); }
   if (tab === 'requests')     { populateReqBranchFilter(); renderRequests(); }
-  if (tab === 'forsale')      { populateAdminSaleBranchFilter(); renderAdminForSaleTab(); }
+  if (tab === 'forsale')      { reloadSaleListings(); populateAdminSaleBranchFilter(); renderAdminForSaleTab(); updatePendingBadge(); }
   if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
   if (tab === 'inspections')  loadAdminInspections();
   if (tab === 'activity')     loadActivityLog();
@@ -2019,12 +2019,19 @@ function setBranchTab(tab) {
     const panel = $('bpanel-' + t); if (panel) panel.classList.toggle('active', t === tab);
   });
   if (tab === 'assets') { renderBranchAssets(); renderMyRequests(); }
-  if (tab === 'forsale') renderForSaleTab();
+  if (tab === 'forsale') { reloadSaleListings(); renderForSaleTab(); }
 }
 
 // ── For Sale ──────────────────────────────────────────────────────────
 let editingSaleId  = null;
 let markingSoldId  = null;
+
+function reloadSaleListings() {
+  // Re-read from localStorage so a different tab's saves are picked up when not using Supabase
+  if (!liveEnabled) {
+    try { saleListings = JSON.parse(localStorage.getItem(SALES_KEY) || '[]'); } catch(e) {}
+  }
+}
 
 function saveSaleListings() {
   try { localStorage.setItem(SALES_KEY, JSON.stringify(saleListings)); } catch(e) {}
