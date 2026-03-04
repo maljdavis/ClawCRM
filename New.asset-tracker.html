@@ -1212,7 +1212,9 @@ async function loadLiveData() {
     branches = brRes.data.map(b => ({ name: b.name, password: '—' }));
   }
 
-  // Assets
+  // Assets — preserve locally-stored file attachments before overwriting from Supabase
+  const localFiles = {};
+  assets.forEach(a => { if (a.files && a.files.length) localFiles[a.id] = a.files; });
   let assetQ = supa.from('assets').select('*');
   if (!isAdmin && currentProfile?.branchName) assetQ = assetQ.eq('branch_name', currentProfile.branchName);
   const aRes = await assetQ;
@@ -1234,7 +1236,7 @@ async function loadLiveData() {
       leaseStart: a.lease_start || '',
       leaseEnd: a.lease_end || '',
       notes: a.notes || '',
-      files: [], // file storage not live yet
+      files: localFiles[a.id] || [],
       createdAt: a.created_at || '',
       updatedAt: a.updated_at || '',
     }));
