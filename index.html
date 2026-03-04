@@ -2112,9 +2112,9 @@ function renderForSaleTab() {
     const actions = s.status === 'active'
       ? `<button class="btn btn-ghost btn-xs" onclick="openEditListing('${s.id}')">Edit</button>
          <button class="btn btn-success btn-xs" onclick="openMarkSold('${s.id}')">Mark Sold</button>
-         <button class="btn btn-danger btn-xs" onclick="removeListing('${s.id}')">Remove</button>`
+         <button class="btn btn-danger btn-xs" onclick="confirmRemoveListing(this,'${s.id}')">Remove</button>`
       : s.status === 'pending'
-      ? `<button class="btn btn-danger btn-xs" onclick="removeListing('${s.id}')">Cancel</button>`
+      ? `<button class="btn btn-danger btn-xs" onclick="confirmRemoveListing(this,'${s.id}')">Cancel</button>`
       : ``;
     return `<tr>
       <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
@@ -2216,8 +2216,27 @@ function submitForSaleListing() {
   closeForSaleModal();
 }
 
+function confirmRemoveListing(btn, id) {
+  if (btn.dataset.confirming) { removeListing(id); return; }
+  const orig = btn.textContent;
+  btn.dataset.confirming = '1';
+  btn.textContent = 'Sure?';
+  btn.classList.add('btn-warning');
+  btn.classList.remove('btn-danger');
+  setTimeout(() => { if (btn.dataset.confirming) { btn.textContent = orig; delete btn.dataset.confirming; btn.classList.remove('btn-warning'); btn.classList.add('btn-danger'); } }, 3000);
+}
+
+function confirmAdminRemoveListing(btn, id) {
+  if (btn.dataset.confirming) { adminRemoveListing(id); return; }
+  const orig = btn.textContent;
+  btn.dataset.confirming = '1';
+  btn.textContent = 'Sure?';
+  btn.classList.add('btn-warning');
+  btn.classList.remove('btn-danger');
+  setTimeout(() => { if (btn.dataset.confirming) { btn.textContent = orig; delete btn.dataset.confirming; btn.classList.remove('btn-warning'); btn.classList.add('btn-danger'); } }, 3000);
+}
+
 function removeListing(id) {
-  if (!confirm('Remove this listing? The asset will return to active leases.')) return;
   const s = saleListings.find(x => x.id === id);
   if (!s) return;
   s.status = 'removed';
@@ -2326,14 +2345,14 @@ function renderAdminForSaleTab() {
     const actions = s.status === 'active'
       ? `<button class="btn btn-ghost btn-xs" onclick="openAdminEditListing('${s.id}')">Edit</button>
          <button class="btn btn-success btn-xs" onclick="openAdminMarkSold('${s.id}')">Mark Sold</button>
-         <button class="btn btn-danger btn-xs" onclick="adminRemoveListing('${s.id}')">Remove</button>`
+         <button class="btn btn-danger btn-xs" onclick="confirmAdminRemoveListing(this,'${s.id}')">Remove</button>`
       : s.status === 'pending'
       ? `<button class="btn btn-success btn-xs" onclick="approveListing('${s.id}')">Approve</button>
          <button class="btn btn-danger btn-xs" onclick="denyListing('${s.id}')">Deny</button>`
       : s.status === 'pending_sold'
       ? `<button class="btn btn-success btn-xs" onclick="adminConfirmSale('${s.id}')">Confirm Sale</button>
          <button class="btn btn-danger btn-xs" onclick="adminDenySale('${s.id}')">Deny Sale</button>`
-      : `<button class="btn btn-danger btn-xs" onclick="adminRemoveListing('${s.id}')">Remove</button>`;
+      : `<button class="btn btn-danger btn-xs" onclick="confirmAdminRemoveListing(this,'${s.id}')">Remove</button>`;
     const date = s.status === 'sold' ? fmtDate(s.soldDate) : fmtDate(s.createdAt?.slice(0,10));
     const a = assets.find(x => x.id === s.assetId);
     const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
@@ -2448,7 +2467,7 @@ function adminDenySale(id) {
 
 function adminRemoveListing(id) {
   const s = saleListings.find(x => x.id === id);
-  if (!confirm(`Remove listing for "${s?.assetName}"? The asset will return to active leases.`)) return;
+  if (!s) return;
   s.status = 'removed';
   saveSaleListings();
   const a = assets.find(x => x.id === s?.assetId);
