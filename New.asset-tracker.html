@@ -938,7 +938,14 @@ async function liveSync() {
         created_at: r.createdAt || now,
         resolved_at: r.resolvedAt || null,
       }));
-      if (requestRows.length) await supa.from('requests').upsert(requestRows, { onConflict: 'id' });
+      if (requestRows.length) {
+        const { error: reqErr } = await supa.from('requests').upsert(requestRows, { onConflict: 'id' });
+        if (reqErr?.message?.includes('target_branch_name')) {
+          // Column not added yet — run schema.sql in Supabase to enable transfers
+          const fallback = requestRows.map(({ target_branch_name, ...rest }) => rest);
+          await supa.from('requests').upsert(fallback, { onConflict: 'id' });
+        }
+      }
 
       const presetRows = lrfPresets.map(p => ({ id: p.id, name: p.name, lrf: p.lrf, updated_at: now }));
       await supa.from('lrf_presets').upsert(presetRows, { onConflict: 'id' });
@@ -960,7 +967,13 @@ async function liveSync() {
         created_at: r.createdAt || now,
         resolved_at: r.resolvedAt || null,
       }));
-      if (requestRows.length) await supa.from('requests').upsert(requestRows, { onConflict: 'id' });
+      if (requestRows.length) {
+        const { error: reqErr } = await supa.from('requests').upsert(requestRows, { onConflict: 'id' });
+        if (reqErr?.message?.includes('target_branch_name')) {
+          const fallback = requestRows.map(({ target_branch_name, ...rest }) => rest);
+          await supa.from('requests').upsert(fallback, { onConflict: 'id' });
+        }
+      }
     }
   } catch (e) {
     console.error(e);
@@ -1381,9 +1394,10 @@ function renderBranchAssets() {
     const issueBtn = pendingIssues.has(a.id)
       ? `<span class="badge badge-pending" style="font-size:.7rem">Issue Reported</span>`
       : `<button class="btn btn-warn btn-xs" onclick="openRequestModal('report_issue','${a.id}')">Report Issue</button>`;
+    const otherBranches = branches.filter(b => b.name !== currentBranch);
     const transferBtn = pendingTransfers.has(a.id)
       ? `<span class="badge badge-pending" style="font-size:.7rem">Transfer Pending</span>`
-      : (branches.length > 1 ? `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('transfer_asset','${a.id}')">Transfer</button>` : '');
+      : (otherBranches.length > 0 ? `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('transfer_asset','${a.id}')">Transfer</button>` : '');
     return `<tr>
       <td><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
       <td>${esc(a.category||'—')}</td>
