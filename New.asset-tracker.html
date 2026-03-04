@@ -770,14 +770,28 @@
 
 <script>
 // ── Storage ───────────────────────────────────────────────────────────
-const ASSETS_KEY   = 'assetTracker_assets';
-const BRANCHES_KEY = 'assetTracker_branches';
-const REQUESTS_KEY = 'assetTracker_requests';
-const ADMIN_KEY    = 'assetTracker_admin';
-const TELEM_KEY    = 'assetTracker_telematics';
-const RATES_KEY    = 'assetTracker_lrfPresets';
+const ASSETS_KEY      = 'assetTracker_assets';
+const BRANCHES_KEY    = 'assetTracker_branches';
+const REQUESTS_KEY    = 'assetTracker_requests';
+const ADMIN_KEY       = 'assetTracker_admin';
+const TELEM_KEY       = 'assetTracker_telematics';
+const RATES_KEY       = 'assetTracker_lrfPresets';
+const FILES_KEY_PREFIX = 'assetTracker_files_';
 
-let assets       = JSON.parse(localStorage.getItem(ASSETS_KEY)   || '[]');
+function loadAssetFiles(id) {
+  try { return JSON.parse(localStorage.getItem(FILES_KEY_PREFIX + id) || '[]'); } catch { return []; }
+}
+function saveAssetFiles(id, files) {
+  try {
+    if (files && files.length) localStorage.setItem(FILES_KEY_PREFIX + id, JSON.stringify(files));
+    else localStorage.removeItem(FILES_KEY_PREFIX + id);
+  } catch(e) {
+    toast('File too large to save locally — try a smaller file.', 'warn');
+  }
+}
+function deleteAssetFiles(id) { localStorage.removeItem(FILES_KEY_PREFIX + id); }
+
+let assets       = JSON.parse(localStorage.getItem(ASSETS_KEY)   || '[]').map(a => ({ ...a, files: loadAssetFiles(a.id) }));
 let branches     = JSON.parse(localStorage.getItem(BRANCHES_KEY) || '[]');
 let requests     = JSON.parse(localStorage.getItem(REQUESTS_KEY) || '[]');
 let adminPw      = localStorage.getItem(ADMIN_KEY) || 'admin';
@@ -801,9 +815,13 @@ let lastFilteredIds = [];
 const $ = id => document.getElementById(id);
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function saveAllLocal() {
-  localStorage.setItem(ASSETS_KEY,   JSON.stringify(assets));
-  localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
-  localStorage.setItem(REQUESTS_KEY, JSON.stringify(requests));
+  // Strip files from the main JSON to avoid localStorage quota limits;
+  // files are stored separately per asset under FILES_KEY_PREFIX + id.
+  const stripped = assets.map(({ files, ...rest }) => rest);
+  try { localStorage.setItem(ASSETS_KEY, JSON.stringify(stripped)); } catch(e) { console.warn('Could not save assets:', e); }
+  try { localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches)); } catch(e) {}
+  try { localStorage.setItem(REQUESTS_KEY, JSON.stringify(requests)); } catch(e) {}
+  assets.forEach(a => saveAssetFiles(a.id, a.files));
 }
 function saveAll() {
   saveAllLocal();
@@ -1236,7 +1254,7 @@ async function loadLiveData() {
       leaseStart: a.lease_start || '',
       leaseEnd: a.lease_end || '',
       notes: a.notes || '',
-      files: localFiles[a.id] || [],
+      files: localFiles[a.id] || loadAssetFiles(a.id),
       createdAt: a.created_at || '',
       updatedAt: a.updated_at || '',
     }));
@@ -1870,6 +1888,7 @@ async function deleteAsset(id) {
   }
   pendingAssetDeletes.add(id);
   assets = assets.filter(a => a.id !== id);
+  deleteAssetFiles(id);
   logAudit('delete', 'asset', id, deletedName, null);
   saveAll();
   renderAdminAssets();
@@ -2403,6 +2422,7 @@ async function bulkDelete() {
     if (error) { toast('Error deleting assets: ' + error.message, 'danger'); return; }
     ids.forEach(id => pendingAssetDeletes.add(id));
   }
+  selectedAssets.forEach(id => deleteAssetFiles(id));
   assets = assets.filter(a => !selectedAssets.has(a.id));
   saveAll();
   toast(`${n} asset(s) deleted.`, 'danger');
