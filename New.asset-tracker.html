@@ -1090,12 +1090,19 @@ async function liveSync() {
       if (assetRows.length) {
         const { error: assetErr } = await supa.from('assets').upsert(assetRows, { onConflict: 'id' });
         if (assetErr) {
-          if (assetErr.message?.includes('renewal_date')) {
-            // Column not yet in DB — run schema.sql in Supabase to enable renewal dates
-            const fallback = assetRows.map(({ renewal_date, ...rest }) => rest);
+          // Any recently-added column may not exist yet if schema.sql hasn't been run.
+          // Strip all migrated columns and retry so existing fields always save.
+          const MIGRATED = ['make', 'model', 'year', 'renewal_date'];
+          const isSchemaGap = MIGRATED.some(c => assetErr.message?.includes(c));
+          if (isSchemaGap) {
+            console.warn('DB schema outdated — run schema.sql in Supabase. Missing:', assetErr.message);
+            const fallback = assetRows.map(row => {
+              const r = { ...row };
+              MIGRATED.forEach(c => delete r[c]);
+              return r;
+            });
             const { error: fbErr } = await supa.from('assets').upsert(fallback, { onConflict: 'id' });
             if (fbErr) throw new Error('Assets save failed: ' + fbErr.message);
-            console.warn('renewal_date column missing — run schema.sql in Supabase to enable this field.');
           } else {
             throw new Error('Assets save failed: ' + assetErr.message);
           }
@@ -1387,20 +1394,28 @@ async function loadLiveData() {
     branches = brRes.data.map(b => ({ name: b.name, password: '—' }));
   }
 
-  // Assets — preserve locally-stored file attachments before overwriting from Supabase
+  // Assets — preserve locally-stored files and any migrated fields not yet in the DB
   const localFiles = {};
-  assets.forEach(a => { if (a.files && a.files.length) localFiles[a.id] = a.files; });
+  const localAssetMap = {};
+  assets.forEach(a => {
+    if (a.files && a.files.length) localFiles[a.id] = a.files;
+    localAssetMap[a.id] = a;
+  });
   let assetQ = supa.from('assets').select('*');
   if (!isAdmin && currentProfile?.branchName) assetQ = assetQ.eq('branch_name', currentProfile.branchName);
   const aRes = await assetQ;
   if (!aRes.error && Array.isArray(aRes.data)) {
-    assets = aRes.data.map(a => ({
+    assets = aRes.data.map(a => {
+      const local = localAssetMap[a.id] || {};
+      // For columns added in schema migrations, fall back to the local value when
+      // the DB column doesn't exist yet (undefined = column absent from select(*))
+      return {
       id: a.id,
       name: a.name,
       serial: a.serial || '',
-      make: a.make || '',
-      model: a.model || '',
-      year: a.year || '',
+      make:  a.make  !== undefined ? (a.make  || '') : (local.make  || ''),
+      model: a.model !== undefined ? (a.model || '') : (local.model || ''),
+      year:  a.year  !== undefined ? (a.year  || '') : (local.year  || ''),
       category: a.category || '',
       branch: a.branch_name ?? null,
       status: a.status || (a.branch_name ? 'On Lease' : 'Available'),
@@ -1410,13 +1425,14 @@ async function loadLiveData() {
       acquiredDate: a.acquired_date || '',
       leaseStart:   a.lease_start   || '',
       leaseEnd:     a.lease_end     || '',
-      renewalDate:  a.renewal_date  || '',
+      renewalDate:  a.renewal_date  !== undefined ? (a.renewal_date || '') : (local.renewalDate || ''),
       notes:        a.notes         || '',
       files:        localFiles[a.id] || loadAssetFiles(a.id),
       fileCount:    0,
       createdAt: a.created_at || '',
       updatedAt: a.updated_at || '',
-    }));
+      };
+    });
     // Fetch file counts for badges
     const fcRes = await supa.from('asset_files').select('asset_id');
     if (!fcRes.error && fcRes.data) {
