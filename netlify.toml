@@ -18,5 +18,5 @@
 [[redirects]]
   # Send any path to the single HTML file (supports direct URL sharing)
   from = "/*"
-  to   = "/New.asset-tracker.html"
+  to   = "/index.html"
   status = 200
