@@ -90,6 +90,7 @@ create or replace function public.is_admin()
 returns boolean
 language sql stable
 security definer
+set search_path = public
 as $$
   select exists (
     select 1 from public.profiles
@@ -102,6 +103,7 @@ create or replace function public.my_branch()
 returns text
 language sql stable
 security definer
+set search_path = public
 as $$
   select branch_name from public.profiles where id = auth.uid();
 $$;
@@ -253,10 +255,11 @@ alter table public.asset_files enable row level security;
 drop policy if exists "asset_files: admin all"    on public.asset_files;
 drop policy if exists "asset_files: branch read"  on public.asset_files;
 
--- Admins can do everything
+-- Admins can do everything (explicit with check covers INSERT)
 create policy "asset_files: admin all"
   on public.asset_files for all
-  using (public.is_admin());
+  using (public.is_admin())
+  with check (public.is_admin());
 
 -- Branch users can read file records for assets assigned to their branch
 create policy "asset_files: branch read"
@@ -272,10 +275,18 @@ create policy "asset_files: branch read"
 drop policy if exists "storage asset-files: admin all"   on storage.objects;
 drop policy if exists "storage asset-files: branch read" on storage.objects;
 
--- Admins can upload, download, and delete in the bucket
+-- Admins can upload, download, and delete in the bucket.
+-- Inline the admin check to avoid search_path issues with the helper function.
 create policy "storage asset-files: admin all"
   on storage.objects for all
-  using (bucket_id = 'asset-files' and public.is_admin());
+  using (
+    bucket_id = 'asset-files'
+    and exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+  )
+  with check (
+    bucket_id = 'asset-files'
+    and exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+  );
 
 -- Branch users can download files for assets assigned to their branch
 create policy "storage asset-files: branch read"
@@ -286,7 +297,7 @@ create policy "storage asset-files: branch read"
       select 1 from public.asset_files af
       join public.assets a on a.id = af.asset_id
       where af.storage_path = storage.objects.name
-      and a.branch_name = public.my_branch()
+      and a.branch_name = (select branch_name from public.profiles where id = auth.uid())
     )
   );
 
