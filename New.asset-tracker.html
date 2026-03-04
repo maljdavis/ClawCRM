@@ -193,6 +193,30 @@
     input[type=checkbox] { width:15px; height:15px; cursor:pointer; accent-color:var(--accent); flex-shrink:0; }
     th input[type=checkbox], td input[type=checkbox] { display:block; margin:0 auto; }
 
+    /* ── Notifications ── */
+    .notif-wrap { position:relative; }
+    .notif-badge { position:absolute; top:-4px; right:-4px; background:var(--danger); color:#fff; border-radius:10px; font-size:.65rem; padding:1px 5px; font-weight:700; min-width:18px; text-align:center; line-height:14px; pointer-events:none; }
+    .notif-panel { position:absolute; top:calc(100% + 8px); right:0; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); width:300px; max-height:360px; overflow-y:auto; z-index:150; box-shadow:0 4px 24px rgba(0,0,0,.5); }
+    .notif-item { padding:10px 14px; border-bottom:1px solid var(--border); font-size:.85rem; line-height:1.4; }
+    .notif-item:last-child { border-bottom:none; }
+    .notif-item.ns { border-left:3px solid var(--success); }
+    .notif-item.nd { border-left:3px solid var(--danger); }
+    .notif-time { font-size:.75rem; color:var(--text-muted); margin-top:2px; }
+
+    /* ── Dashboard ── */
+    .dash-section { margin-bottom:28px; }
+    .dash-section h3 { font-size:.75rem; font-weight:700; margin-bottom:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; }
+    .expiry-list { display:flex; flex-direction:column; gap:8px; }
+    .expiry-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px; display:flex; align-items:center; gap:12px; font-size:.875rem; }
+    .expiry-days { font-weight:700; min-width:52px; font-size:.85rem; }
+    .expiry-days.urgent { color:var(--danger); }
+    .expiry-days.soon   { color:var(--warning); }
+    .expiry-days.ok     { color:var(--success); }
+
+    /* ── Activity log ── */
+    .act-action { font-weight:600; text-transform:capitalize; }
+    .act-detail { color:var(--text-muted); font-size:.8rem; margin-top:2px; }
+
     @media (max-width: 640px) {
       .form-grid { grid-template-columns: 1fr; }
       .form-grid .full { grid-column: 1; }
@@ -234,6 +258,16 @@
       <div class="badge badge-branch" id="branchBadge"></div>
     </div>
     <div class="h-right">
+      <div class="notif-wrap">
+        <button class="btn btn-ghost btn-sm" id="branchBellBtn" onclick="toggleNotifDropdown()" title="Notifications" style="padding:6px 10px;font-size:1rem">&#128276;<span class="notif-badge" id="branchBellBadge"></span></button>
+        <div class="notif-panel" id="notifDropdown" style="display:none">
+          <div style="padding:10px 14px;font-size:.8rem;font-weight:700;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <span>Notifications</span>
+            <button onclick="clearNotifs()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:.75rem">Clear all</button>
+          </div>
+          <div id="notifListEl"></div>
+        </div>
+      </div>
       <a class="btn btn-telematics btn-sm" id="telematicsBtn" href="#" target="_blank" rel="noopener noreferrer">&#9678; T3 Telematics</a>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Log Out</button>
     </div>
@@ -287,9 +321,11 @@
       <div class="logo">Asset<span>Track</span></div>
       <div class="badge badge-admin">ADMIN</div>
       <nav class="tab-nav">
-        <button class="tab-btn active" id="tab-assets"   onclick="setAdminTab('assets')">Assets</button>
-        <button class="tab-btn"        id="tab-requests" onclick="setAdminTab('requests')">Requests</button>
-        <button class="tab-btn"        id="tab-branches" onclick="setAdminTab('branches')">Branches</button>
+        <button class="tab-btn" id="tab-dashboard" onclick="setAdminTab('dashboard')">Dashboard</button>
+        <button class="tab-btn" id="tab-assets"    onclick="setAdminTab('assets')">Assets</button>
+        <button class="tab-btn" id="tab-requests"  onclick="setAdminTab('requests')">Requests</button>
+        <button class="tab-btn" id="tab-branches"  onclick="setAdminTab('branches')">Branches</button>
+        <button class="tab-btn" id="tab-activity"  onclick="setAdminTab('activity')">Activity</button>
       </nav>
     </div>
     <div class="h-right">
@@ -299,8 +335,22 @@
   </header>
   <div class="page">
 
+    <!-- DASHBOARD TAB -->
+    <div class="tab-panel" id="panel-dashboard">
+      <div class="stats" id="dashStats" style="margin-bottom:24px"></div>
+      <div class="section-hdr"><div><h2>Branch Breakdown</h2></div></div>
+      <div class="table-wrap" style="margin-bottom:24px">
+        <table>
+          <thead><tr><th>Branch</th><th>Assets On Lease</th><th>Monthly Total</th><th>Pending Requests</th></tr></thead>
+          <tbody id="dashBranchBody"></tbody>
+        </table>
+      </div>
+      <div class="section-hdr"><div><h2>Leases Expiring Within 30 Days</h2></div></div>
+      <div id="dashExpiring"></div>
+    </div>
+
     <!-- ASSETS TAB -->
-    <div class="tab-panel active" id="panel-assets">
+    <div class="tab-panel" id="panel-assets">
       <div class="toolbar">
         <div class="search-wrap">
           <input type="text" id="adminSearch" placeholder="Search all assets…" oninput="renderAdminAssets()" />
@@ -437,6 +487,22 @@
         </div>
       </div>
     </div>
+
+    <!-- ACTIVITY TAB -->
+    <div class="tab-panel" id="panel-activity">
+      <div class="section-hdr">
+        <div><h2>Activity Log</h2><p>Record of admin actions</p></div>
+        <button class="btn btn-ghost btn-sm" onclick="loadActivityLog()">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Time</th><th>Action</th><th>Entity</th><th>Actor</th><th>Details</th></tr></thead>
+          <tbody id="activityTableBody"></tbody>
+        </table>
+        <div class="empty" id="activityEmpty" style="display:none"><div class="icon">📋</div><p>No activity recorded yet.</p></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -516,6 +582,10 @@
       <button class="close-btn" onclick="closeRequestModal()">×</button>
     </div>
     <p id="requestAssetContext" style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;"></p>
+    <div class="field" id="transferTargetField" style="display:none;margin-bottom:14px;">
+      <label>Transfer to Branch</label>
+      <select id="transferTargetSelect" style="width:100%;"></select>
+    </div>
     <div class="field">
       <label id="requestDescLabel">Description / Notes</label>
       <textarea id="requestDesc" placeholder="Describe your request…"></textarea>
@@ -864,6 +934,7 @@ async function liveSync() {
         description: r.description || null,
         status: r.status,
         admin_note: r.adminNote || null,
+        target_branch_name: r.targetBranchName || null,
         created_at: r.createdAt || now,
         resolved_at: r.resolvedAt || null,
       }));
@@ -885,6 +956,7 @@ async function liveSync() {
         description: r.description || null,
         status: r.status,
         admin_note: r.adminNote || null,
+        target_branch_name: r.targetBranchName || null,
         created_at: r.createdAt || now,
         resolved_at: r.resolvedAt || null,
       }));
@@ -1162,6 +1234,7 @@ async function loadLiveData() {
       description: r.description || '',
       status: r.status,
       adminNote: r.admin_note || '',
+      targetBranchName: r.target_branch_name || null,
       createdAt: r.created_at || '',
       resolvedAt: r.resolved_at,
     }));
@@ -1173,15 +1246,17 @@ async function loadLiveData() {
 
 async function refreshLiveData() {
   if (!liveEnabled || !liveReady || !supa) return;
-  // Don't clobber while editing modals are open.
   const overlaysOpen = document.querySelector('.overlay.open');
   if (isAdmin && overlaysOpen) return;
   await loadLiveData();
   if (isAdmin) {
-    if (adminTab === 'assets') renderAdminAssets();
-    if (adminTab === 'requests') { populateReqBranchFilter(); renderRequests(); updatePendingBadge(); }
-    if (adminTab === 'branches') { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
+    if (adminTab === 'dashboard')  renderDashboard();
+    if (adminTab === 'assets')     renderAdminAssets();
+    if (adminTab === 'requests')   { populateReqBranchFilter(); renderRequests(); updatePendingBadge(); }
+    if (adminTab === 'branches')   { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
+    if (adminTab === 'activity')   loadActivityLog();
   } else {
+    checkRequestNotifications();
     renderBranchAssets();
     renderMyRequests();
   }
@@ -1200,6 +1275,8 @@ function showBranchView() {
   const tBtn = $('telematicsBtn');
   tBtn.href = telematicsUrl || '#';
   tBtn.style.display = telematicsUrl ? '' : 'none';
+  checkRequestNotifications();
+  updateBellBadge();
   renderBranchAssets();
   renderMyRequests();
 }
@@ -1209,23 +1286,21 @@ function showAdminView() {
   const tBtn = $('adminTelematicsBtn');
   tBtn.href = telematicsUrl || '#';
   tBtn.style.display = telematicsUrl ? '' : 'none';
-  setAdminTab('assets');
+  setAdminTab('dashboard');
 }
 
 // ── Admin Tabs ────────────────────────────────────────────────────────
 function setAdminTab(tab) {
   adminTab = tab;
-  ['assets','requests','branches'].forEach(t => {
+  ['dashboard','assets','requests','branches','activity'].forEach(t => {
     $('tab-' + t).classList.toggle('active', t === tab);
     $('panel-' + t).classList.toggle('active', t === tab);
   });
-  if (tab === 'assets')   { populateBranchFilter(); renderAdminAssets(); }
-  if (tab === 'requests') { populateReqBranchFilter(); renderRequests(); }
-  if (tab === 'branches') {
-    renderBranchList();
-    $('telematicsUrlInput').value = telematicsUrl;
-    renderRatesUI();
-  }
+  if (tab === 'dashboard')  renderDashboard();
+  if (tab === 'assets')     { populateBranchFilter(); renderAdminAssets(); }
+  if (tab === 'requests')   { populateReqBranchFilter(); renderRequests(); }
+  if (tab === 'branches')   { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
+  if (tab === 'activity')   loadActivityLog();
   updatePendingBadge();
 }
 
@@ -1293,9 +1368,10 @@ function renderBranchAssets() {
   }
   $('branchEmpty').style.display = 'none';
 
-  // Check which assets have pending return/issue requests
-  const pendingReturns = new Set(requests.filter(r => r.type === 'return_asset' && r.status === 'pending').map(r => r.assetId));
-  const pendingIssues  = new Set(requests.filter(r => r.type === 'report_issue'  && r.status === 'pending').map(r => r.assetId));
+  // Check which assets have pending return/issue/transfer requests
+  const pendingReturns   = new Set(requests.filter(r => r.type === 'return_asset'   && r.status === 'pending').map(r => r.assetId));
+  const pendingIssues    = new Set(requests.filter(r => r.type === 'report_issue'    && r.status === 'pending').map(r => r.assetId));
+  const pendingTransfers = new Set(requests.filter(r => r.type === 'transfer_asset' && r.status === 'pending').map(r => r.assetId));
   const mp = a => { const v = monthlyPayment(a.cost,a.lrf); return v !== null ? fmt$(v) : '—'; };
 
   tbody.innerHTML = list.map(a => {
@@ -1305,6 +1381,9 @@ function renderBranchAssets() {
     const issueBtn = pendingIssues.has(a.id)
       ? `<span class="badge badge-pending" style="font-size:.7rem">Issue Reported</span>`
       : `<button class="btn btn-warn btn-xs" onclick="openRequestModal('report_issue','${a.id}')">Report Issue</button>`;
+    const transferBtn = pendingTransfers.has(a.id)
+      ? `<span class="badge badge-pending" style="font-size:.7rem">Transfer Pending</span>`
+      : (branches.length > 1 ? `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('transfer_asset','${a.id}')">Transfer</button>` : '');
     return `<tr>
       <td><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
       <td>${esc(a.category||'—')}</td>
@@ -1312,7 +1391,7 @@ function renderBranchAssets() {
       <td><span class="badge badge-lease">On Lease</span></td>
       <td style="color:var(--success);font-weight:600">${mp(a)}</td>
       <td>${fmtDate(a.leaseEnd)}</td>
-      <td><div class="actions">${returnBtn}${issueBtn}${(a.files&&a.files.length)?`<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files (${a.files.length})</button>`:''}</div></td>
+      <td><div class="actions">${returnBtn}${issueBtn}${transferBtn}${(a.files&&a.files.length)?`<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files (${a.files.length})</button>`:''}</div></td>
     </tr>`;
   }).join('');
 }
@@ -1330,30 +1409,42 @@ function renderMyRequests() {
 
 // ── Request Modal (branch) ────────────────────────────────────────────
 const reqTypeLabels = {
-  request_asset: ['📋', 'Request an Asset', 'Describe what type of asset or equipment you need:'],
-  return_asset:  ['↩️', 'Return Asset',     'Reason for returning (optional):'],
-  report_issue:  ['⚠️', 'Report Issue',     'Describe the issue with this asset:'],
+  request_asset:  ['📋', 'Request an Asset',  'Describe what type of asset or equipment you need:'],
+  return_asset:   ['↩️', 'Return Asset',       'Reason for returning (optional):'],
+  report_issue:   ['⚠️', 'Report Issue',       'Describe the issue with this asset:'],
+  transfer_asset: ['🔄', 'Transfer Asset',     'Reason for transfer (optional):'],
 };
 
 function openRequestModal(type, assetId) {
   requestingType    = type;
   requestingAssetId = assetId;
-  const [, title, descLabel] = reqTypeLabels[type];
+  const [, title, descLabel] = reqTypeLabels[type] || ['📄', 'Submit Request', 'Description:'];
   $('requestModalTitle').textContent = title;
   $('requestDescLabel').textContent  = descLabel;
   const a = assetId ? assets.find(x => x.id === assetId) : null;
   $('requestAssetContext').textContent = a ? `Asset: ${a.name}${a.serial?' ('+a.serial+')':''}` : '';
   $('requestDesc').value = '';
+  const isTransfer = type === 'transfer_asset';
+  $('transferTargetField').style.display = isTransfer ? '' : 'none';
+  if (isTransfer) {
+    $('transferTargetSelect').innerHTML = branches
+      .filter(b => b.name !== currentBranch)
+      .map(b => `<option value="${escAttr(b.name)}">${esc(b.name)}</option>`)
+      .join('') || '<option disabled>No other branches available</option>';
+  }
   $('requestOverlay').classList.add('open');
 }
 function closeRequestModal() { $('requestOverlay').classList.remove('open'); }
 
 function submitRequest() {
   const desc = $('requestDesc').value.trim();
-  if (requestingType !== 'return_asset' && !desc) {
+  if (requestingType === 'transfer_asset') {
+    if (!$('transferTargetSelect').value) { toast('Select a target branch.', 'warn'); return; }
+  } else if (requestingType !== 'return_asset' && !desc) {
     toast('Please describe your request.', 'warn'); return;
   }
   const a = requestingAssetId ? assets.find(x => x.id === requestingAssetId) : null;
+  const targetBranch = requestingType === 'transfer_asset' ? $('transferTargetSelect').value : null;
   requests.push({
     id: uid(),
     type: requestingType,
@@ -1361,6 +1452,7 @@ function submitRequest() {
     assetId:   requestingAssetId || null,
     assetName: a ? a.name : null,
     description: desc,
+    targetBranchName: targetBranch,
     status: 'pending',
     adminNote: '',
     createdAt: new Date().toISOString(),
@@ -1383,6 +1475,9 @@ function reqCardHTML(r, adminMode) {
     if (r.type === 'request_asset') {
       adminActions = `<button class="btn btn-success btn-xs" onclick="openApproveAsset('${r.id}')">Approve</button>
                       <button class="btn btn-danger btn-xs"  onclick="denyRequest('${r.id}')">Deny</button>`;
+    } else if (r.type === 'transfer_asset') {
+      adminActions = `<button class="btn btn-success btn-xs" onclick="approveTransfer('${r.id}')">Approve</button>
+                      <button class="btn btn-danger btn-xs"  onclick="denyRequest('${r.id}')">Deny</button>`;
     } else {
       adminActions = `<button class="btn btn-success btn-xs" onclick="openSimpleApprove('${r.id}')">Approve</button>
                       <button class="btn btn-danger btn-xs"  onclick="denyRequest('${r.id}')">Deny</button>`;
@@ -1391,12 +1486,15 @@ function reqCardHTML(r, adminMode) {
   const assetLine = r.assetName ? `<span> · ${esc(r.assetName)}</span>` : '';
   const branchLine = adminMode ? `<span> · ${esc(r.branchName)}</span>` : '';
   const noteLine = r.adminNote ? `<div class="req-admin-note">Admin: ${esc(r.adminNote)}</div>` : '';
+  const transferLine = r.type === 'transfer_asset' && r.targetBranchName
+    ? `<div style="font-size:.8rem;margin-top:4px;color:var(--text-muted)">→ Transfer to: <strong style="color:var(--text)">${esc(r.targetBranchName)}</strong></div>` : '';
 
   return `<div class="req-card">
     <div class="req-type-icon">${icon}</div>
     <div class="req-body">
       <div class="req-title">${label}</div>
       <div class="req-meta">${dateStr}${branchLine}${assetLine} ${statusBadge}</div>
+      ${transferLine}
       ${r.description ? `<div class="req-desc">${esc(r.description)}</div>` : ''}
       ${noteLine}
     </div>
@@ -1456,6 +1554,7 @@ function confirmApproveAsset() {
   req.assetId     = assetId;
   req.assetName   = asset.name;
   req.resolvedAt  = new Date().toISOString();
+  logAudit('approve', 'request', req.id, asset.name, `Assigned to ${req.branchName}`);
   saveAll();
   closeApproveAsset();
   renderRequests();
@@ -1485,6 +1584,7 @@ function approveSimple() {
     const asset = assets.find(a => a.id === req.assetId);
     if (asset) { asset.branch = null; asset.status = 'Available'; asset.updatedAt = new Date().toISOString(); }
   }
+  logAudit('approve', 'request', req.id, req.assetName || req.type, req.branchName);
   saveAll();
   closeSimpleApprove();
   renderRequests();
@@ -1500,6 +1600,7 @@ function denyRequest(reqId) {
   req.status     = 'denied';
   req.adminNote  = note;
   req.resolvedAt = new Date().toISOString();
+  logAudit('deny', 'request', reqId, req.assetName || req.type, req.branchName);
   saveAll();
   renderRequests();
   updatePendingBadge();
@@ -1682,6 +1783,19 @@ function applyPresetToAssetForm(presetId) {
 function saveAsset() {
   const name = $('f-name').value.trim();
   if (!name) { toast('Asset name is required.','warn'); return; }
+  // Duplicate detection (new assets only)
+  if (!editingAssetId) {
+    const serial = $('f-serial').value.trim();
+    const dup = assets.find(a =>
+      a.name.toLowerCase() === name.toLowerCase() &&
+      (serial ? a.serial === serial : true)
+    );
+    if (dup) {
+      const loc = dup.branch ? `at ${dup.branch}` : 'in the pool';
+      if (!confirm(`An asset named "${dup.name}"${serial?' with serial "'+dup.serial+'"':''} already exists (${loc}). Add anyway?`)) return;
+    }
+  }
+  const isEditing = !!editingAssetId;
   const branchVal = $('f-branch').value || null;
   const a = {
     id:          editingAssetId || uid(),
@@ -1702,7 +1816,7 @@ function saveAsset() {
     files:       editingAssetId ? (assets.find(x=>x.id===editingAssetId)?.files || []) : [],
     updatedAt:   new Date().toISOString(),
   };
-  if (editingAssetId) {
+  if (isEditing) {
     const i = assets.findIndex(x=>x.id===editingAssetId);
     a.createdAt = assets[i].createdAt;
     assets[i] = a;
@@ -1710,20 +1824,23 @@ function saveAsset() {
     a.createdAt = new Date().toISOString();
     assets.push(a);
   }
+  logAudit(isEditing ? 'update' : 'create', 'asset', a.id, a.name, isEditing ? 'Edited' : `Added to ${a.branch||'pool'}`);
   saveAll();
   closeAssetModal();
   renderAdminAssets();
-  toast(editingAssetId ? 'Asset updated.' : 'Asset added.', 'success');
+  toast(isEditing ? 'Asset updated.' : 'Asset added.', 'success');
 }
 
 async function deleteAsset(id) {
   if (!confirm('Delete this asset permanently? This cannot be undone.')) return;
+  const deletedName = assets.find(a => a.id === id)?.name;
   if (liveEnabled) {
     const { error } = await supa.from('assets').delete().eq('id', id);
     if (error) { toast('Error deleting asset: ' + error.message, 'danger'); return; }
   }
   pendingAssetDeletes.add(id);
   assets = assets.filter(a => a.id !== id);
+  logAudit('delete', 'asset', id, deletedName, null);
   saveAll();
   renderAdminAssets();
   toast('Asset deleted.', 'danger');
@@ -1747,6 +1864,7 @@ function confirmReassign() {
   a.branch    = target;
   a.status    = target ? 'On Lease' : 'Available';
   a.updatedAt = new Date().toISOString();
+  logAudit('reassign', 'asset', a.id, a.name, `${from||'pool'} → ${target||'pool'}`);
   saveAll();
   closeReassign();
   renderAdminAssets();
@@ -1809,6 +1927,7 @@ async function addBranch() {
   }
 
   branches.push({ name, password: liveEnabled ? '—' : pw });
+  logAudit('create', 'branch', null, name, null);
   saveAll();
   $('newBranchName').value = '';
   $('newBranchPw').value = '';
@@ -1835,6 +1954,7 @@ async function removeBranch(name) {
   branches = branches.filter(b=>b.name!==name);
   requests.filter(r=>r.branchName===name && r.status==='pending').forEach(r=>{ r.status='denied'; r.adminNote='Branch removed.'; });
   if (liveEnabled) pendingBranchDeletes.add(name);
+  logAudit('delete', 'branch', null, name, null);
   saveAll();
   renderBranchList();
   populateLoginBranches();
@@ -2269,6 +2389,183 @@ function downloadSampleCSV() {
   toast('Sample CSV downloaded.', 'success');
 }
 
+// ── Audit Log ─────────────────────────────────────────────────────────
+async function logAudit(action, entityType, entityId, entityName, details) {
+  if (!liveEnabled || currentProfile?.role !== 'admin') return;
+  try {
+    await supa.from('audit_log').insert({
+      id: uid(),
+      action,
+      entity_type: entityType || null,
+      entity_id:   entityId   || null,
+      entity_name: entityName || null,
+      actor_role:  'admin',
+      branch_name: null,
+      details:     details    || null,
+    });
+  } catch(e) { /* non-critical — don't interrupt the user */ }
+}
+
+async function loadActivityLog() {
+  const tbody = $('activityTableBody');
+  const empty  = $('activityEmpty');
+  tbody.innerHTML = '';
+  if (!liveEnabled) { empty.style.display = ''; return; }
+  try {
+    const { data, error } = await supa.from('audit_log').select('*').order('created_at', { ascending: false }).limit(200);
+    if (error || !data?.length) { empty.style.display = ''; return; }
+    empty.style.display = 'none';
+    tbody.innerHTML = data.map(r => `<tr>
+      <td style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">${new Date(r.created_at).toLocaleString()}</td>
+      <td><span class="act-action">${esc(r.action)}</span></td>
+      <td>${r.entity_name ? `<strong>${esc(r.entity_name)}</strong>` : (r.entity_id ? `<span style="color:var(--text-muted)">${esc(r.entity_id)}</span>` : '—')}</td>
+      <td>${r.actor_role ? `<span class="badge badge-${r.actor_role==='admin'?'admin':'branch'}" style="font-size:.7rem">${esc(r.actor_role)}</span>` : '—'}</td>
+      <td class="act-detail">${r.details ? esc(r.details) : '—'}</td>
+    </tr>`).join('');
+  } catch(e) { toast('Could not load activity log.', 'warn'); }
+}
+
+// ── Notifications ─────────────────────────────────────────────────────
+const NOTIF_KEY = 'assetTracker_notifs';
+let notifList = JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]');
+
+function updateBellBadge() {
+  const unread = notifList.filter(n => !n.seen).length;
+  const badge = $('branchBellBadge');
+  if (!badge) return;
+  badge.textContent = unread ? String(unread) : '';
+  badge.style.display = unread ? '' : 'none';
+}
+
+function checkRequestNotifications() {
+  if (isAdmin || !currentBranch) return;
+  let changed = false;
+  const myResolved = requests.filter(r => r.branchName === currentBranch && (r.status === 'approved' || r.status === 'denied'));
+  for (const r of myResolved) {
+    if (notifList.find(n => n.reqId === r.id)) continue;
+    const typeLabel = reqTypeLabels[r.type]?.[1] || 'Request';
+    const msg = r.status === 'approved'
+      ? `✅ "${typeLabel}" was approved${r.adminNote ? ': ' + r.adminNote : ''}`
+      : `❌ "${typeLabel}" was denied${r.adminNote ? ': ' + r.adminNote : ''}`;
+    notifList.unshift({ reqId: r.id, message: msg, status: r.status, time: r.resolvedAt || new Date().toISOString(), seen: false });
+    changed = true;
+  }
+  if (notifList.length > 50) notifList = notifList.slice(0, 50);
+  if (changed) {
+    localStorage.setItem(NOTIF_KEY, JSON.stringify(notifList));
+    updateBellBadge();
+    toast('You have new notifications.', 'success');
+  }
+}
+
+function toggleNotifDropdown() {
+  const panel = $('notifDropdown');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : '';
+  if (!isOpen) {
+    renderNotifDropdown();
+    notifList.forEach(n => { n.seen = true; });
+    localStorage.setItem(NOTIF_KEY, JSON.stringify(notifList));
+    updateBellBadge();
+  }
+}
+
+function renderNotifDropdown() {
+  const el = $('notifListEl');
+  if (!notifList.length) {
+    el.innerHTML = '<div style="padding:16px 14px;font-size:.85rem;color:var(--text-muted)">No notifications yet.</div>';
+    return;
+  }
+  el.innerHTML = notifList.map(n => `
+    <div class="notif-item ${n.status==='approved'?'ns':'nd'}">
+      <div>${esc(n.message)}</div>
+      <div class="notif-time">${new Date(n.time).toLocaleString()}</div>
+    </div>`).join('');
+}
+
+function clearNotifs() {
+  notifList = [];
+  localStorage.setItem(NOTIF_KEY, JSON.stringify(notifList));
+  updateBellBadge();
+  $('notifDropdown').style.display = 'none';
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────
+function renderDashboard() {
+  const totalAssets  = assets.length;
+  const onLease      = assets.filter(a => a.branch).length;
+  const inPool       = assets.filter(a => !a.branch).length;
+  const totalMonthly = assets.filter(a => a.branch).reduce((s,a) => s + (monthlyPayment(a.cost,a.lrf)||0), 0);
+
+  $('dashStats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Total Assets</div><div class="stat-value c-blue">${totalAssets}</div></div>
+    <div class="stat-card"><div class="stat-label">On Lease</div><div class="stat-value c-green">${onLease}</div></div>
+    <div class="stat-card"><div class="stat-label">In Pool</div><div class="stat-value" style="color:var(--text-muted)">${inPool}</div></div>
+    <div class="stat-card"><div class="stat-label">Monthly Revenue</div><div class="stat-value c-yellow">${fmt$(totalMonthly)}</div></div>
+  `;
+
+  const tbody = $('dashBranchBody');
+  if (!branches.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">No branches yet.</td></tr>';
+  } else {
+    tbody.innerHTML = branches.map(b => {
+      const bAssets  = assets.filter(a => a.branch === b.name);
+      const bMonthly = bAssets.reduce((s,a) => s + (monthlyPayment(a.cost,a.lrf)||0), 0);
+      const bPending = requests.filter(r => r.branchName === b.name && r.status === 'pending').length;
+      return `<tr>
+        <td><strong>${esc(b.name)}</strong></td>
+        <td>${bAssets.length}</td>
+        <td style="color:var(--success);font-weight:600">${bMonthly ? fmt$(bMonthly) : '—'}</td>
+        <td>${bPending ? `<span class="badge badge-pending">${bPending} pending</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Expiring leases within 30 days
+  const now = new Date();
+  const expiring = assets
+    .filter(a => a.leaseEnd && a.branch)
+    .map(a => { const days = Math.round((new Date(a.leaseEnd) - now) / 86400000); return { a, days }; })
+    .filter(x => x.days <= 30)
+    .sort((a, b) => a.days - b.days);
+
+  const expiringEl = $('dashExpiring');
+  if (!expiring.length) {
+    expiringEl.innerHTML = '<div class="empty" style="padding:20px"><p style="color:var(--text-muted)">No leases expiring within 30 days.</p></div>';
+  } else {
+    expiringEl.innerHTML = '<div class="expiry-list">' + expiring.map(({a, days}) => {
+      const cls   = days < 0 ? 'urgent' : days <= 7 ? 'urgent' : days <= 14 ? 'soon' : 'ok';
+      const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`;
+      return `<div class="expiry-item">
+        <div class="expiry-days ${cls}">${label}</div>
+        <div style="flex:1"><strong>${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
+        <span style="font-size:.8rem;color:var(--text-muted)">${esc(a.branch||'')} · ends ${fmtDate(a.leaseEnd)}</span></div>
+        <button class="btn btn-ghost btn-xs" onclick="setAdminTab('assets');$('adminBranchFilter').value='${escAttr(a.branch||'')}';renderAdminAssets()">View</button>
+      </div>`;
+    }).join('') + '</div>';
+  }
+}
+
+// ── Transfer Approval ─────────────────────────────────────────────────
+function approveTransfer(reqId) {
+  const req = requests.find(r => r.id === reqId);
+  if (!req || !req.assetId || !req.targetBranchName) { toast('Transfer data incomplete.', 'warn'); return; }
+  const asset = assets.find(a => a.id === req.assetId);
+  if (!asset) { toast('Asset not found.', 'warn'); return; }
+  const fromBranch = asset.branch;
+  asset.branch    = req.targetBranchName;
+  asset.status    = 'On Lease';
+  asset.updatedAt = new Date().toISOString();
+  req.status     = 'approved';
+  req.adminNote  = `Transferred to ${req.targetBranchName}`;
+  req.resolvedAt = new Date().toISOString();
+  saveAll();
+  renderRequests();
+  updatePendingBadge();
+  logAudit('transfer', 'asset', asset.id, asset.name, `${fromBranch||'pool'} → ${req.targetBranchName}`);
+  toast(`${asset.name} transferred to ${req.targetBranchName}.`, 'success');
+}
+
 // ── Toast ─────────────────────────────────────────────────────────────
 function toast(msg, type='success') {
   const el = document.createElement('div');
@@ -2281,6 +2578,14 @@ function toast(msg, type='success') {
 // ── Close overlays on backdrop click ─────────────────────────────────
 ['assetFormOverlay','reassignOverlay','requestOverlay','approveAssetOverlay','simpleApproveOverlay','editBranchOverlay','filesOverlay','branchFilesOverlay','bulkReassignOverlay','bulkCategoryOverlay','bulkLRFOverlay'].forEach(id => {
   $(id).addEventListener('click', e => { if (e.target === $(id)) $(id).classList.remove('open'); });
+});
+
+// ── Close notification dropdown on outside click ───────────────────────
+document.addEventListener('click', e => {
+  if (!e.target.closest('.notif-wrap')) {
+    const panel = $('notifDropdown');
+    if (panel) panel.style.display = 'none';
+  }
 });
 
 // ── Init ──────────────────────────────────────────────────────────────

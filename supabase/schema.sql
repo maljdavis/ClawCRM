@@ -200,6 +200,33 @@ create policy "settings: admin write"
   on public.settings for all
   using (public.is_admin());
 
+-- ── audit_log ──────────────────────────────────────────────
+create table if not exists public.audit_log (
+  id          text primary key,
+  action      text not null,
+  entity_type text,
+  entity_id   text,
+  entity_name text,
+  actor_role  text,
+  branch_name text,
+  details     text,
+  created_at  timestamptz default now()
+);
+
+alter table public.audit_log enable row level security;
+
+drop policy if exists "audit_log: admin read"           on public.audit_log;
+drop policy if exists "audit_log: authenticated insert" on public.audit_log;
+
+create policy "audit_log: admin read"
+  on public.audit_log for select using (public.is_admin());
+
+create policy "audit_log: authenticated insert"
+  on public.audit_log for insert with check (auth.role() = 'authenticated');
+
+-- Add target_branch_name to requests (for branch-to-branch transfers)
+alter table public.requests add column if not exists target_branch_name text;
+
 -- ══════════════════════════════════════════════════════════
 -- SEED: Default LRF presets (optional — app seeds these too)
 -- ══════════════════════════════════════════════════════════
