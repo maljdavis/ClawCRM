@@ -753,6 +753,7 @@ let currentProfile = null; // { role: 'admin'|'branch', branchName: string|null 
 let liveSyncTimer = null;
 let livePollTimer = null;
 let pendingBranchDeletes = new Set();
+let pendingAssetDeletes  = new Set();
 
 function isLiveConfigured() {
   return Boolean(LIVE_CONFIG.SUPABASE_URL && LIVE_CONFIG.SUPABASE_ANON_KEY && window.supabase);
@@ -849,6 +850,10 @@ async function liveSync() {
         updated_at: now,
       }));
       if (assetRows.length) await supa.from('assets').upsert(assetRows, { onConflict: 'id' });
+      if (pendingAssetDeletes.size) {
+        await supa.from('assets').delete().in('id', [...pendingAssetDeletes]);
+        pendingAssetDeletes.clear();
+      }
 
       const requestRows = requests.map(r => ({
         id: r.id,
@@ -1711,12 +1716,17 @@ function saveAsset() {
   toast(editingAssetId ? 'Asset updated.' : 'Asset added.', 'success');
 }
 
-function deleteAsset(id) {
+async function deleteAsset(id) {
   if (!confirm('Delete this asset permanently? This cannot be undone.')) return;
-  assets = assets.filter(a=>a.id!==id);
+  if (liveEnabled) {
+    const { error } = await supa.from('assets').delete().eq('id', id);
+    if (error) { toast('Error deleting asset: ' + error.message, 'danger'); return; }
+  }
+  pendingAssetDeletes.add(id);
+  assets = assets.filter(a => a.id !== id);
   saveAll();
   renderAdminAssets();
-  toast('Asset deleted.','danger');
+  toast('Asset deleted.', 'danger');
 }
 
 // ── Reassign Modal ────────────────────────────────────────────────────
@@ -1911,12 +1921,17 @@ async function saveEditBranch() {
     toast('A branch with that name already exists.', 'danger'); return;
   }
 
+  let pwChanged = false;
   if (liveEnabled && newPw) {
     const saveBtn = $('editBranchSaveBtn');
     saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
     const result = await callEdgeFunction('reset-branch-password', { branchName: editingBranchName, password: newPw });
     saveBtn.disabled = false; saveBtn.textContent = 'Save Changes';
-    if (result.error) { toast('Error: ' + result.error, 'danger'); return; }
+    if (result.error) {
+      toast('Password not changed — deploy the reset-branch-password Edge Function to enable this.', 'warn');
+    } else {
+      pwChanged = true;
+    }
   }
 
   const b = branches.find(x => x.name === editingBranchName);
@@ -1932,7 +1947,7 @@ async function saveEditBranch() {
   renderBranchList();
   populateBranchFilter();
   populateLoginBranches();
-  toast(liveEnabled && newPw ? 'Branch updated and password reset.' : 'Branch updated.', 'success');
+  toast(pwChanged ? 'Branch updated and password reset.' : 'Branch updated.', 'success');
 }
 
 // ── Import CSV ────────────────────────────────────────────────────────
@@ -2217,10 +2232,16 @@ function confirmBulkLRF() {
   renderAdminAssets();
 }
 
-function bulkDelete() {
+async function bulkDelete() {
   if (!selectedAssets.size) return;
   const n = selectedAssets.size;
   if (!confirm(`Delete ${n} selected asset(s)? This cannot be undone.`)) return;
+  if (liveEnabled) {
+    const ids = [...selectedAssets];
+    const { error } = await supa.from('assets').delete().in('id', ids);
+    if (error) { toast('Error deleting assets: ' + error.message, 'danger'); return; }
+    ids.forEach(id => pendingAssetDeletes.add(id));
+  }
   assets = assets.filter(a => !selectedAssets.has(a.id));
   saveAll();
   toast(`${n} asset(s) deleted.`, 'danger');
