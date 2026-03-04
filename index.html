@@ -1489,6 +1489,18 @@ async function liveSync() {
       await supa.from('lrf_presets').upsert(presetRows, { onConflict: 'id' });
 
       await supa.from('settings').upsert([{ key: 'telematics_url', value: telematicsUrl || '' }], { onConflict: 'key' });
+
+      // Sync all sale listings (admin sees and manages all)
+      const saleRows = saleListings.map(s => ({
+        id: s.id, asset_id: s.assetId || null, asset_name: s.assetName || null,
+        asset_serial: s.assetSerial || null, branch: s.branch || null,
+        asking_price: s.askingPrice || null, condition: s.condition || null,
+        mileage: s.mileage || null, description: s.description || null,
+        status: s.status, created_at: s.createdAt || now,
+        approved_at: s.approvedAt || null,
+        sold_price: s.soldPrice || null, sold_date: s.soldDate || null,
+      }));
+      if (saleRows.length) await supa.from('sale_listings').upsert(saleRows, { onConflict: 'id' });
     } else {
       // Branch users only persist their own requests.
       const mine = requests.filter(r => r.branchName === currentBranch);
@@ -1512,6 +1524,18 @@ async function liveSync() {
           await supa.from('requests').upsert(fallback, { onConflict: 'id' });
         }
       }
+      // Branch users sync their own sale listings
+      const mineSale = saleListings.filter(s => s.branch === currentBranch);
+      const saleBranchRows = mineSale.map(s => ({
+        id: s.id, asset_id: s.assetId || null, asset_name: s.assetName || null,
+        asset_serial: s.assetSerial || null, branch: s.branch || null,
+        asking_price: s.askingPrice || null, condition: s.condition || null,
+        mileage: s.mileage || null, description: s.description || null,
+        status: s.status, created_at: s.createdAt || now,
+        approved_at: s.approvedAt || null,
+        sold_price: s.soldPrice || null, sold_date: s.soldDate || null,
+      }));
+      if (saleBranchRows.length) await supa.from('sale_listings').upsert(saleBranchRows, { onConflict: 'id' });
     }
   } catch (e) {
     console.error('liveSync error:', e);
@@ -1759,15 +1783,19 @@ async function loadLiveData() {
   if (!isAdmin && currentProfile?.branchName) assetQ = assetQ.eq('branch_name', currentProfile.branchName);
   let reqQ = supa.from('requests').select('*');
   if (!isAdmin && currentProfile?.branchName) reqQ = reqQ.eq('branch_name', currentProfile.branchName);
+  // Admin loads all sale listings; branch loads only their own
+  let saleQ = supa.from('sale_listings').select('*');
+  if (!isAdmin && currentProfile?.branchName) saleQ = saleQ.eq('branch', currentProfile.branchName);
 
   // Fire all queries in parallel
-  const [setRes, ratesRes, brRes, aRes, fcRes, rRes] = await Promise.all([
+  const [setRes, ratesRes, brRes, aRes, fcRes, rRes, saleRes] = await Promise.all([
     supa.from('settings').select('key,value').eq('key', 'telematics_url').maybeSingle(),
     supa.from('lrf_presets').select('id,name,lrf').order('id'),
     supa.from('branches').select('name').order('name'),
     assetQ,
     supa.from('asset_files').select('asset_id'),
     reqQ,
+    saleQ,
   ]);
 
   // Settings
@@ -1844,8 +1872,30 @@ async function loadLiveData() {
     }));
   }
 
+  // Sale listings
+  if (!saleRes.error && Array.isArray(saleRes.data)) {
+    saleListings = saleRes.data.map(s => ({
+      id: s.id,
+      assetId: s.asset_id || '',
+      assetName: s.asset_name || '',
+      assetSerial: s.asset_serial || '',
+      branch: s.branch || '',
+      askingPrice: s.asking_price ?? null,
+      condition: s.condition || '',
+      mileage: s.mileage || '',
+      description: s.description || '',
+      status: s.status,
+      createdAt: s.created_at || '',
+      approvedAt: s.approved_at || null,
+      soldPrice: s.sold_price ?? null,
+      soldDate: s.sold_date || '',
+    }));
+    saveSaleListings(); // keep localStorage in sync
+  }
+
   applyLiveAdminUI();
   populateLRFPresetSelects();
+  if (isAdmin) updatePendingBadge();
 }
 
 async function refreshLiveData() {
@@ -1857,6 +1907,7 @@ async function refreshLiveData() {
     if (adminTab === 'dashboard')  renderDashboard();
     if (adminTab === 'assets')     renderAdminAssets();
     if (adminTab === 'requests')   { populateReqBranchFilter(); renderRequests(); updatePendingBadge(); }
+    if (adminTab === 'forsale')    { populateAdminSaleBranchFilter(); renderAdminForSaleTab(); updatePendingBadge(); }
     if (adminTab === 'branches')    { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
     if (adminTab === 'inspections') loadAdminInspections();
     if (adminTab === 'activity')    loadActivityLog();
@@ -1977,6 +2028,7 @@ let markingSoldId  = null;
 
 function saveSaleListings() {
   try { localStorage.setItem(SALES_KEY, JSON.stringify(saleListings)); } catch(e) {}
+  queueLiveSync();
 }
 
 function renderForSaleTab() {

@@ -368,6 +368,55 @@ create policy "storage asset-files: branch read"
   );
 
 -- ══════════════════════════════════════════════════════════
+-- SALE LISTINGS (branch-submitted for-sale listings)
+-- ══════════════════════════════════════════════════════════
+
+create table if not exists public.sale_listings (
+  id           text primary key,
+  asset_id     text,
+  asset_name   text,
+  asset_serial text,
+  branch       text,
+  asking_price numeric,
+  condition    text,
+  mileage      text,
+  description  text,
+  status       text not null default 'pending',  -- pending | active | pending_sold | sold
+  created_at   timestamptz default now(),
+  approved_at  timestamptz,
+  sold_price   numeric,
+  sold_date    text
+);
+
+alter table public.sale_listings enable row level security;
+
+drop policy if exists "sale_listings: admin all"        on public.sale_listings;
+drop policy if exists "sale_listings: branch read own"  on public.sale_listings;
+drop policy if exists "sale_listings: branch insert own" on public.sale_listings;
+drop policy if exists "sale_listings: branch update own" on public.sale_listings;
+
+-- Admins can do everything
+create policy "sale_listings: admin all"
+  on public.sale_listings for all
+  using (public.is_admin())
+  with check (public.is_admin());
+
+-- Branch users can read their own branch's listings
+create policy "sale_listings: branch read own"
+  on public.sale_listings for select
+  using (branch = public.my_branch() or public.is_admin());
+
+-- Branch users can insert their own listings
+create policy "sale_listings: branch insert own"
+  on public.sale_listings for insert
+  with check (branch = public.my_branch() or public.is_admin());
+
+-- Branch users can update their own listings (e.g. edit, cancel)
+create policy "sale_listings: branch update own"
+  on public.sale_listings for update
+  using (branch = public.my_branch() or public.is_admin());
+
+-- ══════════════════════════════════════════════════════════
 -- SEED: Default LRF presets (optional — app seeds these too)
 -- ══════════════════════════════════════════════════════════
 insert into public.lrf_presets (id, name, lrf) values
