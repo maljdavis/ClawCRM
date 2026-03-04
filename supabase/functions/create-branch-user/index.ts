@@ -11,21 +11,24 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) return json({ error: 'Unauthorized' }, 401)
 
-  const url = Deno.env.get('SUPABASE_URL')!
+  const url  = Deno.env.get('SUPABASE_URL')!
   const anon = Deno.env.get('SUPABASE_ANON_KEY')!
   const svc  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-  // Verify caller is admin
   const caller = createClient(url, anon, { global: { headers: { Authorization: authHeader } } })
-  const { data: { user } } = await caller.auth.getUser()
+  const admin  = createClient(url, svc)
+
+  // Parse body and verify caller in parallel
+  const [{ data: { user } }, body] = await Promise.all([
+    caller.auth.getUser(),
+    req.json(),
+  ])
   if (!user) return json({ error: 'Unauthorized' }, 401)
 
   const { data: prof } = await caller.from('profiles').select('role').eq('id', user.id).single()
   if (prof?.role !== 'admin') return json({ error: 'Forbidden' }, 403)
 
-  // Create auth user + profile
-  const admin = createClient(url, svc)
-  const { branchName, password } = await req.json()
+  const { branchName, password } = body
   if (!branchName || !password) return json({ error: 'branchName and password required' }, 400)
 
   const email = toEmail(branchName)
