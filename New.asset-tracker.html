@@ -337,6 +337,7 @@
         <button class="tab-btn" id="tab-assets"    onclick="setAdminTab('assets')">Assets</button>
         <button class="tab-btn" id="tab-requests"  onclick="setAdminTab('requests')">Requests</button>
         <button class="tab-btn" id="tab-branches"  onclick="setAdminTab('branches')">Branches</button>
+        <button class="tab-btn" id="tab-inspections" onclick="setAdminTab('inspections')">Inspections</button>
         <button class="tab-btn" id="tab-activity"  onclick="setAdminTab('activity')">Activity</button>
       </nav>
     </div>
@@ -495,10 +496,31 @@
 
       <div id="adminPwSection" style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
         <div class="section-hdr"><div><h2>Admin Password</h2><p>Used to access this panel</p></div></div>
-        <div style="display:flex;gap:10px;align-items:end;">
-          <div class="field" style="flex:1"><input id="newAdminPw" type="text" placeholder="New admin password" /></div>
+        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+          <div class="field" style="flex:1;min-width:140px"><label style="font-size:.8rem;color:var(--text-muted)">Current Password</label><input id="currentAdminPw" type="password" placeholder="Current password" /></div>
+          <div class="field" style="flex:1;min-width:140px"><label style="font-size:.8rem;color:var(--text-muted)">New Password</label><input id="newAdminPw" type="password" placeholder="New password" /></div>
           <button class="btn btn-primary btn-sm" onclick="changeAdminPw()">Update</button>
         </div>
+      </div>
+    </div>
+
+    <!-- INSPECTIONS TAB -->
+    <div class="tab-panel" id="panel-inspections">
+      <div class="section-hdr">
+        <div><h2>Inspections</h2><p>Branch-submitted condition reports</p></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="inspFilterBranch" onchange="loadAdminInspections()" style="font-size:.85rem;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);">
+            <option value="">All Branches</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="loadAdminInspections()">Refresh</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Asset</th><th>Branch</th><th>File</th><th>Notes</th><th></th></tr></thead>
+          <tbody id="inspTableBody"></tbody>
+        </table>
+        <div class="empty" id="inspEmpty" style="display:none"><div class="icon">📋</div><p>No inspections submitted yet.</p></div>
       </div>
     </div>
 
@@ -659,6 +681,26 @@
   </div>
 </div>
 
+<!-- ══════════════ MODAL: VERIFY ADMIN PASSWORD ══════════════ -->
+<div class="overlay" id="verifyPwOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2>Confirm Admin Password</h2>
+      <button class="close-btn" onclick="closeVerifyPw()">×</button>
+    </div>
+    <p id="verifyPwHint" style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;"></p>
+    <div class="field">
+      <input type="password" id="verifyPwInput" placeholder="Admin password"
+             onkeydown="if(event.key==='Enter')confirmVerifyPw()" />
+    </div>
+    <div id="verifyPwError" style="color:var(--danger);font-size:.85rem;margin-top:6px;display:none">Incorrect password.</div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeVerifyPw()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmVerifyPw()">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ MODAL: EDIT BRANCH (admin) ══════════════ -->
 <div class="overlay" id="editBranchOverlay">
   <div class="modal modal-sm">
@@ -668,7 +710,13 @@
     </div>
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div class="field"><label>Branch Name</label><input id="eb-name" type="text" placeholder="e.g. Dallas" /></div>
-      <div class="field" id="ebPwField"><label>Password</label><input id="eb-pw" type="text" placeholder="Branch password" /></div>
+      <div class="field" id="ebPwField">
+        <label>Password</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="eb-pw" type="password" placeholder="Branch password" style="flex:1" />
+          <button id="eb-pw-reveal" class="btn btn-ghost btn-xs" onclick="revealBranchPw()" style="white-space:nowrap">Reveal</button>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeEditBranch()">Cancel</button>
@@ -876,6 +924,46 @@ async function loadInspectionsLive(assetId) {
   }));
 }
 
+async function loadAdminInspections() {
+  const tbody = $('inspTableBody');
+  const empty  = $('inspEmpty');
+  tbody.innerHTML = '';
+  if (!liveEnabled) { empty.style.display = ''; return; }
+
+  // Populate branch filter from live branches list
+  const sel = $('inspFilterBranch');
+  const prevVal = sel.value;
+  sel.innerHTML = '<option value="">All Branches</option>' +
+    branches.map(b => `<option value="${escAttr(b.name)}"${b.name === prevVal ? ' selected' : ''}>${esc(b.name)}</option>`).join('');
+
+  const branchFilter = sel.value;
+  try {
+    let q = supa.from('inspections').select('*').order('uploaded_at', { ascending: false }).limit(300);
+    if (branchFilter) q = q.eq('branch_name', branchFilter);
+    const { data, error } = await q;
+    if (error || !data?.length) { empty.style.display = ''; return; }
+
+    // Sign all URLs in parallel
+    const signed = await Promise.all(data.map(async r => {
+      const { data: u } = await supa.storage.from('asset-files').createSignedUrl(r.storage_path, 3600);
+      return { ...r, url: u?.signedUrl || '' };
+    }));
+
+    const assetMap = {};
+    assets.forEach(a => { assetMap[a.id] = a.name; });
+
+    empty.style.display = 'none';
+    tbody.innerHTML = signed.map(r => `<tr>
+      <td style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">${new Date(r.uploaded_at).toLocaleString()}</td>
+      <td><strong>${esc(assetMap[r.asset_id] || r.asset_id)}</strong></td>
+      <td><span class="badge badge-branch" style="font-size:.7rem">${esc(r.branch_name)}</span></td>
+      <td><a href="${escAttr(r.url)}" target="_blank" style="color:var(--accent);font-weight:500">${esc(r.name)}</a></td>
+      <td style="color:var(--text-muted);font-size:.85rem">${r.notes ? esc(r.notes) : '—'}</td>
+      <td><button class="btn btn-ghost btn-xs" onclick="openInspectionModal('${escAttr(r.asset_id)}')">View Asset</button></td>
+    </tr>`).join('');
+  } catch(e) { toast('Could not load inspections: ' + e.message, 'warn'); }
+}
+
 let inspectionAssetId   = null;
 let inspectionUploaderName = null;   // branch name for branches, 'Admin' for admin
 
@@ -924,6 +1012,9 @@ async function handleInspectionUpload(e) {
     for (const file of files) {
       await uploadInspectionLive(inspectionAssetId, inspectionUploaderName, file, notes);
     }
+    const a = assets.find(x => x.id === inspectionAssetId);
+    logAudit('inspect', 'asset', inspectionAssetId, a?.name || inspectionAssetId,
+      `${files.length} file(s) by ${inspectionUploaderName}${notes ? ': ' + notes : ''}`);
     $('inspectionNotes').value = '';
     inp.value = '';
     statusEl.innerHTML = '';
@@ -1516,15 +1607,16 @@ function showAdminView() {
 // ── Admin Tabs ────────────────────────────────────────────────────────
 function setAdminTab(tab) {
   adminTab = tab;
-  ['dashboard','assets','requests','branches','activity'].forEach(t => {
+  ['dashboard','assets','requests','branches','inspections','activity'].forEach(t => {
     $('tab-' + t).classList.toggle('active', t === tab);
     $('panel-' + t).classList.toggle('active', t === tab);
   });
-  if (tab === 'dashboard')  renderDashboard();
-  if (tab === 'assets')     { populateBranchFilter(); renderAdminAssets(); }
-  if (tab === 'requests')   { populateReqBranchFilter(); renderRequests(); }
-  if (tab === 'branches')   { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
-  if (tab === 'activity')   loadActivityLog();
+  if (tab === 'dashboard')    renderDashboard();
+  if (tab === 'assets')       { populateBranchFilter(); renderAdminAssets(); }
+  if (tab === 'requests')     { populateReqBranchFilter(); renderRequests(); }
+  if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
+  if (tab === 'inspections')  loadAdminInspections();
+  if (tab === 'activity')     loadActivityLog();
   updatePendingBadge();
 }
 
@@ -2212,13 +2304,58 @@ function saveTelematicsUrl() {
   queueLiveSync();
 }
 
+// ── Verify-admin-password gate ────────────────────────────────────────
+let verifyPwCallback = null;
+
+function openVerifyPw(hint, callback) {
+  verifyPwCallback = callback;
+  $('verifyPwHint').textContent = hint || 'Enter your admin password to continue.';
+  $('verifyPwInput').value = '';
+  $('verifyPwError').style.display = 'none';
+  $('verifyPwOverlay').classList.add('open');
+  setTimeout(() => $('verifyPwInput').focus(), 80);
+}
+function closeVerifyPw() {
+  $('verifyPwOverlay').classList.remove('open');
+  verifyPwCallback = null;
+}
+function confirmVerifyPw() {
+  if ($('verifyPwInput').value !== adminPw) {
+    $('verifyPwError').style.display = '';
+    return;
+  }
+  closeVerifyPw();
+  if (verifyPwCallback) verifyPwCallback();
+}
+
+function revealBranchPw() {
+  if (liveEnabled) return;
+  openVerifyPw('Enter admin password to reveal the branch password.', () => {
+    const b = branches.find(x => x.name === editingBranchName);
+    const inp = $('eb-pw');
+    inp.type  = 'text';
+    inp.value = b?.password || '';
+    $('eb-pw-reveal').textContent = 'Hide';
+    $('eb-pw-reveal').onclick = () => {
+      inp.type  = 'password';
+      inp.value = '••••••';
+      $('eb-pw-reveal').textContent = 'Reveal';
+      $('eb-pw-reveal').onclick = revealBranchPw;
+    };
+  });
+}
+
 function changeAdminPw() {
-  const pw = $('newAdminPw').value.trim();
-  if (!pw) { toast('Password cannot be empty.','warn'); return; }
+  const current = $('currentAdminPw').value;
+  const pw      = $('newAdminPw').value.trim();
+  if (!current) { toast('Enter your current password first.', 'warn'); return; }
+  if (current !== adminPw) { toast('Current password is incorrect.', 'danger'); $('currentAdminPw').value = ''; return; }
+  if (!pw) { toast('New password cannot be empty.', 'warn'); return; }
   adminPw = pw;
   localStorage.setItem(ADMIN_KEY, adminPw);
+  $('currentAdminPw').value = '';
   $('newAdminPw').value = '';
-  toast('Admin password updated.','success');
+  toast('Admin password updated.', 'success');
 }
 
 // ── LRF Presets ───────────────────────────────────────────────────────
@@ -2272,16 +2409,26 @@ function openEditBranch(name) {
   if (!b) return;
   editingBranchName = name;
   $('eb-name').value = b.name;
-  $('eb-pw').value   = liveEnabled ? '' : b.password;
+  // Password: masked until admin verifies; live mode managed by Supabase Auth
+  const inp = $('eb-pw');
+  inp.type  = 'password';
+  inp.value = liveEnabled ? '' : '••••••';   // placeholder — actual value revealed on Reveal
+  const revealBtn = $('eb-pw-reveal');
+  revealBtn.textContent = 'Reveal';
+  revealBtn.onclick = revealBranchPw;
+  revealBtn.style.display = liveEnabled ? 'none' : '';
+  if (liveEnabled) { inp.value = ''; inp.placeholder = 'Enter new password…'; }
   $('editBranchOverlay').classList.add('open');
 }
 function closeEditBranch() { $('editBranchOverlay').classList.remove('open'); editingBranchName = null; }
 
 async function saveEditBranch() {
   const newName = $('eb-name').value.trim();
-  const newPw   = $('eb-pw').value.trim();
+  // Treat the masked placeholder as "unchanged" — only a revealed/typed value counts
+  const rawPw   = $('eb-pw').value.trim();
+  const newPw   = (rawPw === '••••••') ? '' : rawPw;
   if (!newName) { toast('Branch name is required.', 'warn'); return; }
-  if (!liveEnabled && !newPw) { toast('Password is required.', 'warn'); return; }
+  if (!liveEnabled && !newPw) { toast('Reveal and confirm the password before saving.', 'warn'); return; }
   if (newName !== editingBranchName && branches.some(b => b.name.toLowerCase() === newName.toLowerCase())) {
     toast('A branch with that name already exists.', 'danger'); return;
   }
@@ -2962,7 +3109,7 @@ function toast(msg, type='success') {
 }
 
 // ── Close overlays on backdrop click ─────────────────────────────────
-['assetFormOverlay','reassignOverlay','requestOverlay','approveAssetOverlay','simpleApproveOverlay','editBranchOverlay','filesOverlay','branchFilesOverlay','bulkReassignOverlay','bulkCategoryOverlay','bulkLRFOverlay'].forEach(id => {
+['assetFormOverlay','reassignOverlay','requestOverlay','approveAssetOverlay','simpleApproveOverlay','editBranchOverlay','filesOverlay','branchFilesOverlay','bulkReassignOverlay','bulkCategoryOverlay','bulkLRFOverlay','verifyPwOverlay'].forEach(id => {
   $(id).addEventListener('click', e => { if (e.target === $(id)) $(id).classList.remove('open'); });
 });
 
