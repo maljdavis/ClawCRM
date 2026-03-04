@@ -227,6 +227,11 @@ create policy "audit_log: authenticated insert"
 -- Add target_branch_name to requests (for branch-to-branch transfers)
 alter table public.requests add column if not exists target_branch_name text;
 
+-- Add make/model/year to assets
+alter table public.assets add column if not exists make  text;
+alter table public.assets add column if not exists model text;
+alter table public.assets add column if not exists year  text;
+
 -- ══════════════════════════════════════════════════════════
 -- SEED: Default LRF presets (optional — app seeds these too)
 -- ══════════════════════════════════════════════════════════

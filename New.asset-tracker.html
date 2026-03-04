@@ -287,7 +287,7 @@
           <tr>
             <th>Asset Name</th>
             <th>Category</th>
-            <th>Location</th>
+            <th>Make / Model / Year</th>
             <th>Status</th>
             <th>Monthly Lease</th>
             <th>Lease End</th>
@@ -387,7 +387,7 @@
               <th onclick="setSort('cost')">Cost</th>
               <th onclick="setSort('lrf')">LRF</th>
               <th>Monthly</th>
-              <th onclick="setSort('location')">Location</th>
+              <th>Make / Model / Year</th>
               <th></th>
             </tr>
           </thead>
@@ -523,8 +523,9 @@
           <option value="">— Asset Pool (unassigned) —</option>
         </select>
       </div>
-      <div class="field"><label>Location</label><input id="f-location" type="text" placeholder="e.g. Warehouse A" /></div>
-      <div class="field"><label>Assigned To</label><input id="f-assignedTo" type="text" placeholder="Person or department" /></div>
+      <div class="field"><label>Make *</label><input id="f-make" type="text" placeholder="e.g. Toyota" /></div>
+      <div class="field"><label>Model *</label><input id="f-model" type="text" placeholder="e.g. 8FGU25" /></div>
+      <div class="field"><label>Year *</label><input id="f-year" type="number" min="1900" max="2099" placeholder="e.g. 2022" /></div>
       <div class="field">
         <label>Equipment Cost ($)</label>
         <input id="f-cost" type="number" min="0" step="0.01" placeholder="0.00" oninput="updateLRFPreview()" />
@@ -680,14 +681,18 @@
   </div>
 </div>
 
-<!-- ══════════════ MODAL: ASSET FILES (branch view) ══════════════ -->
+<!-- ══════════════ MODAL: ASSET DETAILS (branch view) ══════════════ -->
 <div class="overlay" id="branchFilesOverlay">
   <div class="modal modal-sm">
     <div class="modal-hdr">
-      <h2 id="branchFilesTitle">Asset Files</h2>
+      <h2 id="branchFilesTitle">Asset Details</h2>
       <button class="close-btn" onclick="closeBranchFiles()">×</button>
     </div>
-    <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:14px;">Download documents attached to this asset.</p>
+    <div id="branchNotesSection" style="display:none;margin-bottom:18px;">
+      <p style="font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px;font-weight:600;">Admin Notes</p>
+      <p id="branchNotesText" style="font-size:.875rem;white-space:pre-wrap;background:var(--surface2);border-radius:6px;padding:10px 12px;"></p>
+    </div>
+    <p style="font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px;font-weight:600;">Attachments</p>
     <div class="file-list" id="branchFileList"></div>
     <div id="branchFilesEmpty" style="display:none;" class="file-empty">No files have been attached to this asset yet.</div>
     <div class="modal-footer">
@@ -904,11 +909,12 @@ async function liveSync() {
         id: a.id,
         name: a.name,
         serial: a.serial || null,
+        make: a.make || null,
+        model: a.model || null,
+        year: a.year || null,
         category: a.category || null,
         branch_name: a.branch || null,
         status: a.status || null,
-        location: a.location || null,
-        assigned_to: a.assignedTo || null,
         cost: (a.cost === '' || a.cost == null) ? null : a.cost,
         lrf:  (a.lrf  === '' || a.lrf  == null) ? null : a.lrf,
         vendor: a.vendor || null,
@@ -1215,11 +1221,12 @@ async function loadLiveData() {
       id: a.id,
       name: a.name,
       serial: a.serial || '',
+      make: a.make || '',
+      model: a.model || '',
+      year: a.year || '',
       category: a.category || '',
       branch: a.branch_name ?? null,
       status: a.status || (a.branch_name ? 'On Lease' : 'Available'),
-      location: a.location || '',
-      assignedTo: a.assigned_to || '',
       cost: a.cost ?? '',
       lrf: a.lrf ?? '',
       vendor: a.vendor || '',
@@ -1370,7 +1377,7 @@ function renderBranchAssets() {
   const q = $('branchSearch').value.toLowerCase().trim();
   let list = branchAssets().filter(a => {
     if (!q) return true;
-    return [a.name,a.serial,a.category,a.location,a.assignedTo].join(' ').toLowerCase().includes(q);
+    return [a.name,a.serial,a.category,a.make,a.model,a.year].join(' ').toLowerCase().includes(q);
   });
 
   const tbody = $('branchTableBody');
@@ -1401,11 +1408,11 @@ function renderBranchAssets() {
     return `<tr>
       <td><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
       <td>${esc(a.category||'—')}</td>
-      <td>${esc(a.location||'—')}</td>
+      <td>${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
       <td><span class="badge badge-lease">On Lease</span></td>
       <td style="color:var(--success);font-weight:600">${mp(a)}</td>
       <td>${fmtDate(a.leaseEnd)}</td>
-      <td><div class="actions">${returnBtn}${issueBtn}${transferBtn}${(a.files&&a.files.length)?`<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files (${a.files.length})</button>`:''}</div></td>
+      <td><div class="actions">${returnBtn}${issueBtn}${transferBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files${(a.files&&a.files.length)?` (${a.files.length})`:''}</button></div></td>
     </tr>`;
   }).join('');
 }
@@ -1663,7 +1670,7 @@ function renderAdminAssets() {
     if (fBranch === '__pool__' && a.branch !== null) return false;
     if (fBranch && fBranch !== '__pool__' && a.branch !== fBranch) return false;
     if (fCat && a.category !== fCat) return false;
-    if (q) return [a.name,a.serial,a.category,a.location,a.vendor,a.assignedTo].join(' ').toLowerCase().includes(q);
+    if (q) return [a.name,a.serial,a.category,a.make,a.model,a.year,a.vendor].join(' ').toLowerCase().includes(q);
     return true;
   });
   list = sortedAssets(list);
@@ -1717,7 +1724,7 @@ function renderAdminAssets() {
       <td>${fmt$(a.cost)}</td>
       <td>${fmtPct(a.lrf)}</td>
       <td>${mp!==null?fmt$(mp):'—'}</td>
-      <td>${esc(a.location||'—')}</td>
+      <td>${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
       <td><div class="actions">
         <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${a.id}')">Edit</button>
         <button class="btn btn-primary btn-xs" onclick="openReassign('${a.id}')">Reassign</button>
@@ -1742,7 +1749,7 @@ function openAssetModal(id) {
   editingAssetId = id || null;
   $('assetModalTitle').textContent = id ? 'Edit Asset' : 'Add Asset';
   const a = id ? assets.find(x=>x.id===id) : {};
-  ['name','serial','category','location','assignedTo','vendor','acquiredDate','leaseStart','leaseEnd','notes'].forEach(f => {
+  ['name','serial','make','model','year','category','vendor','acquiredDate','leaseStart','leaseEnd','notes'].forEach(f => {
     const el = $('f-'+f); if (el) el.value = a?.[f]??'';
   });
   $('f-cost').value = a?.cost??'';
@@ -1797,6 +1804,12 @@ function applyPresetToAssetForm(presetId) {
 function saveAsset() {
   const name = $('f-name').value.trim();
   if (!name) { toast('Asset name is required.','warn'); return; }
+  const make = $('f-make').value.trim();
+  if (!make) { toast('Make is required.','warn'); return; }
+  const model = $('f-model').value.trim();
+  if (!model) { toast('Model is required.','warn'); return; }
+  const year = $('f-year').value.trim();
+  if (!year) { toast('Year is required.','warn'); return; }
   // Duplicate detection (new assets only)
   if (!editingAssetId) {
     const serial = $('f-serial').value.trim();
@@ -1815,11 +1828,12 @@ function saveAsset() {
     id:          editingAssetId || uid(),
     name,
     serial:      $('f-serial').value.trim(),
+    make,
+    model,
+    year,
     category:    $('f-category').value.trim(),
     branch:      branchVal,
     status:      branchVal ? 'On Lease' : 'Available',
-    location:    $('f-location').value.trim(),
-    assignedTo:  $('f-assignedTo').value.trim(),
     cost:        $('f-cost').value !== '' ? parseFloat($('f-cost').value) : '',
     lrf:         $('f-lrf').value  !== '' ? parseFloat($('f-lrf').value)  : '',
     vendor:      $('f-vendor').value.trim(),
@@ -2019,10 +2033,10 @@ function saveRatesFromUI() {
 
 // ── Export CSV ────────────────────────────────────────────────────────
 function exportCSV() {
-  const headers = ['Asset Name','Serial','Category','Branch','Status','Location','Assigned To','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
+  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
   const rows = [headers, ...assets.map(a => {
     const mp = monthlyPayment(a.cost, a.lrf);
-    return [a.name,a.serial,a.category,a.branch||'Pool',a.status,a.location,a.assignedTo,a.cost,a.lrf,mp!=null?mp.toFixed(2):'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.notes]
+    return [a.name,a.serial,a.make,a.model,a.year,a.category,a.branch||'Pool',a.status,a.cost,a.lrf,mp!=null?mp.toFixed(2):'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.notes]
       .map(v=>`"${String(v??'').replace(/"/g,'""')}"`);
   })];
   const blob = new Blob([rows.map(r=>r.join(',')).join('\r\n')],{type:'text/csv'});
@@ -2097,27 +2111,28 @@ function importCSV(input) {
       const cols = parseCSVRow(lines[i]);
       const name = (cols[0] || '').trim();
       if (!name) { skipped++; continue; }
-      const branchRaw = (cols[3] || '').trim();
+      const branchRaw = (cols[6] || '').trim();
       const branchVal = (!branchRaw || branchRaw.toLowerCase() === 'pool') ? null
         : (branches.find(b => b.name.toLowerCase() === branchRaw.toLowerCase())?.name || null);
-      const cost = parseFloat(cols[7]);
-      const lrf  = parseFloat(cols[8]);
+      const cost = parseFloat(cols[8]);
+      const lrf  = parseFloat(cols[9]);
       assets.push({
         id:          uid(),
         name,
         serial:      (cols[1]  || '').trim(),
-        category:    (cols[2]  || '').trim(),
+        make:        (cols[2]  || '').trim(),
+        model:       (cols[3]  || '').trim(),
+        year:        (cols[4]  || '').trim(),
+        category:    (cols[5]  || '').trim(),
         branch:      branchVal,
         status:      branchVal ? 'On Lease' : 'Available',
-        location:    (cols[5]  || '').trim(),
-        assignedTo:  (cols[6]  || '').trim(),
         cost:        isNaN(cost) ? '' : cost,
         lrf:         isNaN(lrf)  ? '' : lrf,
-        vendor:      (cols[10] || '').trim(),
-        acquiredDate:(cols[11] || '').trim(),
-        leaseStart:  (cols[12] || '').trim(),
-        leaseEnd:    (cols[13] || '').trim(),
-        notes:       (cols[14] || '').trim(),
+        vendor:      (cols[11] || '').trim(),
+        acquiredDate:(cols[12] || '').trim(),
+        leaseStart:  (cols[13] || '').trim(),
+        leaseEnd:    (cols[14] || '').trim(),
+        notes:       (cols[15] || '').trim(),
         files:       [],
         createdAt:   new Date().toISOString(),
         updatedAt:   new Date().toISOString(),
@@ -2213,7 +2228,17 @@ function removeFile(index) {
 function openBranchFiles(assetId) {
   const a = assets.find(x => x.id === assetId);
   if (!a) return;
-  $('branchFilesTitle').textContent = `Files — ${a.name}`;
+  $('branchFilesTitle').textContent = `${a.name} — Details`;
+  // Notes
+  const notesSection = $('branchNotesSection');
+  const notesText = $('branchNotesText');
+  if (a.notes && a.notes.trim()) {
+    notesText.textContent = a.notes.trim();
+    notesSection.style.display = '';
+  } else {
+    notesSection.style.display = 'none';
+  }
+  // Files
   const files = a.files || [];
   const el = $('branchFileList');
   const empty = $('branchFilesEmpty');
@@ -2386,13 +2411,13 @@ async function bulkDelete() {
 
 // ── Sample CSV ────────────────────────────────────────────────────────
 function downloadSampleCSV() {
-  const headers = ['Asset Name','Serial','Category','Branch','Status','Location','Assigned To','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
+  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
   const rows = [
-    ['Forklift #1','SN-10001','Heavy Equipment','Dallas','On Lease','Warehouse A','John Smith','45000','0.0185','','Toyota Industries','2023-01-15','2023-02-01','2025-01-31','Annual inspection due Jan 2025'],
-    ['Scissor Lift #2','SN-10002','Aerial Work Platform','Houston','On Lease','Site B','','32000','0.0200','','JLG Industries','2022-06-10','2022-07-01','2024-06-30',''],
-    ['Generator 50kW','SN-10003','Power Equipment','Pool','Available','Main Warehouse','','18500','0.0175','','Generac','2023-03-20','','','Backup unit'],
-    ['Compactor Roller','SN-10004','Compaction','Austin','On Lease','Job Site 4','Mike Jones','67000','0.0190','','Bomag','2021-11-01','2022-01-01','2024-12-31','Recent service completed'],
-    ['Air Compressor','SN-10005','Pneumatic Equipment','Pool','Available','Storage Yard','','9800','0.0165','','Atlas Copco','2023-08-05','','',''],
+    ['Forklift #1','SN-10001','Toyota','8FGU25','2022','Heavy Equipment','Dallas','On Lease','45000','0.0185','','Toyota Industries','2023-01-15','2023-02-01','2025-01-31','Annual inspection due Jan 2025'],
+    ['Scissor Lift #2','SN-10002','JLG','2030ES','2021','Aerial Work Platform','Houston','On Lease','32000','0.0200','','JLG Industries','2022-06-10','2022-07-01','2024-06-30',''],
+    ['Generator 50kW','SN-10003','Generac','XD5000E','2020','Power Equipment','Pool','Available','18500','0.0175','','Generac','2023-03-20','','','Backup unit'],
+    ['Compactor Roller','SN-10004','Bomag','BW120AD-5','2019','Compaction','Austin','On Lease','67000','0.0190','','Bomag','2021-11-01','2022-01-01','2024-12-31','Recent service completed'],
+    ['Air Compressor','SN-10005','Atlas Copco','GA15','2023','Pneumatic Equipment','Pool','Available','9800','0.0165','','Atlas Copco','2023-08-05','','',''],
   ];
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv' });
