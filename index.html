@@ -1438,7 +1438,7 @@ function ensureSupabaseClient() {
 function queueLiveSync() {
   if (!liveEnabled || !liveReady || !supa) return;
   clearTimeout(liveSyncTimer);
-  liveSyncTimer = setTimeout(() => { void liveSync(); }, 450);
+  liveSyncTimer = setTimeout(() => { liveSyncTimer = null; void liveSync(); }, 450);
 }
 
 async function liveSync() {
@@ -2089,7 +2089,8 @@ function saveSaleListings() {
   queueLiveSync();
 }
 
-const SALE_HIDDEN = new Set(['sold', 'removed', 'denied']);
+const SALE_HIDDEN  = new Set(['sold', 'removed', 'denied']); // branch active-listing filter
+const SALE_REMOVED = new Set(['removed', 'denied']);          // admin filter (keep sold visible)
 
 function renderForSaleTab() {
   const listed = saleListings.filter(s => s.branch === currentBranch && !SALE_HIDDEN.has(s.status));
@@ -2306,7 +2307,7 @@ function renderAdminForSaleTab() {
   let list = saleListings.filter(s =>
     (!fBranch || s.branch === fBranch) &&
     (!fStatus || s.status === fStatus) &&
-    !SALE_HIDDEN.has(s.status)
+    !SALE_REMOVED.has(s.status)
   ).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const tbody = $('adminForSaleTableBody');
