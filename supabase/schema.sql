@@ -233,6 +233,64 @@ alter table public.assets add column if not exists model text;
 alter table public.assets add column if not exists year  text;
 
 -- ══════════════════════════════════════════════════════════
+-- ASSET FILES (Supabase Storage metadata)
+-- Before running: create a private bucket named "asset-files"
+-- in Supabase Dashboard → Storage → New bucket
+-- ══════════════════════════════════════════════════════════
+
+create table if not exists public.asset_files (
+  id           text primary key,
+  asset_id     text not null references public.assets(id) on delete cascade,
+  name         text not null,
+  storage_path text not null,
+  size         bigint,
+  mime_type    text,
+  uploaded_at  timestamptz default now()
+);
+
+alter table public.asset_files enable row level security;
+
+drop policy if exists "asset_files: admin all"    on public.asset_files;
+drop policy if exists "asset_files: branch read"  on public.asset_files;
+
+-- Admins can do everything
+create policy "asset_files: admin all"
+  on public.asset_files for all
+  using (public.is_admin());
+
+-- Branch users can read file records for assets assigned to their branch
+create policy "asset_files: branch read"
+  on public.asset_files for select
+  using (
+    exists (
+      select 1 from public.assets
+      where id = asset_id and branch_name = public.my_branch()
+    )
+  );
+
+-- ── Storage bucket RLS (run after creating the "asset-files" bucket) ──
+drop policy if exists "storage asset-files: admin all"   on storage.objects;
+drop policy if exists "storage asset-files: branch read" on storage.objects;
+
+-- Admins can upload, download, and delete in the bucket
+create policy "storage asset-files: admin all"
+  on storage.objects for all
+  using (bucket_id = 'asset-files' and public.is_admin());
+
+-- Branch users can download files for assets assigned to their branch
+create policy "storage asset-files: branch read"
+  on storage.objects for select
+  using (
+    bucket_id = 'asset-files'
+    and exists (
+      select 1 from public.asset_files af
+      join public.assets a on a.id = af.asset_id
+      where af.storage_path = storage.objects.name
+      and a.branch_name = public.my_branch()
+    )
+  );
+
+-- ══════════════════════════════════════════════════════════
 -- SEED: Default LRF presets (optional — app seeds these too)
 -- ══════════════════════════════════════════════════════════
 insert into public.lrf_presets (id, name, lrf) values

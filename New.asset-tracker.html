@@ -791,6 +791,30 @@ function saveAssetFiles(id, files) {
 }
 function deleteAssetFiles(id) { localStorage.removeItem(FILES_KEY_PREFIX + id); }
 
+// ── Supabase Storage helpers (live mode only) ─────────────────────────
+async function uploadFileLive(assetId, file) {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._\-]/g, '_');
+  const path = `${assetId}/${uid()}-${safeName}`;
+  const { error: upErr } = await supa.storage.from('asset-files').upload(path, file);
+  if (upErr) throw new Error('Upload failed: ' + upErr.message);
+  const rec = { id: uid(), asset_id: assetId, name: file.name, storage_path: path, size: file.size, mime_type: file.type };
+  const { error: dbErr } = await supa.from('asset_files').insert(rec);
+  if (dbErr) { await supa.storage.from('asset-files').remove([path]); throw new Error(dbErr.message); }
+  return rec;
+}
+async function loadFilesLive(assetId) {
+  const { data, error } = await supa.from('asset_files').select('*').eq('asset_id', assetId).order('uploaded_at');
+  if (error || !data) return [];
+  return await Promise.all(data.map(async f => {
+    const { data: u } = await supa.storage.from('asset-files').createSignedUrl(f.storage_path, 3600);
+    return { ...f, url: u?.signedUrl || '' };
+  }));
+}
+async function removeFileLive(fileId, storagePath) {
+  await supa.storage.from('asset-files').remove([storagePath]);
+  await supa.from('asset_files').delete().eq('id', fileId);
+}
+
 let assets       = JSON.parse(localStorage.getItem(ASSETS_KEY)   || '[]').map(a => ({ ...a, files: loadAssetFiles(a.id) }));
 let branches     = JSON.parse(localStorage.getItem(BRANCHES_KEY) || '[]');
 let requests     = JSON.parse(localStorage.getItem(REQUESTS_KEY) || '[]');
@@ -1255,9 +1279,17 @@ async function loadLiveData() {
       leaseEnd: a.lease_end || '',
       notes: a.notes || '',
       files: localFiles[a.id] || loadAssetFiles(a.id),
+      fileCount: 0,
       createdAt: a.created_at || '',
       updatedAt: a.updated_at || '',
     }));
+    // Fetch file counts for badges
+    const fcRes = await supa.from('asset_files').select('asset_id');
+    if (!fcRes.error && fcRes.data) {
+      const counts = {};
+      fcRes.data.forEach(r => { counts[r.asset_id] = (counts[r.asset_id] || 0) + 1; });
+      assets.forEach(a => { a.fileCount = counts[a.id] || 0; });
+    }
   }
 
   // Requests
@@ -1432,7 +1464,7 @@ function renderBranchAssets() {
       <td><span class="badge badge-lease">On Lease</span></td>
       <td style="color:var(--success);font-weight:600">${mp(a)}</td>
       <td>${fmtDate(a.leaseEnd)}</td>
-      <td><div class="actions">${returnBtn}${issueBtn}${transferBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files${(a.files&&a.files.length)?` (${a.files.length})`:''}</button></div></td>
+      <td><div class="actions">${returnBtn}${issueBtn}${transferBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button></div></td>
     </tr>`;
   }).join('');
 }
@@ -1748,7 +1780,7 @@ function renderAdminAssets() {
       <td><div class="actions">
         <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${a.id}')">Edit</button>
         <button class="btn btn-primary btn-xs" onclick="openReassign('${a.id}')">Reassign</button>
-        <button class="btn btn-ghost btn-xs" onclick="openFilesModal('${a.id}')">📎${(a.files&&a.files.length)?` (${a.files.length})`:''}</button>
+        <button class="btn btn-ghost btn-xs" onclick="openFilesModal('${a.id}')">📎${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button>
         <button class="btn btn-danger btn-xs" onclick="deleteAsset('${a.id}')">Del</button>
       </div></td>
     </tr>`;
@@ -2188,40 +2220,75 @@ function parseCSVRow(row) {
 
 // ── Asset Files ───────────────────────────────────────────────────────
 let filesAssetId = null;
+let filesLive = null; // file list when in live mode
 
-function openFilesModal(assetId) {
+async function openFilesModal(assetId) {
   filesAssetId = assetId;
+  filesLive = null;
   const a = assets.find(x => x.id === assetId);
   $('filesModalTitle').textContent = `Files — ${a.name}`;
   $('fileUploadInput').value = '';
-  renderAdminFiles();
   $('filesOverlay').classList.add('open');
+  if (liveEnabled) {
+    $('adminFileList').innerHTML = '<span class="file-empty">Loading…</span>';
+    filesLive = await loadFilesLive(assetId);
+  }
+  renderAdminFiles();
 }
 function closeFilesModal() {
   $('filesOverlay').classList.remove('open');
+  if (liveEnabled && filesLive !== null) {
+    const a = assets.find(x => x.id === filesAssetId);
+    if (a) a.fileCount = filesLive.length;
+  }
   filesAssetId = null;
+  filesLive = null;
   renderAdminAssets();
 }
 
 function renderAdminFiles() {
-  const a = assets.find(x => x.id === filesAssetId);
-  if (!a) return;
-  const files = a.files || [];
   const el = $('adminFileList');
-  if (files.length === 0) {
-    el.innerHTML = '<span class="file-empty">No files attached yet.</span>';
-    return;
+  if (liveEnabled) {
+    const files = filesLive || [];
+    if (files.length === 0) { el.innerHTML = '<span class="file-empty">No files attached yet.</span>'; return; }
+    el.innerHTML = files.map((f, i) => `
+      <div class="file-chip">
+        <a href="${escAttr(f.url)}" target="_blank" title="${escAttr(f.name)}">${esc(f.name)}</a>
+        <button class="file-remove" onclick="removeFile(${i})" title="Remove">×</button>
+      </div>`).join('');
+  } else {
+    const a = assets.find(x => x.id === filesAssetId);
+    if (!a) return;
+    const files = a.files || [];
+    if (files.length === 0) { el.innerHTML = '<span class="file-empty">No files attached yet.</span>'; return; }
+    el.innerHTML = files.map((f, i) => `
+      <div class="file-chip">
+        <a href="${f.data}" download="${escAttr(f.name)}" title="${escAttr(f.name)}">${esc(f.name)}</a>
+        <button class="file-remove" onclick="removeFile(${i})" title="Remove">×</button>
+      </div>`).join('');
   }
-  el.innerHTML = files.map((f, i) => `
-    <div class="file-chip">
-      <a href="${f.data}" download="${escAttr(f.name)}" title="${escAttr(f.name)}">${esc(f.name)}</a>
-      <button class="file-remove" onclick="removeFile(${i})" title="Remove">×</button>
-    </div>`).join('');
 }
 
-function handleFileUpload(e) {
+async function handleFileUpload(e) {
   const files = Array.from(e.target.files);
   if (!files.length) return;
+  if (liveEnabled) {
+    const inp = $('fileUploadInput');
+    inp.disabled = true;
+    $('adminFileList').innerHTML = '<span class="file-empty">Uploading…</span>';
+    try {
+      for (const file of files) await uploadFileLive(filesAssetId, file);
+      filesLive = await loadFilesLive(filesAssetId);
+      renderAdminFiles();
+      toast(`${files.length} file(s) uploaded.`, 'success');
+    } catch(err) {
+      toast('Upload error: ' + err.message, 'danger');
+      filesLive = await loadFilesLive(filesAssetId);
+      renderAdminFiles();
+    } finally { inp.disabled = false; inp.value = ''; }
+    return;
+  }
+  // Local mode
   const a = assets.find(x => x.id === filesAssetId);
   if (!a) return;
   if (!a.files) a.files = [];
@@ -2237,8 +2304,18 @@ function handleFileUpload(e) {
   });
 }
 
-function removeFile(index) {
+async function removeFile(index) {
   if (!confirm('Remove this file?')) return;
+  if (liveEnabled) {
+    const f = (filesLive || [])[index];
+    if (!f) return;
+    try {
+      await removeFileLive(f.id, f.storage_path);
+      filesLive = await loadFilesLive(filesAssetId);
+      renderAdminFiles();
+    } catch(err) { toast('Error removing file: ' + err.message, 'danger'); }
+    return;
+  }
   const a = assets.find(x => x.id === filesAssetId);
   if (!a || !a.files) return;
   a.files.splice(index, 1);
@@ -2246,34 +2323,45 @@ function removeFile(index) {
   renderAdminFiles();
 }
 
-function openBranchFiles(assetId) {
+async function openBranchFiles(assetId) {
   const a = assets.find(x => x.id === assetId);
   if (!a) return;
   $('branchFilesTitle').textContent = `${a.name} — Details`;
   // Notes
-  const notesSection = $('branchNotesSection');
-  const notesText = $('branchNotesText');
   if (a.notes && a.notes.trim()) {
-    notesText.textContent = a.notes.trim();
-    notesSection.style.display = '';
+    $('branchNotesText').textContent = a.notes.trim();
+    $('branchNotesSection').style.display = '';
   } else {
-    notesSection.style.display = 'none';
-  }
-  // Files
-  const files = a.files || [];
-  const el = $('branchFileList');
-  const empty = $('branchFilesEmpty');
-  if (files.length === 0) {
-    el.innerHTML = '';
-    empty.style.display = '';
-  } else {
-    empty.style.display = 'none';
-    el.innerHTML = files.map(f => `
-      <div class="file-chip">
-        <a href="${f.data}" download="${escAttr(f.name)}" title="${escAttr(f.name)}">${esc(f.name)}</a>
-      </div>`).join('');
+    $('branchNotesSection').style.display = 'none';
   }
   $('branchFilesOverlay').classList.add('open');
+  // Files
+  const el = $('branchFileList');
+  const empty = $('branchFilesEmpty');
+  el.innerHTML = ''; empty.style.display = 'none';
+  if (liveEnabled) {
+    el.innerHTML = '<span class="file-empty">Loading…</span>';
+    try {
+      const files = await loadFilesLive(assetId);
+      el.innerHTML = '';
+      if (files.length === 0) { empty.style.display = ''; }
+      else {
+        el.innerHTML = files.map(f => `
+          <div class="file-chip">
+            <a href="${escAttr(f.url)}" target="_blank" title="${escAttr(f.name)}">${esc(f.name)}</a>
+          </div>`).join('');
+      }
+    } catch { el.innerHTML = '<span class="file-empty">Could not load files.</span>'; }
+  } else {
+    const files = a.files || [];
+    if (files.length === 0) { empty.style.display = ''; }
+    else {
+      el.innerHTML = files.map(f => `
+        <div class="file-chip">
+          <a href="${f.data}" download="${escAttr(f.name)}" title="${escAttr(f.name)}">${esc(f.name)}</a>
+        </div>`).join('');
+    }
+  }
 }
 function closeBranchFiles() { $('branchFilesOverlay').classList.remove('open'); }
 
