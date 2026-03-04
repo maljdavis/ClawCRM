@@ -106,6 +106,22 @@ as $$
   select branch_name from public.profiles where id = auth.uid();
 $$;
 
+-- ── Drop existing policies (safe re-run) ─────────────────
+drop policy if exists "profiles: own read"        on public.profiles;
+drop policy if exists "profiles: admin write"     on public.profiles;
+drop policy if exists "branches: all users read"  on public.branches;
+drop policy if exists "branches: admin write"     on public.branches;
+drop policy if exists "assets: branch read own"   on public.assets;
+drop policy if exists "assets: admin write"       on public.assets;
+drop policy if exists "requests: branch read own" on public.requests;
+drop policy if exists "requests: branch insert own" on public.requests;
+drop policy if exists "requests: branch update own" on public.requests;
+drop policy if exists "requests: admin delete"    on public.requests;
+drop policy if exists "lrf_presets: all read"     on public.lrf_presets;
+drop policy if exists "lrf_presets: admin write"  on public.lrf_presets;
+drop policy if exists "settings: all read"        on public.settings;
+drop policy if exists "settings: admin write"     on public.settings;
+
 -- ── profiles ──────────────────────────────────────────────
 -- Users can read their own profile; admins can read all
 create policy "profiles: own read"
