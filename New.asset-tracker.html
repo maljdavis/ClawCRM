@@ -1777,9 +1777,25 @@ async function addBranch() {
   if (liveEnabled) {
     const btn = $('addBranchBtn');
     btn.disabled = true; btn.textContent = 'Creating…';
-    const result = await callEdgeFunction('create-branch-user', { branchName: name, password: pw });
+
+    const email = branchToEmail(name);
+
+    // Use a separate client so the sign-up response doesn't overwrite the admin's session
+    const tempClient = window.supabase.createClient(
+      LIVE_CONFIG.SUPABASE_URL, LIVE_CONFIG.SUPABASE_ANON_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false } }
+    );
+    const { data: signUpData, error: signUpErr } = await tempClient.auth.signUp({ email, password: pw });
+
     btn.disabled = false; btn.textContent = 'Add Branch';
-    if (result.error) { toast('Error: ' + result.error, 'danger'); return; }
+
+    if (signUpErr) { toast('Error: ' + signUpErr.message, 'danger'); return; }
+    const userId = signUpData?.user?.id;
+    if (!userId) { toast('Error: User not created — disable "Confirm email" in Supabase Auth settings.', 'danger'); return; }
+
+    // Insert profile (admin RLS policy allows this)
+    const { error: profErr } = await supa.from('profiles').insert({ id: userId, role: 'branch', branch_name: name });
+    if (profErr) { toast('Error saving profile: ' + profErr.message, 'danger'); return; }
   }
 
   branches.push({ name, password: liveEnabled ? '—' : pw });
@@ -1797,9 +1813,9 @@ async function removeBranch(name) {
   if (!confirm(`Remove branch "${name}"?${count>0?` ${count} asset(s) will be moved to the pool.`:''}`)) return;
 
   if (liveEnabled) {
-    // Delete auth user via Edge Function (best-effort; don't block on failure)
-    const result = await callEdgeFunction('delete-branch-user', { branchName: name });
-    if (result.error) { toast('Error deleting user: ' + result.error, 'danger'); return; }
+    // Delete the profile — without a profile the user cannot log in
+    const { error: profErr } = await supa.from('profiles').delete().eq('branch_name', name).eq('role', 'branch');
+    if (profErr) { toast('Error removing branch user: ' + profErr.message, 'danger'); return; }
     // Delete branch row from DB
     const { error: delErr } = await supa.from('branches').delete().eq('name', name);
     if (delErr) { toast('Error removing branch from database: ' + delErr.message, 'danger'); return; }
