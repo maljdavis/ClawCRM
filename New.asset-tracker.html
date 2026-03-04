@@ -371,20 +371,24 @@
     <!-- BRANCHES TAB -->
     <div class="tab-panel" id="panel-branches">
       <div class="section-hdr"><div><h2>Branches / Locations</h2><p>Manage branch access and users</p></div></div>
-      <div id="liveUserHelp" style="display:none;background:rgba(79,124,255,.08);border:1px solid rgba(79,124,255,.25);border-radius:8px;padding:16px;margin-bottom:16px;font-size:.85rem;line-height:1.6;">
-        <strong>How to add a new branch user:</strong><br>
-        1. Go to your <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent)">Supabase Dashboard</a> → Authentication → Users → <em>Add user</em><br>
-        2. Use the email format shown below next to each branch (e.g. <code>dallas@claw.internal</code>) and set a password<br>
-        3. Run this SQL in the SQL Editor (replace with your branch name and email):<br>
-        <code style="display:block;background:var(--surface2);padding:10px 12px;margin-top:8px;border-radius:6px;white-space:pre;font-size:.8rem">INSERT INTO profiles (id, role, branch_name)
-SELECT id, 'branch', 'Dallas'
-FROM auth.users WHERE email = 'dallas@claw.internal';</code>
+      <div id="liveUserHelp" style="display:none;background:rgba(79,124,255,.08);border:1px solid rgba(79,124,255,.25);border-radius:8px;padding:16px;margin-bottom:16px;font-size:.85rem;line-height:1.7;">
+        <strong>⚡ One-time setup — deploy 3 Edge Functions to unlock full user management</strong><br>
+        After this, adding/removing branches and resetting passwords all happens right here.<br><br>
+        <strong>Steps:</strong><br>
+        1. Go to <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent)">supabase.com/dashboard</a> → your project → <strong>Edge Functions</strong> → <strong>Deploy a new function</strong><br>
+        2. Deploy these 3 functions (code is in <code>supabase/functions/</code> in your repo):<br>
+        <div style="margin:8px 0 4px;display:flex;gap:8px;flex-wrap:wrap;">
+          <code style="background:var(--surface2);padding:3px 8px;border-radius:4px">create-branch-user</code>
+          <code style="background:var(--surface2);padding:3px 8px;border-radius:4px">reset-branch-password</code>
+          <code style="background:var(--surface2);padding:3px 8px;border-radius:4px">delete-branch-user</code>
+        </div>
+        3. Done — <strong>Add Branch</strong>, <strong>Edit</strong> (password reset), and <strong>Remove</strong> will all manage login accounts automatically.
       </div>
       <div id="branchList"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-top:16px;">
         <div class="field"><label>Branch Name</label><input id="newBranchName" type="text" placeholder="e.g. Dallas" /></div>
-        <div class="field" id="newBranchPwField"><label>Password</label><input id="newBranchPw" type="text" placeholder="e.g. dallas2024" /></div>
-        <button class="btn btn-primary" style="height:38px;margin-bottom:1px" onclick="addBranch()">Add Branch</button>
+        <div class="field" id="newBranchPwField"><label>Password</label><input id="newBranchPw" type="text" placeholder="Set login password" /></div>
+        <button id="addBranchBtn" class="btn btn-primary" style="height:38px;margin-bottom:1px" onclick="addBranch()">Add Branch</button>
       </div>
 
       <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
@@ -582,7 +586,7 @@ FROM auth.users WHERE email = 'dallas@claw.internal';</code>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeEditBranch()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEditBranch()">Save Changes</button>
+      <button id="editBranchSaveBtn" class="btn btn-primary" onclick="saveEditBranch()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -763,14 +767,30 @@ function applyLoginModeUI() {
 
 function applyLiveAdminUI() {
   if (!liveEnabled) return;
-  const pwField = $('newBranchPwField');
-  if (pwField) pwField.style.display = 'none';
-  const ebPwField = $('ebPwField');
-  if (ebPwField) ebPwField.style.display = 'none';
+  // Password fields stay visible — admin sets them via Edge Functions
   const adminPwSection = $('adminPwSection');
   if (adminPwSection) adminPwSection.style.display = 'none';
   const liveUserHelp = $('liveUserHelp');
   if (liveUserHelp) liveUserHelp.style.display = '';
+  // Update labels/placeholders for live mode
+  const ebPwLabel = $('ebPwField')?.querySelector('label');
+  if (ebPwLabel) ebPwLabel.textContent = 'New Password (leave blank to keep)';
+  const ebPwInput = $('eb-pw');
+  if (ebPwInput) { ebPwInput.placeholder = 'Enter new password…'; ebPwInput.value = ''; }
+}
+
+async function callEdgeFunction(name, body) {
+  const { data: { session } } = await supa.auth.getSession();
+  const res = await fetch(`${LIVE_CONFIG.SUPABASE_URL}/functions/v1/${name}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session?.access_token}`,
+      'apikey': LIVE_CONFIG.SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+  return res.json();
 }
 
 function ensureSupabaseClient() {
@@ -1727,30 +1747,46 @@ function renderBranchList() {
     : '<p style="color:var(--text-muted)">No branches yet.</p>';
 }
 
-function addBranch() {
+async function addBranch() {
   const name = $('newBranchName').value.trim();
-  const pw   = liveEnabled ? '—' : $('newBranchPw').value.trim();
-  if (!name || (!liveEnabled && !pw)) { toast('Name and password required.','warn'); return; }
-  if (branches.some(b=>b.name.toLowerCase()===name.toLowerCase())) { toast('Branch already exists.','danger'); return; }
-  branches.push({ name, password: pw });
+  const pw   = $('newBranchPw').value.trim();
+  if (!name || !pw) { toast('Branch name and password required.', 'warn'); return; }
+  if (branches.some(b => b.name.toLowerCase() === name.toLowerCase())) { toast('Branch already exists.', 'danger'); return; }
+
+  if (liveEnabled) {
+    const btn = $('addBranchBtn');
+    btn.disabled = true; btn.textContent = 'Creating…';
+    const result = await callEdgeFunction('create-branch-user', { branchName: name, password: pw });
+    btn.disabled = false; btn.textContent = 'Add Branch';
+    if (result.error) { toast('Error: ' + result.error, 'danger'); return; }
+  }
+
+  branches.push({ name, password: liveEnabled ? '—' : pw });
   saveAll();
   $('newBranchName').value = '';
-  if (!liveEnabled) $('newBranchPw').value = '';
+  $('newBranchPw').value = '';
   renderBranchList();
   populateBranchFilter();
-  toast('Branch added.','success');
+  populateLoginBranches();
+  toast(liveEnabled ? 'Branch user created.' : 'Branch added.', 'success');
 }
 
-function removeBranch(name) {
+async function removeBranch(name) {
   const count = assets.filter(a=>a.branch===name).length;
   if (!confirm(`Remove branch "${name}"?${count>0?` ${count} asset(s) will be moved to the pool.`:''}`)) return;
+
+  if (liveEnabled) {
+    const result = await callEdgeFunction('delete-branch-user', { branchName: name });
+    if (result.error) { toast('Error deleting user: ' + result.error, 'danger'); return; }
+  }
+
   assets.filter(a=>a.branch===name).forEach(a=>{ a.branch=null; a.status='Available'; });
   branches = branches.filter(b=>b.name!==name);
-  // Cancel pending requests for this branch
   requests.filter(r=>r.branchName===name && r.status==='pending').forEach(r=>{ r.status='denied'; r.adminNote='Branch removed.'; });
   saveAll();
   renderBranchList();
-  toast('Branch removed.','danger');
+  populateLoginBranches();
+  toast('Branch removed.', 'danger');
 }
 
 function saveTelematicsUrl() {
@@ -1824,16 +1860,26 @@ function openEditBranch(name) {
 }
 function closeEditBranch() { $('editBranchOverlay').classList.remove('open'); editingBranchName = null; }
 
-function saveEditBranch() {
+async function saveEditBranch() {
   const newName = $('eb-name').value.trim();
-  const newPw   = liveEnabled ? null : $('eb-pw').value.trim();
-  if (!newName || (!liveEnabled && !newPw)) { toast('Name and password are required.', 'warn'); return; }
+  const newPw   = $('eb-pw').value.trim();
+  if (!newName) { toast('Branch name is required.', 'warn'); return; }
+  if (!liveEnabled && !newPw) { toast('Password is required.', 'warn'); return; }
   if (newName !== editingBranchName && branches.some(b => b.name.toLowerCase() === newName.toLowerCase())) {
     toast('A branch with that name already exists.', 'danger'); return;
   }
+
+  if (liveEnabled && newPw) {
+    const saveBtn = $('editBranchSaveBtn');
+    saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+    const result = await callEdgeFunction('reset-branch-password', { branchName: editingBranchName, password: newPw });
+    saveBtn.disabled = false; saveBtn.textContent = 'Save Changes';
+    if (result.error) { toast('Error: ' + result.error, 'danger'); return; }
+  }
+
   const b = branches.find(x => x.name === editingBranchName);
   const oldName = b.name;
-  b.name     = newName;
+  b.name = newName;
   if (!liveEnabled) b.password = newPw;
   if (newName !== oldName) {
     assets.filter(a => a.branch === oldName).forEach(a => { a.branch = newName; });
@@ -1843,7 +1889,8 @@ function saveEditBranch() {
   closeEditBranch();
   renderBranchList();
   populateBranchFilter();
-  toast('Branch updated.', 'success');
+  populateLoginBranches();
+  toast(liveEnabled && newPw ? 'Branch updated and password reset.' : 'Branch updated.', 'success');
 }
 
 // ── Import CSV ────────────────────────────────────────────────────────
