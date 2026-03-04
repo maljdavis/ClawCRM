@@ -474,6 +474,7 @@
         <button class="tab-btn" id="tab-dashboard" onclick="setAdminTab('dashboard')">Dashboard</button>
         <button class="tab-btn" id="tab-assets"    onclick="setAdminTab('assets')">Assets</button>
         <button class="tab-btn" id="tab-requests"  onclick="setAdminTab('requests')">Requests</button>
+        <button class="tab-btn" id="tab-forsale"   onclick="setAdminTab('forsale')">For Sale</button>
         <button class="tab-btn" id="tab-branches"  onclick="setAdminTab('branches')">Branches</button>
         <button class="tab-btn" id="tab-inspections" onclick="setAdminTab('inspections')">Inspections</button>
         <button class="tab-btn" id="tab-activity"  onclick="setAdminTab('activity')">Activity</button>
@@ -660,6 +661,44 @@
           <tbody id="inspTableBody"></tbody>
         </table>
         <div class="empty" id="inspEmpty" style="display:none"><div class="icon">📋</div><p>No inspections submitted yet.</p></div>
+      </div>
+    </div>
+
+    <!-- FOR SALE TAB (admin) -->
+    <div class="tab-panel" id="panel-forsale">
+      <div class="toolbar">
+        <select id="adminSaleBranchFilter" onchange="renderAdminForSaleTab()">
+          <option value="">All Branches</option>
+        </select>
+        <select id="adminSaleStatusFilter" onchange="renderAdminForSaleTab()">
+          <option value="active">Active Listings</option>
+          <option value="sold">Sold</option>
+          <option value="">All</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openAdminListForSaleModal()">+ Add Listing</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportAdminSoldCSV()">Export Sold CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Branch</th>
+              <th>Asking Price</th>
+              <th>Sold Price</th>
+              <th>Condition</th>
+              <th>Notes</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="adminForSaleTableBody"></tbody>
+        </table>
+        <div class="empty" id="adminForSaleEmpty" style="display:none">
+          <div class="icon">🏷️</div>
+          <p>No listings found.</p>
+        </div>
       </div>
     </div>
 
@@ -1838,13 +1877,14 @@ function showAdminView() {
 // ── Admin Tabs ────────────────────────────────────────────────────────
 function setAdminTab(tab) {
   adminTab = tab;
-  ['dashboard','assets','requests','branches','inspections','activity'].forEach(t => {
+  ['dashboard','assets','requests','forsale','branches','inspections','activity'].forEach(t => {
     $('tab-' + t).classList.toggle('active', t === tab);
     $('panel-' + t).classList.toggle('active', t === tab);
   });
   if (tab === 'dashboard')    renderDashboard();
   if (tab === 'assets')       { populateBranchFilter(); renderAdminAssets(); }
   if (tab === 'requests')     { populateReqBranchFilter(); renderRequests(); }
+  if (tab === 'forsale')      { populateAdminSaleBranchFilter(); renderAdminForSaleTab(); }
   if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
   if (tab === 'inspections')  loadAdminInspections();
   if (tab === 'activity')     loadActivityLog();
@@ -1963,6 +2003,7 @@ function openEditListing(id) { openListForSaleModal(id); }
 
 function closeForSaleModal() {
   $('forSaleOverlay').classList.remove('open');
+  $('forSaleOverlay').dataset.adminMode = '';
   $('saleAssetSelect').disabled = false;
   editingSaleId = null;
 }
@@ -1973,23 +2014,24 @@ function submitForSaleListing() {
   const condition   = $('saleCondition').value.trim();
   const description = $('saleDescription').value.trim();
   if (!assetId) { toast('Select an asset.', 'warn'); return; }
+  const adminMode = $('forSaleOverlay').dataset.adminMode === '1';
   if (editingSaleId) {
     const idx = saleListings.findIndex(s => s.id === editingSaleId);
     if (idx >= 0) {
       saleListings[idx] = { ...saleListings[idx], askingPrice, condition, description };
       saveSaleListings();
-      renderForSaleTab();
+      adminMode ? renderAdminForSaleTab() : renderForSaleTab();
       toast('Listing updated.', 'success');
     }
   } else {
     const a = assets.find(x => x.id === assetId);
     saleListings.push({
       id: uid(), assetId, assetName: a?.name || assetId, assetSerial: a?.serial || '',
-      branch: currentBranch, askingPrice, condition, description,
+      branch: adminMode ? (a?.branch || '—') : currentBranch, askingPrice, condition, description,
       status: 'active', createdAt: new Date().toISOString()
     });
     saveSaleListings();
-    renderForSaleTab();
+    adminMode ? renderAdminForSaleTab() : renderForSaleTab();
     toast('Asset listed for sale.', 'success');
   }
   closeForSaleModal();
@@ -2014,6 +2056,7 @@ function openMarkSold(id) {
 
 function closeMarkSoldModal() {
   $('markSoldOverlay').classList.remove('open');
+  $('markSoldOverlay').dataset.adminMode = '';
   markingSoldId = null;
 }
 
@@ -2025,7 +2068,8 @@ function confirmMarkSold() {
   saleListings[idx].soldDate  = $('soldDate').value || new Date().toISOString().slice(0,10);
   saveSaleListings();
   const name = saleListings[idx].assetName;
-  renderForSaleTab();
+  const adminMode = $('markSoldOverlay').dataset.adminMode === '1';
+  adminMode ? renderAdminForSaleTab() : renderForSaleTab();
   toast(`${name} marked as sold.`, 'success');
   closeMarkSoldModal();
 }
@@ -2043,6 +2087,118 @@ function exportSoldCSV() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href = url; a.download = `sold_${currentBranch}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ── Admin For Sale ────────────────────────────────────────────────────
+function populateAdminSaleBranchFilter() {
+  const sel = $('adminSaleBranchFilter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All Branches</option>' +
+    branches.map(b => `<option value="${escAttr(b.name)}">${esc(b.name)}</option>`).join('');
+  sel.value = cur;
+}
+
+function renderAdminForSaleTab() {
+  const fBranch = $('adminSaleBranchFilter').value;
+  const fStatus = $('adminSaleStatusFilter').value;
+  let list = saleListings.filter(s =>
+    (!fBranch || s.branch === fBranch) &&
+    (!fStatus || s.status === fStatus)
+  ).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const tbody = $('adminForSaleTableBody');
+  $('adminForSaleEmpty').style.display = list.length ? 'none' : '';
+  tbody.innerHTML = list.map(s => {
+    const statusBadge = s.status === 'sold'
+      ? `<span class="badge badge-approved">Sold</span>`
+      : `<span class="badge badge-lease">Active</span>`;
+    const soldCells = s.status === 'sold'
+      ? `<td style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`
+      : `<td style="color:var(--text-muted)">—</td>`;
+    const actions = s.status === 'active'
+      ? `<button class="btn btn-ghost btn-xs" onclick="openAdminEditListing('${s.id}')">Edit</button>
+         <button class="btn btn-success btn-xs" onclick="openAdminMarkSold('${s.id}')">Mark Sold</button>
+         <button class="btn btn-danger btn-xs" onclick="adminRemoveListing('${s.id}')">Remove</button>`
+      : `<button class="btn btn-danger btn-xs" onclick="adminRemoveListing('${s.id}')">Remove</button>`;
+    const date = s.status === 'sold' ? fmtDate(s.soldDate) : fmtDate(s.createdAt?.slice(0,10));
+    return `<tr>
+      <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
+      <td><span class="badge badge-branch" style="font-size:.75rem">${esc(s.branch)}</span></td>
+      <td style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
+      ${soldCells}
+      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
+      <td style="color:var(--text-muted);max-width:200px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
+      <td>${statusBadge}</td>
+      <td>${date}</td>
+      <td><div class="actions">${actions}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+function openAdminListForSaleModal() {
+  editingSaleId = null;
+  $('forSaleModalTitle').textContent = 'Add Listing (Admin)';
+  // Populate asset dropdown with all assets (not just one branch)
+  $('saleAssetSelect').innerHTML = assets.length
+    ? assets.map(a => `<option value="${a.id}">${esc(a.name)}${a.branch?' ['+a.branch+']':''}${a.serial?' — '+a.serial:''}</option>`).join('')
+    : '<option disabled>No assets found</option>';
+  $('saleAssetSelect').disabled = false;
+  $('saleAskingPrice').value = '';
+  $('saleCondition').value   = '';
+  $('saleDescription').value = '';
+  // Override submit to use admin context
+  $('forSaleOverlay').dataset.adminMode = '1';
+  $('forSaleOverlay').classList.add('open');
+}
+
+function openAdminEditListing(id) {
+  editingSaleId = id;
+  const s = saleListings.find(x => x.id === id);
+  $('forSaleModalTitle').textContent = 'Edit Listing (Admin)';
+  $('saleAssetSelect').innerHTML = `<option value="${s.assetId}">${esc(s.assetName)}${s.assetSerial?' — '+s.assetSerial:''}</option>`;
+  $('saleAssetSelect').disabled  = true;
+  $('saleAskingPrice').value     = s.askingPrice || '';
+  $('saleCondition').value       = s.condition   || '';
+  $('saleDescription').value     = s.description || '';
+  $('forSaleOverlay').dataset.adminMode = '1';
+  $('forSaleOverlay').classList.add('open');
+}
+
+function openAdminMarkSold(id) {
+  markingSoldId = id;
+  const s = saleListings.find(x => x.id === id);
+  $('markSoldAssetName').textContent = `${s?.assetName || ''} — ${s?.branch || ''}`;
+  $('soldPrice').value = s?.askingPrice || '';
+  $('soldDate').value  = new Date().toISOString().slice(0,10);
+  $('markSoldOverlay').dataset.adminMode = '1';
+  $('markSoldOverlay').classList.add('open');
+}
+
+function adminRemoveListing(id) {
+  const s = saleListings.find(x => x.id === id);
+  if (!confirm(`Remove listing for "${s?.assetName}"?`)) return;
+  saleListings = saleListings.filter(x => x.id !== id);
+  saveSaleListings();
+  renderAdminForSaleTab();
+  toast('Listing removed.', 'success');
+}
+
+function exportAdminSoldCSV() {
+  const fBranch = $('adminSaleBranchFilter').value;
+  const sold = saleListings.filter(s => s.status === 'sold' && (!fBranch || s.branch === fBranch));
+  if (!sold.length) { toast('No sold items to export.', 'warn'); return; }
+  const header = ['Asset Name','Serial','Branch','Asking Price','Sold Price','Sold Date','Listed Date'];
+  const rows = sold.map(s => [
+    s.assetName, s.assetSerial||'', s.branch||'', s.askingPrice||'', s.soldPrice||'',
+    s.soldDate||'', (s.createdAt||'').slice(0,10)
+  ]);
+  const csv = [header,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const suffix = fBranch ? `_${fBranch}` : '_all';
+  a.href = url; a.download = `sold${suffix}_${new Date().toISOString().slice(0,10)}.csv`;
   a.click(); URL.revokeObjectURL(url);
 }
 
