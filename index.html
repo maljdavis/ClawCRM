@@ -417,7 +417,10 @@
     <div class="bpanel" id="bpanel-forsale">
       <div class="section-hdr" style="margin-top:8px">
         <div><h2>Assets For Sale</h2><p>Active listings from this branch</p></div>
-        <button class="btn btn-primary btn-sm" onclick="openListForSaleModal()">+ List Asset for Sale</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="openBulkSaleModal(false)">⬆ Bulk Upload</button>
+          <button class="btn btn-primary btn-sm" onclick="openListForSaleModal()">+ List Asset for Sale</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
@@ -683,6 +686,7 @@
           <option value="">All</option>
         </select>
         <button class="btn btn-primary btn-sm" onclick="openAdminListForSaleModal()">+ Add Listing</button>
+        <button class="btn btn-ghost btn-sm" onclick="openBulkSaleModal(true)">⬆ Bulk Upload</button>
         <button class="btn btn-ghost btn-sm" onclick="exportAdminSoldCSV()">Export Sold CSV</button>
       </div>
       <div class="table-wrap">
@@ -1103,6 +1107,40 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeMarkSoldModal()">Cancel</button>
       <button class="btn btn-success" onclick="confirmMarkSold()">Mark as Sold</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: BULK FOR SALE UPLOAD ══════════════ -->
+<div class="overlay" id="bulkSaleOverlay">
+  <div class="modal" style="max-width:780px">
+    <div class="modal-hdr">
+      <h2>Bulk List Assets for Sale</h2>
+      <button class="close-btn" onclick="closeBulkSaleModal()">×</button>
+    </div>
+    <div style="margin-bottom:12px;font-size:.85rem;color:var(--text-muted);line-height:1.6">
+      Upload a CSV or paste rows below. Columns: <strong>Serial, Asking Price, Condition, Mileage, Description</strong><br>
+      Assets are matched by serial number. Asking Price and other fields are optional.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <button class="btn btn-ghost btn-sm" onclick="downloadBulkSaleTemplate()">⬇ Download Template</button>
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+        📂 Upload CSV <input type="file" id="bulkSaleFile" accept=".csv" style="display:none" onchange="parseBulkSaleFile(this)">
+      </label>
+    </div>
+    <textarea id="bulkSalePaste" rows="6" placeholder="Or paste CSV rows here, e.g.:&#10;SN001,25000,Good,4500,Well maintained&#10;SN002,45000,Excellent,2000," style="width:100%;font-family:monospace;font-size:.82rem;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);resize:vertical" oninput="previewBulkSale()"></textarea>
+    <div id="bulkSalePreview" style="margin-top:12px;display:none">
+      <div style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:6px" id="bulkSalePreviewHdr"></div>
+      <div class="table-wrap" style="max-height:260px;overflow-y:auto">
+        <table style="font-size:.82rem">
+          <thead><tr><th>Serial</th><th>Asset Found</th><th>Asking Price</th><th>Condition</th><th>Mileage</th><th>Notes</th><th></th></tr></thead>
+          <tbody id="bulkSalePreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeBulkSaleModal()">Cancel</button>
+      <button class="btn btn-primary" id="bulkSaleSubmitBtn" onclick="submitBulkSale()" disabled>List All Matched</button>
     </div>
   </div>
 </div>
@@ -2419,6 +2457,147 @@ function exportAdminSoldCSV() {
   const suffix = fBranch ? `_${fBranch}` : '_all';
   a.href = url; a.download = `sold${suffix}_${new Date().toISOString().slice(0,10)}.csv`;
   a.click(); URL.revokeObjectURL(url);
+}
+
+// ── Bulk For Sale Upload ──────────────────────────────────────────────
+let bulkSaleAdminMode = false;
+let bulkSaleParsed   = []; // [{serial, askingPrice, condition, mileage, description, asset}]
+
+function openBulkSaleModal(adminMode) {
+  bulkSaleAdminMode = adminMode;
+  $('bulkSalePaste').value = '';
+  $('bulkSalePreview').style.display = 'none';
+  $('bulkSaleSubmitBtn').disabled = true;
+  if ($('bulkSaleFile')) $('bulkSaleFile').value = '';
+  bulkSaleParsed = [];
+  $('bulkSaleOverlay').classList.add('open');
+}
+
+function closeBulkSaleModal() {
+  $('bulkSaleOverlay').classList.remove('open');
+}
+
+function downloadBulkSaleTemplate() {
+  const header = 'Serial,Asking Price,Condition,Mileage,Description';
+  const sample = 'SN001,25000,Good,4500,Well maintained\nSN002,45000,Excellent,2000,';
+  const blob = new Blob([header + '\n' + sample], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'bulk_for_sale_template.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function parseBulkSaleFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    $('bulkSalePaste').value = e.target.result;
+    previewBulkSale();
+  };
+  reader.readAsText(file);
+}
+
+function parseBulkSaleCSV(text) {
+  return text.split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !/^serial/i.test(l))  // skip blank lines and header
+    .map(l => {
+      // Split respecting quoted fields
+      const cols = [];
+      let cur = '', inQ = false;
+      for (let i = 0; i < l.length; i++) {
+        const c = l[i];
+        if (c === '"') { inQ = !inQ; }
+        else if (c === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+        else { cur += c; }
+      }
+      cols.push(cur.trim());
+      return {
+        serial:       cols[0] || '',
+        askingPrice:  parseFloat(cols[1]) || null,
+        condition:    cols[2] || '',
+        mileage:      cols[3] || '',
+        description:  cols[4] || '',
+      };
+    })
+    .filter(r => r.serial);
+}
+
+function previewBulkSale() {
+  const text = $('bulkSalePaste').value.trim();
+  if (!text) { $('bulkSalePreview').style.display = 'none'; bulkSaleParsed = []; $('bulkSaleSubmitBtn').disabled = true; return; }
+
+  const pool = bulkSaleAdminMode ? assets : assets.filter(a => a.branch === currentBranch);
+  const rows = parseBulkSaleCSV(text);
+
+  bulkSaleParsed = rows.map(r => {
+    const asset = pool.find(a => a.serial && a.serial.trim().toLowerCase() === r.serial.toLowerCase());
+    return { ...r, asset };
+  });
+
+  const matched = bulkSaleParsed.filter(r => r.asset).length;
+  $('bulkSalePreviewHdr').textContent = `${bulkSaleParsed.length} rows parsed — ${matched} assets matched`;
+
+  $('bulkSalePreviewBody').innerHTML = bulkSaleParsed.map((r, i) => {
+    const found = r.asset
+      ? `<span style="color:var(--success);font-weight:600">${esc(r.asset.name)}${r.asset.branch ? ' [' + esc(r.asset.branch) + ']' : ''}</span>`
+      : `<span style="color:var(--danger);font-size:.8rem">Not found</span>`;
+    const removeBtn = `<button class="btn btn-ghost btn-xs" onclick="removeBulkSaleRow(${i})">✕</button>`;
+    return `<tr style="${r.asset ? '' : 'opacity:.5'}">
+      <td>${esc(r.serial)}</td>
+      <td>${found}</td>
+      <td>${r.askingPrice ? fmt$(r.askingPrice) : '—'}</td>
+      <td>${esc(r.condition||'—')}</td>
+      <td>${esc(r.mileage||'—')}</td>
+      <td style="max-width:140px;white-space:normal;font-size:.78rem">${esc(r.description||'—')}</td>
+      <td>${removeBtn}</td>
+    </tr>`;
+  }).join('');
+
+  $('bulkSalePreview').style.display = '';
+  $('bulkSaleSubmitBtn').disabled = matched === 0;
+  $('bulkSaleSubmitBtn').textContent = `List ${matched} Asset${matched !== 1 ? 's' : ''} for Sale`;
+}
+
+function removeBulkSaleRow(idx) {
+  bulkSaleParsed.splice(idx, 1);
+  // Rebuild textarea from remaining rows
+  const lines = ['Serial,Asking Price,Condition,Mileage,Description',
+    ...bulkSaleParsed.map(r => [r.serial, r.askingPrice||'', r.condition, r.mileage, r.description]
+      .map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))];
+  $('bulkSalePaste').value = lines.join('\n');
+  previewBulkSale();
+}
+
+function submitBulkSale() {
+  const toList = bulkSaleParsed.filter(r => r.asset);
+  if (!toList.length) { toast('No matched assets to list.', 'warn'); return; }
+  const now = new Date().toISOString();
+  const listingStatus = bulkSaleAdminMode ? 'active' : 'pending';
+  let added = 0;
+  toList.forEach(r => {
+    const a = r.asset;
+    // Skip if already listed (active or pending)
+    if (saleListings.find(s => s.assetId === a.id && s.status !== 'sold')) return;
+    a.forSale = true;
+    if (r.mileage) a.mileage = r.mileage;
+    if (bulkSaleAdminMode) a.status = 'For Sale';
+    saleListings.push({
+      id: uid(), assetId: a.id, assetName: a.name, assetSerial: a.serial || '',
+      branch: a.branch || (bulkSaleAdminMode ? '—' : currentBranch),
+      askingPrice: r.askingPrice, condition: r.condition, mileage: r.mileage,
+      description: r.description, status: listingStatus, createdAt: now,
+    });
+    added++;
+  });
+  saveSaleListings();
+  saveAll();
+  closeBulkSaleModal();
+  bulkSaleAdminMode ? renderAdminForSaleTab() : renderForSaleTab();
+  updatePendingBadge();
+  const skipped = toList.length - added;
+  toast(`${added} asset${added !== 1 ? 's' : ''} listed${skipped ? ` (${skipped} already listed, skipped)` : ''}.`, 'success');
 }
 
 // ── Branch View ───────────────────────────────────────────────────────
