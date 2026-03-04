@@ -7,9 +7,9 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0f1117; --surface: #1a1d27; --surface2: #222535; --border: #2e3248;
-      --accent: #4f7cff; --danger: #e05252; --success: #3ecf8e; --warning: #f59e0b;
-      --text: #e2e8f0; --text-muted: #7c85a8; --radius: 8px;
+      --bg: #0d1210; --surface: #161d1a; --surface2: #1e2a24; --border: #253328;
+      --accent: #22c55e; --danger: #ef4444; --success: #4ade80; --warning: #facc15;
+      --text: #e2e8e4; --text-muted: #6b8a76; --radius: 8px;
     }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
@@ -41,9 +41,9 @@
     .badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
     .badge-branch  { background: var(--accent); color: #fff; }
     .badge-admin   { background: var(--warning); color: #000; }
-    .badge-lease   { background: rgba(62,207,142,.15); color: var(--success); }
-    .badge-pending { background: rgba(245,158,11,.15); color: var(--warning); }
-    .badge-approved{ background: rgba(62,207,142,.15); color: var(--success); }
+    .badge-lease   { background: rgba(34,197,94,.15); color: var(--success); }
+    .badge-pending { background: rgba(250,204,21,.15); color: var(--warning); }
+    .badge-approved{ background: rgba(34,197,94,.15); color: var(--success); }
     .badge-denied  { background: rgba(224,82,82,.15); color: var(--danger); }
     .badge-pool    { background: rgba(124,133,168,.15); color: var(--text-muted); }
 
@@ -89,7 +89,7 @@
     .btn-warn    { background: var(--warning); color: #000; }
     .btn-sm      { padding: 5px 12px; font-size: .8rem; }
     .btn-xs      { padding: 3px 9px; font-size: .75rem; }
-    .btn-telematics { background: #ff6b00; color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-telematics { background: #16a34a; color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
     .w-full { width: 100%; }
 
     /* ── Filter select ── */
@@ -135,7 +135,7 @@
 
     /* ── Info banner ── */
     .info-banner {
-      background: rgba(79,124,255,.1); border: 1px solid rgba(79,124,255,.3);
+      background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.25);
       border-radius: var(--radius); padding: 12px 16px; font-size: .85rem; color: var(--accent);
       margin-bottom: 20px; display: flex; gap: 10px; align-items: center;
     }
@@ -187,7 +187,7 @@
     .file-remove { background:none;border:none;color:var(--danger);cursor:pointer;font-size:1.1rem;line-height:1;padding:0; }
 
     /* ── Bulk selection ── */
-    .bulk-bar { background:rgba(79,124,255,.1); border:1px solid rgba(79,124,255,.4); border-radius:var(--radius); padding:10px 16px; margin-bottom:12px; display:none; align-items:center; gap:10px; flex-wrap:wrap; }
+    .bulk-bar { background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.35); border-radius:var(--radius); padding:10px 16px; margin-bottom:12px; display:none; align-items:center; gap:10px; flex-wrap:wrap; }
     .bulk-bar.visible { display:flex; }
     .bulk-count { font-size:.875rem; font-weight:600; color:var(--accent); flex:1; }
     input[type=checkbox] { width:15px; height:15px; cursor:pointer; accent-color:var(--accent); flex-shrink:0; }
@@ -477,7 +477,7 @@
     <!-- BRANCHES TAB -->
     <div class="tab-panel" id="panel-branches">
       <div class="section-hdr"><div><h2>Branches / Locations</h2><p>Manage branch access and users</p></div></div>
-      <div id="liveUserHelp" style="display:none;background:rgba(79,124,255,.08);border:1px solid rgba(79,124,255,.25);border-radius:8px;padding:16px;margin-bottom:16px;font-size:.85rem;line-height:1.7;">
+      <div id="liveUserHelp" style="display:none;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:16px;margin-bottom:16px;font-size:.85rem;line-height:1.7;">
         <strong>⚡ One-time setup — deploy 3 Edge Functions to unlock full user management</strong><br>
         After this, adding/removing branches and resetting passwords all happens right here.<br><br>
         <strong>Steps:</strong><br>
