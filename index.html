@@ -1954,6 +1954,7 @@ async function refreshLiveData() {
     checkRenewalNotifications();
     renderBranchAssets();
     renderMyRequests();
+    if (currentBranchTab === 'forsale') renderForSaleTab();
   }
 }
 
@@ -2074,6 +2075,12 @@ function reloadSaleListings() {
 function saveSaleListings() {
   try { localStorage.setItem(SALES_KEY, JSON.stringify(saleListings)); } catch(e) {}
   queueLiveSync();
+}
+
+async function deleteSaleListingFromDB(id) {
+  if (liveEnabled && liveReady && supa) {
+    try { await supa.from('sale_listings').delete().eq('id', id); } catch(e) { console.error('delete sale listing error', e); }
+  }
 }
 
 function renderForSaleTab() {
@@ -2205,11 +2212,11 @@ function removeListing(id) {
   const s = saleListings.find(x => x.id === id);
   saleListings = saleListings.filter(x => x.id !== id);
   saveSaleListings();
-  // Clear forSale flag on the asset so it shows as active again
+  void deleteSaleListingFromDB(id);
   const a = assets.find(x => x.id === s?.assetId);
   if (a) { a.forSale = false; if (a.status === 'For Sale') a.status = 'On Lease'; saveAll(); }
   renderForSaleTab();
-  if (typeof renderBranchAssets === 'function') renderBranchAssets();
+  renderBranchAssets();
   updatePendingBadge();
   toast('Listing removed. Asset is back in active leases.', 'success');
 }
@@ -2398,11 +2405,12 @@ function denyListing(id) {
   if (!s || !confirm(`Deny listing for "${s.assetName}"?`)) return;
   saleListings = saleListings.filter(x => x.id !== id);
   saveSaleListings();
+  void deleteSaleListingFromDB(id);
   const a = assets.find(x => x.id === s.assetId);
   if (a) { a.forSale = false; saveAll(); }
   renderAdminForSaleTab();
   updatePendingBadge();
-  toast('Listing denied.', 'danger');
+  toast('Listing denied and removed.', 'danger');
 }
 
 function adminConfirmSale(id) {
@@ -2434,6 +2442,7 @@ function adminRemoveListing(id) {
   if (!confirm(`Remove listing for "${s?.assetName}"? The asset will return to active leases.`)) return;
   saleListings = saleListings.filter(x => x.id !== id);
   saveSaleListings();
+  void deleteSaleListingFromDB(id);
   const a = assets.find(x => x.id === s?.assetId);
   if (a) { a.forSale = false; if (a.status === 'For Sale') a.status = 'On Lease'; saveAll(); }
   renderAdminForSaleTab();
