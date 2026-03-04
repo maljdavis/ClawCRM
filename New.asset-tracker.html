@@ -752,6 +752,7 @@ let liveReady = false;
 let currentProfile = null; // { role: 'admin'|'branch', branchName: string|null }
 let liveSyncTimer = null;
 let livePollTimer = null;
+let pendingBranchDeletes = new Set();
 
 function isLiveConfigured() {
   return Boolean(LIVE_CONFIG.SUPABASE_URL && LIVE_CONFIG.SUPABASE_ANON_KEY && window.supabase);
@@ -790,10 +791,12 @@ async function callEdgeFunction(name, body) {
         'apikey': LIVE_CONFIG.SUPABASE_ANON_KEY,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
     });
     const text = await res.text();
     try { return JSON.parse(text); } catch { return { error: text || `HTTP ${res.status}` }; }
   } catch (e) {
+    if (e.name === 'TimeoutError' || e.name === 'AbortError') return { error: 'Request timed out. The server may be warming up — please try again.' };
     return { error: e.message || 'Network error' };
   }
 }
@@ -821,6 +824,10 @@ async function liveSync() {
     if (isAdminRole) {
       const branchRows = branches.map(b => ({ name: b.name, updated_at: now }));
       if (branchRows.length) await supa.from('branches').upsert(branchRows, { onConflict: 'name' });
+      if (pendingBranchDeletes.size) {
+        await supa.from('branches').delete().in('name', [...pendingBranchDeletes]);
+        pendingBranchDeletes.clear();
+      }
 
       const assetRows = assets.map(a => ({
         id: a.id,
@@ -1781,14 +1788,18 @@ async function removeBranch(name) {
   if (!confirm(`Remove branch "${name}"?${count>0?` ${count} asset(s) will be moved to the pool.`:''}`)) return;
 
   if (liveEnabled) {
+    // Delete auth user via Edge Function (best-effort; don't block on failure)
     const result = await callEdgeFunction('delete-branch-user', { branchName: name });
     if (result.error) { toast('Error deleting user: ' + result.error, 'danger'); return; }
-    await supa.from('branches').delete().eq('name', name);
+    // Delete branch row from DB
+    const { error: delErr } = await supa.from('branches').delete().eq('name', name);
+    if (delErr) { toast('Error removing branch from database: ' + delErr.message, 'danger'); return; }
   }
 
   assets.filter(a=>a.branch===name).forEach(a=>{ a.branch=null; a.status='Available'; });
   branches = branches.filter(b=>b.name!==name);
   requests.filter(r=>r.branchName===name && r.status==='pending').forEach(r=>{ r.status='denied'; r.adminNote='Branch removed.'; });
+  if (liveEnabled) pendingBranchDeletes.add(name);
   saveAll();
   renderBranchList();
   populateLoginBranches();
