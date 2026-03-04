@@ -426,11 +426,12 @@
               <th>Asset</th>
               <th>Asking Price</th>
               <th>Monthly Lease</th>
-              <th>Saves/mo</th>
+              <th>Saves/yr</th>
               <th>Condition</th>
               <th>Mileage</th>
               <th>Notes</th>
               <th>Listed</th>
+              <th>Status</th>
               <th></th>
             </tr>
           </thead>
@@ -675,6 +676,8 @@
           <option value="">All Branches</option>
         </select>
         <select id="adminSaleStatusFilter" onchange="renderAdminForSaleTab()">
+          <option value="pending">Pending Approval</option>
+          <option value="pending_sold">Sale Pending</option>
           <option value="active">Active Listings</option>
           <option value="sold">Sold</option>
           <option value="">All</option>
@@ -691,7 +694,7 @@
               <th>Asking Price</th>
               <th>Sold Price</th>
               <th>Monthly Lease</th>
-              <th>Saves/mo</th>
+              <th>Saves/yr</th>
               <th>Condition</th>
               <th>Mileage</th>
               <th>Notes</th>
@@ -1920,6 +1923,19 @@ function updatePendingBadge() {
     dot.textContent = String(n);
     btn.appendChild(dot);
   }
+  // For Sale tab pending dot
+  const nSale = saleListings.filter(s => s.status === 'pending' || s.status === 'pending_sold').length;
+  const saleBtn = $('tab-forsale');
+  if (saleBtn) {
+    const existingDot = saleBtn.querySelector('.req-dot');
+    if (existingDot) existingDot.remove();
+    if (nSale > 0) {
+      const dot = document.createElement('span');
+      dot.className = 'req-dot';
+      dot.textContent = String(nSale);
+      saleBtn.appendChild(dot);
+    }
+  }
 }
 
 // ── Formatting ────────────────────────────────────────────────────────
@@ -1964,30 +1980,40 @@ function saveSaleListings() {
 }
 
 function renderForSaleTab() {
-  const active = saleListings.filter(s => s.branch === currentBranch && s.status === 'active');
+  const listed = saleListings.filter(s => s.branch === currentBranch && s.status !== 'sold');
   const sold   = saleListings.filter(s => s.branch === currentBranch && s.status === 'sold');
 
   const forSaleBody = $('forSaleTableBody');
   const forSaleEmpty = $('forSaleEmpty');
-  if (forSaleEmpty) forSaleEmpty.style.display = active.length ? 'none' : '';
-  if (forSaleBody) forSaleBody.innerHTML = active.map(s => {
+  if (forSaleEmpty) forSaleEmpty.style.display = listed.length ? 'none' : '';
+  if (forSaleBody) forSaleBody.innerHTML = listed.map(s => {
     const a = assets.find(x => x.id === s.assetId);
     const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
     const mpFmt = mp !== null ? fmt$(mp) : '—';
+    const yrFmt = mp !== null ? fmt$(mp * 12) : '—';
+    const statusBadge = s.status === 'pending'
+      ? `<span class="badge badge-pending">Pending Approval</span>`
+      : s.status === 'pending_sold'
+      ? `<span class="badge badge-pending">Sale Pending</span>`
+      : `<span class="badge badge-approved">Active</span>`;
+    const actions = s.status === 'active'
+      ? `<button class="btn btn-ghost btn-xs" onclick="openEditListing('${s.id}')">Edit</button>
+         <button class="btn btn-success btn-xs" onclick="openMarkSold('${s.id}')">Mark Sold</button>
+         <button class="btn btn-danger btn-xs" onclick="removeListing('${s.id}')">Remove</button>`
+      : s.status === 'pending'
+      ? `<button class="btn btn-danger btn-xs" onclick="removeListing('${s.id}')">Cancel</button>`
+      : ``;
     return `<tr>
       <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
       <td style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
       <td style="color:var(--warning);font-weight:600">${mpFmt}</td>
-      <td style="color:var(--success);font-weight:600">${mpFmt}</td>
+      <td style="color:var(--success);font-weight:600">${yrFmt}</td>
       <td style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
       <td style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
       <td style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
       <td>${fmtDate(s.createdAt?.slice(0,10))}</td>
-      <td><div class="actions">
-        <button class="btn btn-ghost btn-xs" onclick="openEditListing('${s.id}')">Edit</button>
-        <button class="btn btn-success btn-xs" onclick="openMarkSold('${s.id}')">Mark Sold</button>
-        <button class="btn btn-danger btn-xs" onclick="removeListing('${s.id}')">Remove</button>
-      </div></td>
+      <td>${statusBadge}</td>
+      <td><div class="actions">${actions}</div></td>
     </tr>`;
   }).join('');
 
@@ -2061,16 +2087,18 @@ function submitForSaleListing() {
     }
   } else {
     const a = assets.find(x => x.id === assetId);
-    // Mark asset as for-sale and update mileage
     if (a) { a.forSale = true; if (mileage) a.mileage = mileage; saveAll(); }
+    // Branch listings start as 'pending' (require admin approval); admin listings go straight to 'active'
+    const listingStatus = adminMode ? 'active' : 'pending';
+    if (adminMode && a) { a.status = 'For Sale'; saveAll(); }
     saleListings.push({
       id: uid(), assetId, assetName: a?.name || assetId, assetSerial: a?.serial || '',
       branch: adminMode ? (a?.branch || '—') : currentBranch, askingPrice, condition, mileage, description,
-      status: 'active', createdAt: new Date().toISOString()
+      status: listingStatus, createdAt: new Date().toISOString()
     });
     saveSaleListings();
     adminMode ? renderAdminForSaleTab() : renderForSaleTab();
-    toast('Asset listed for sale.', 'success');
+    toast(adminMode ? 'Asset listed for sale.' : 'Listing submitted — awaiting admin approval.', 'success');
   }
   closeForSaleModal();
 }
@@ -2082,9 +2110,10 @@ function removeListing(id) {
   saveSaleListings();
   // Clear forSale flag on the asset so it shows as active again
   const a = assets.find(x => x.id === s?.assetId);
-  if (a) { a.forSale = false; saveAll(); }
+  if (a) { a.forSale = false; if (a.status === 'For Sale') a.status = 'On Lease'; saveAll(); }
   renderForSaleTab();
   if (typeof renderBranchAssets === 'function') renderBranchAssets();
+  updatePendingBadge();
   toast('Listing removed. Asset is back in active leases.', 'success');
 }
 
@@ -2106,17 +2135,31 @@ function closeMarkSoldModal() {
 function confirmMarkSold() {
   const idx = saleListings.findIndex(s => s.id === markingSoldId);
   if (idx < 0) return;
-  saleListings[idx].status    = 'sold';
-  saleListings[idx].soldPrice = parseFloat($('soldPrice').value) || null;
-  saleListings[idx].soldDate  = $('soldDate').value || new Date().toISOString().slice(0,10);
-  saveSaleListings();
-  const name = saleListings[idx].assetName;
-  // Clear forSale flag on the asset
-  const soldAsset = assets.find(x => x.id === saleListings[idx].assetId);
-  if (soldAsset) { soldAsset.forSale = false; saveAll(); }
   const adminMode = $('markSoldOverlay').dataset.adminMode === '1';
-  adminMode ? renderAdminForSaleTab() : renderForSaleTab();
-  toast(`${name} marked as sold.`, 'success');
+  const soldPrice = parseFloat($('soldPrice').value) || null;
+  const soldDate  = $('soldDate').value || new Date().toISOString().slice(0,10);
+  const name = saleListings[idx].assetName;
+  if (adminMode) {
+    // Admin directly confirms the sale
+    saleListings[idx].status    = 'sold';
+    saleListings[idx].soldPrice = soldPrice;
+    saleListings[idx].soldDate  = soldDate;
+    saveSaleListings();
+    const soldAsset = assets.find(x => x.id === saleListings[idx].assetId);
+    if (soldAsset) { soldAsset.forSale = false; saveAll(); }
+    renderAdminForSaleTab();
+    updatePendingBadge();
+    toast(`${name} marked as sold.`, 'success');
+  } else {
+    // Branch submits sale request for admin approval
+    saleListings[idx].status    = 'pending_sold';
+    saleListings[idx].soldPrice = soldPrice;
+    saleListings[idx].soldDate  = soldDate;
+    saveSaleListings();
+    renderForSaleTab();
+    updatePendingBadge();
+    toast('Sale request submitted — awaiting admin approval.', 'success');
+  }
   closeMarkSoldModal();
 }
 
@@ -2158,26 +2201,37 @@ function renderAdminForSaleTab() {
   tbody.innerHTML = list.map(s => {
     const statusBadge = s.status === 'sold'
       ? `<span class="badge badge-approved">Sold</span>`
-      : `<span class="badge badge-lease">Active</span>`;
+      : s.status === 'active'
+      ? `<span class="badge badge-lease">Active</span>`
+      : s.status === 'pending_sold'
+      ? `<span class="badge badge-pending">Sale Pending</span>`
+      : `<span class="badge badge-pending">Pending Approval</span>`;
     const soldCells = s.status === 'sold'
       ? `<td style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`
-      : `<td style="color:var(--text-muted)">—</td>`;
+      : `<td style="color:var(--text-muted)">${s.status === 'pending_sold' && s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`;
     const actions = s.status === 'active'
       ? `<button class="btn btn-ghost btn-xs" onclick="openAdminEditListing('${s.id}')">Edit</button>
          <button class="btn btn-success btn-xs" onclick="openAdminMarkSold('${s.id}')">Mark Sold</button>
          <button class="btn btn-danger btn-xs" onclick="adminRemoveListing('${s.id}')">Remove</button>`
+      : s.status === 'pending'
+      ? `<button class="btn btn-success btn-xs" onclick="approveListing('${s.id}')">Approve</button>
+         <button class="btn btn-danger btn-xs" onclick="denyListing('${s.id}')">Deny</button>`
+      : s.status === 'pending_sold'
+      ? `<button class="btn btn-success btn-xs" onclick="adminConfirmSale('${s.id}')">Confirm Sale</button>
+         <button class="btn btn-danger btn-xs" onclick="adminDenySale('${s.id}')">Deny Sale</button>`
       : `<button class="btn btn-danger btn-xs" onclick="adminRemoveListing('${s.id}')">Remove</button>`;
     const date = s.status === 'sold' ? fmtDate(s.soldDate) : fmtDate(s.createdAt?.slice(0,10));
     const a = assets.find(x => x.id === s.assetId);
     const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
     const mpFmt = mp !== null ? fmt$(mp) : '—';
+    const yrFmt = mp !== null ? fmt$(mp * 12) : '—';
     return `<tr>
       <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
       <td><span class="badge badge-branch" style="font-size:.75rem">${esc(s.branch)}</span></td>
       <td style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
       ${soldCells}
       <td style="color:var(--warning);font-weight:600">${mpFmt}</td>
-      <td style="color:var(--success);font-weight:600">${mpFmt}</td>
+      <td style="color:var(--success);font-weight:600">${yrFmt}</td>
       <td style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
       <td style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
       <td style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
@@ -2229,14 +2283,62 @@ function openAdminMarkSold(id) {
   $('markSoldOverlay').classList.add('open');
 }
 
+function approveListing(id) {
+  const s = saleListings.find(x => x.id === id);
+  if (!s) return;
+  s.status = 'active';
+  s.approvedAt = new Date().toISOString();
+  const a = assets.find(x => x.id === s.assetId);
+  if (a) { a.status = 'For Sale'; saveAll(); } else { saveSaleListings(); }
+  renderAdminForSaleTab();
+  updatePendingBadge();
+  toast(`Listing for "${s.assetName}" approved.`, 'success');
+}
+
+function denyListing(id) {
+  const s = saleListings.find(x => x.id === id);
+  if (!s || !confirm(`Deny listing for "${s.assetName}"?`)) return;
+  saleListings = saleListings.filter(x => x.id !== id);
+  const a = assets.find(x => x.id === s.assetId);
+  if (a) { a.forSale = false; saveAll(); } else { saveSaleListings(); }
+  renderAdminForSaleTab();
+  updatePendingBadge();
+  toast('Listing denied.', 'danger');
+}
+
+function adminConfirmSale(id) {
+  // Open the mark-sold modal pre-populated so admin can review/adjust price and date
+  const s = saleListings.find(x => x.id === id);
+  if (!s) return;
+  markingSoldId = id;
+  $('markSoldAssetName').textContent = `${s.assetName} — ${s.branch}`;
+  $('soldPrice').value = s.soldPrice || s.askingPrice || '';
+  $('soldDate').value  = s.soldDate || new Date().toISOString().slice(0,10);
+  $('markSoldOverlay').dataset.adminMode = '1';
+  $('markSoldOverlay').classList.add('open');
+}
+
+function adminDenySale(id) {
+  const s = saleListings.find(x => x.id === id);
+  if (!s || !confirm(`Deny sale for "${s.assetName}"? It will return to the active listing.`)) return;
+  s.status = 'active';
+  delete s.soldPrice;
+  delete s.soldDate;
+  saveSaleListings();
+  renderAdminForSaleTab();
+  updatePendingBadge();
+  toast('Sale denied. Asset returned to active listings.', 'warn');
+}
+
 function adminRemoveListing(id) {
   const s = saleListings.find(x => x.id === id);
   if (!confirm(`Remove listing for "${s?.assetName}"? The asset will return to active leases.`)) return;
   saleListings = saleListings.filter(x => x.id !== id);
   saveSaleListings();
   const a = assets.find(x => x.id === s?.assetId);
-  if (a) { a.forSale = false; saveAll(); }
+  if (a) { a.forSale = false; if (a.status === 'For Sale') a.status = 'On Lease'; saveAll(); }
   renderAdminForSaleTab();
+  updatePendingBadge();
   toast('Listing removed. Asset is back in active leases.', 'success');
 }
 
@@ -2319,7 +2421,7 @@ function renderBranchAssets() {
       <td data-label="Asset"><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
       <td data-label="Category">${esc(a.category||'—')}</td>
       <td data-label="Make/Model">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
-      <td data-label="Status"><span class="badge badge-lease">On Lease</span>${a.forSale ? ` <span class="badge badge-pending" style="font-size:.7rem">For Sale</span>` : ''}</td>
+      <td data-label="Status"><span class="badge badge-lease">On Lease</span>${(() => { const sl = saleListings.find(x => x.assetId === a.id && x.status !== 'sold'); return sl ? ` <span class="badge badge-pending" style="font-size:.7rem">${sl.status === 'pending' ? 'For Sale Pending' : sl.status === 'pending_sold' ? 'Sale Pending' : 'For Sale'}</span>` : ''; })()}</td>
       <td data-label="Monthly" style="color:var(--success);font-weight:600">${mp(a)}</td>
       <td data-label="Lease End">${fmtDate(a.leaseEnd)}</td>
       <td data-label="Renewal">${renewalCell}</td>
@@ -2623,7 +2725,7 @@ function renderAdminAssets() {
 
   tbody.innerHTML = list.map(a => {
     const branchCell = a.branch
-      ? `<span class="badge badge-lease" style="font-size:.75rem">${esc(a.branch)}</span>${a.forSale ? ` <span class="badge badge-pending" style="font-size:.7rem">For Sale</span>` : ''}`
+      ? `<span class="badge badge-lease" style="font-size:.75rem">${esc(a.branch)}</span>${(() => { const sl = saleListings.find(x => x.assetId === a.id && x.status !== 'sold'); return sl ? ` <span class="badge badge-pending" style="font-size:.7rem">${sl.status === 'pending' ? 'For Sale Pending' : sl.status === 'pending_sold' ? 'Sale Pending' : 'For Sale'}</span>` : ''; })()}`
       : `<span class="badge badge-pool" style="font-size:.75rem">Pool</span>`;
     const mp = monthlyPayment(a.cost, a.lrf);
     const checked = selectedAssets.has(a.id) ? 'checked' : '';
