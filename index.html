@@ -1586,6 +1586,21 @@ function adminLogin() {
   else alert('Incorrect admin password.');
 }
 
+function navigateToAsset(id) {
+  if (!isAdmin) return;
+  const a = assets.find(x => x.id === id);
+  if (!a) return;
+  setAdminTab('assets');
+  $('adminBranchFilter').value = '';
+  $('adminCatFilter').value    = '';
+  $('adminSearch').value       = a.name;
+  renderAdminAssets();
+  setTimeout(() => {
+    const row = document.querySelector(`#adminTableBody [data-asset-id="${id}"]`);
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 60);
+}
+
 function printView() {
   const branch = currentBranch || 'Branch';
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -1870,6 +1885,167 @@ function monthlyPayment(cost, lrf) {
   return Number(cost) * Number(lrf);
 }
 
+// ── Branch Tabs ───────────────────────────────────────────────────────
+let currentBranchTab = 'assets';
+function setBranchTab(tab) {
+  currentBranchTab = tab;
+  ['assets','forsale'].forEach(t => {
+    const btn = $('btab-' + t); if (btn) btn.classList.toggle('active', t === tab);
+    const panel = $('bpanel-' + t); if (panel) panel.classList.toggle('active', t === tab);
+  });
+  if (tab === 'assets') { renderBranchAssets(); renderMyRequests(); }
+  if (tab === 'forsale') renderForSaleTab();
+}
+
+// ── For Sale ──────────────────────────────────────────────────────────
+let editingSaleId  = null;
+let markingSoldId  = null;
+
+function saveSaleListings() {
+  try { localStorage.setItem(SALES_KEY, JSON.stringify(saleListings)); } catch(e) {}
+}
+
+function renderForSaleTab() {
+  const active = saleListings.filter(s => s.branch === currentBranch && s.status === 'active');
+  const sold   = saleListings.filter(s => s.branch === currentBranch && s.status === 'sold');
+
+  const forSaleBody = $('forSaleTableBody');
+  const forSaleEmpty = $('forSaleEmpty');
+  if (forSaleEmpty) forSaleEmpty.style.display = active.length ? 'none' : '';
+  if (forSaleBody) forSaleBody.innerHTML = active.map(s => `<tr>
+    <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
+    <td style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
+    <td style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
+    <td style="color:var(--text-muted);max-width:220px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
+    <td>${fmtDate(s.createdAt?.slice(0,10))}</td>
+    <td><div class="actions">
+      <button class="btn btn-ghost btn-xs" onclick="openEditListing('${s.id}')">Edit</button>
+      <button class="btn btn-success btn-xs" onclick="openMarkSold('${s.id}')">Mark Sold</button>
+      <button class="btn btn-danger btn-xs" onclick="removeListing('${s.id}')">Remove</button>
+    </div></td>
+  </tr>`).join('');
+
+  const soldBody  = $('soldTableBody');
+  const soldEmpty = $('soldEmpty');
+  if (soldEmpty) soldEmpty.style.display = sold.length ? 'none' : '';
+  if (soldBody) soldBody.innerHTML = sold.map(s => `<tr>
+    <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
+    <td>${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
+    <td style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>
+    <td>${fmtDate(s.soldDate)}</td>
+  </tr>`).join('');
+}
+
+function openListForSaleModal(id) {
+  editingSaleId = id || null;
+  const s = id ? saleListings.find(x => x.id === id) : null;
+  $('forSaleModalTitle').textContent = id ? 'Edit Listing' : 'List Asset for Sale';
+  const ba = branchAssets();
+  $('saleAssetSelect').innerHTML = ba.length
+    ? ba.map(a => `<option value="${a.id}">${esc(a.name)}${a.serial?' — '+a.serial:''}</option>`).join('')
+    : '<option disabled>No assets on this branch</option>';
+  if (s) {
+    $('saleAssetSelect').value    = s.assetId;
+    $('saleAskingPrice').value    = s.askingPrice || '';
+    $('saleCondition').value      = s.condition   || '';
+    $('saleDescription').value    = s.description || '';
+    $('saleAssetSelect').disabled = true;
+  } else {
+    $('saleAskingPrice').value    = '';
+    $('saleCondition').value      = '';
+    $('saleDescription').value    = '';
+    $('saleAssetSelect').disabled = false;
+  }
+  $('forSaleOverlay').classList.add('open');
+}
+
+function openEditListing(id) { openListForSaleModal(id); }
+
+function closeForSaleModal() {
+  $('forSaleOverlay').classList.remove('open');
+  $('saleAssetSelect').disabled = false;
+  editingSaleId = null;
+}
+
+function submitForSaleListing() {
+  const assetId     = $('saleAssetSelect').value;
+  const askingPrice = parseFloat($('saleAskingPrice').value) || null;
+  const condition   = $('saleCondition').value.trim();
+  const description = $('saleDescription').value.trim();
+  if (!assetId) { toast('Select an asset.', 'warn'); return; }
+  if (editingSaleId) {
+    const idx = saleListings.findIndex(s => s.id === editingSaleId);
+    if (idx >= 0) {
+      saleListings[idx] = { ...saleListings[idx], askingPrice, condition, description };
+      saveSaleListings();
+      renderForSaleTab();
+      toast('Listing updated.', 'success');
+    }
+  } else {
+    const a = assets.find(x => x.id === assetId);
+    saleListings.push({
+      id: uid(), assetId, assetName: a?.name || assetId, assetSerial: a?.serial || '',
+      branch: currentBranch, askingPrice, condition, description,
+      status: 'active', createdAt: new Date().toISOString()
+    });
+    saveSaleListings();
+    renderForSaleTab();
+    toast('Asset listed for sale.', 'success');
+  }
+  closeForSaleModal();
+}
+
+function removeListing(id) {
+  if (!confirm('Remove this listing?')) return;
+  saleListings = saleListings.filter(s => s.id !== id);
+  saveSaleListings();
+  renderForSaleTab();
+  toast('Listing removed.', 'success');
+}
+
+function openMarkSold(id) {
+  markingSoldId = id;
+  const s = saleListings.find(x => x.id === id);
+  $('markSoldAssetName').textContent = s?.assetName || '';
+  $('soldPrice').value = s?.askingPrice || '';
+  $('soldDate').value  = new Date().toISOString().slice(0,10);
+  $('markSoldOverlay').classList.add('open');
+}
+
+function closeMarkSoldModal() {
+  $('markSoldOverlay').classList.remove('open');
+  markingSoldId = null;
+}
+
+function confirmMarkSold() {
+  const idx = saleListings.findIndex(s => s.id === markingSoldId);
+  if (idx < 0) return;
+  saleListings[idx].status    = 'sold';
+  saleListings[idx].soldPrice = parseFloat($('soldPrice').value) || null;
+  saleListings[idx].soldDate  = $('soldDate').value || new Date().toISOString().slice(0,10);
+  saveSaleListings();
+  const name = saleListings[idx].assetName;
+  renderForSaleTab();
+  toast(`${name} marked as sold.`, 'success');
+  closeMarkSoldModal();
+}
+
+function exportSoldCSV() {
+  const sold = saleListings.filter(s => s.branch === currentBranch && s.status === 'sold');
+  if (!sold.length) { toast('No sold items to export.', 'warn'); return; }
+  const header = ['Asset Name','Serial','Asking Price','Sold Price','Sold Date','Listed Date'];
+  const rows = sold.map(s => [
+    s.assetName, s.assetSerial||'', s.askingPrice||'', s.soldPrice||'',
+    s.soldDate||'', (s.createdAt||'').slice(0,10)
+  ]);
+  const csv = [header,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `sold_${currentBranch}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
 // ── Branch View ───────────────────────────────────────────────────────
 function branchAssets() {
   return assets.filter(a => a.branch === currentBranch);
@@ -2027,7 +2203,7 @@ function reqCardHTML(r, adminMode) {
                       <button class="btn btn-danger btn-xs"  onclick="denyRequest('${r.id}')">Deny</button>`;
     }
   }
-  const assetLine = r.assetName ? `<span> · ${esc(r.assetName)}</span>` : '';
+  const assetLine = r.assetName ? `<span> · <span class="asset-nav-link" onclick="navigateToAsset('${r.assetId}')">${esc(r.assetName)}</span></span>` : '';
   const branchLine = adminMode ? `<span> · ${esc(r.branchName)}</span>` : '';
   const noteLine = r.adminNote ? `<div class="req-admin-note">Admin: ${esc(r.adminNote)}</div>` : '';
   const transferLine = r.type === 'transfer_asset' && r.targetBranchName
@@ -2239,7 +2415,7 @@ function renderAdminAssets() {
       : `<span class="badge badge-pool" style="font-size:.75rem">Pool</span>`;
     const mp = monthlyPayment(a.cost, a.lrf);
     const checked = selectedAssets.has(a.id) ? 'checked' : '';
-    return `<tr>
+    return `<tr data-asset-id="${a.id}">
       <td><input type="checkbox" class="asset-cb" data-id="${a.id}" onchange="toggleAssetSelect('${a.id}',this.checked)" ${checked}></td>
       <td><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
       <td>${esc(a.category||'—')}</td>
@@ -3236,9 +3412,8 @@ function renderDashboard() {
       const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`;
       return `<div class="expiry-item">
         <div class="expiry-days ${cls}">${label}</div>
-        <div style="flex:1"><strong>${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
+        <div style="flex:1"><strong class="asset-nav-link" onclick="navigateToAsset('${a.id}')">${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
         <span style="font-size:.8rem;color:var(--text-muted)">${esc(a.branch||'')} · ends ${fmtDate(a.leaseEnd)}</span></div>
-        <button class="btn btn-ghost btn-xs" onclick="setAdminTab('assets');$('adminBranchFilter').value='${escAttr(a.branch||'')}';renderAdminAssets()">View</button>
       </div>`;
     }).join('') + '</div>';
   }
@@ -3258,9 +3433,8 @@ function renderDashboard() {
       const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`;
       return `<div class="expiry-item">
         <div class="expiry-days ${cls}">${label}</div>
-        <div style="flex:1"><strong>${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
+        <div style="flex:1"><strong class="asset-nav-link" onclick="navigateToAsset('${a.id}')">${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
         <span style="font-size:.8rem;color:var(--text-muted)">${esc(a.branch||'Pool')} · renewal ${fmtDate(a.renewalDate)}</span></div>
-        <button class="btn btn-ghost btn-xs" onclick="setAdminTab('assets');$('adminBranchFilter').value='${escAttr(a.branch||'')}';renderAdminAssets()">View</button>
       </div>`;
     }).join('') + '</div>';
   }
