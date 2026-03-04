@@ -1374,8 +1374,9 @@ let supa = null;
 let liveEnabled = false;
 let liveReady = false;
 let currentProfile = null; // { role: 'admin'|'branch', branchName: string|null }
-let liveSyncTimer = null;
-let livePollTimer = null;
+let liveSyncTimer   = null;
+let livePollTimer   = null;
+let liveSyncRunning = false; // true while a liveSync() is in-flight
 let pendingBranchDeletes = new Set();
 let pendingAssetDeletes  = new Set();
 
@@ -1442,6 +1443,8 @@ function queueLiveSync() {
 
 async function liveSync() {
   if (!liveEnabled || !liveReady || !supa || !currentProfile) return;
+  if (liveSyncRunning) return; // don't overlap writes
+  liveSyncRunning = true;
   try {
     const now = new Date().toISOString();
     const isAdminRole = currentProfile.role === 'admin';
@@ -1538,7 +1541,10 @@ async function liveSync() {
         approved_at: s.approvedAt || null,
         sold_price: s.soldPrice || null, sold_date: s.soldDate || null,
       }));
-      if (saleRows.length) await supa.from('sale_listings').upsert(saleRows, { onConflict: 'id' });
+      if (saleRows.length) {
+        const { error: saleErr } = await supa.from('sale_listings').upsert(saleRows, { onConflict: 'id' });
+        if (saleErr) throw new Error('Sale listings save failed: ' + saleErr.message);
+      }
     } else {
       // Branch users only persist their own requests.
       const mine = requests.filter(r => r.branchName === currentBranch);
@@ -1573,11 +1579,16 @@ async function liveSync() {
         approved_at: s.approvedAt || null,
         sold_price: s.soldPrice || null, sold_date: s.soldDate || null,
       }));
-      if (saleBranchRows.length) await supa.from('sale_listings').upsert(saleBranchRows, { onConflict: 'id' });
+      if (saleBranchRows.length) {
+        const { error: saleErr } = await supa.from('sale_listings').upsert(saleBranchRows, { onConflict: 'id' });
+        if (saleErr) throw new Error('Sale listings save failed: ' + saleErr.message);
+      }
     }
   } catch (e) {
     console.error('liveSync error:', e);
-    toast('Sync error: ' + (e?.message || 'check console / Supabase'), 'warn');
+    toast('Sync error — changes may not have saved: ' + (e?.message || 'check console / Supabase'), 'danger');
+  } finally {
+    liveSyncRunning = false;
   }
 }
 
@@ -1938,6 +1949,7 @@ async function loadLiveData() {
 
 async function refreshLiveData() {
   if (!liveEnabled || !liveReady || !supa) return;
+  if (liveSyncRunning || liveSyncTimer) return; // let any pending write finish first
   const overlaysOpen = document.querySelector('.overlay.open');
   if (isAdmin && overlaysOpen) return;
   await loadLiveData();
