@@ -109,6 +109,7 @@ $$;
 -- ── Drop existing policies (safe re-run) ─────────────────
 drop policy if exists "profiles: own read"        on public.profiles;
 drop policy if exists "profiles: admin write"     on public.profiles;
+drop policy if exists "branches: anon read"       on public.branches;
 drop policy if exists "branches: all users read"  on public.branches;
 drop policy if exists "branches: admin write"     on public.branches;
 drop policy if exists "assets: branch read own"   on public.assets;
@@ -134,6 +135,11 @@ create policy "profiles: admin write"
   using (public.is_admin());
 
 -- ── branches ──────────────────────────────────────────────
+-- Allow anyone (including unauthenticated) to read branch names for the login dropdown
+create policy "branches: anon read"
+  on public.branches for select
+  using (true);
+
 create policy "branches: all users read"
   on public.branches for select
   using (auth.role() = 'authenticated');

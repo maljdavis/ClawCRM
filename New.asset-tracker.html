@@ -207,14 +207,14 @@
 <div class="screen active" id="loginScreen">
   <div class="login-box">
     <h1>Asset<span>Track</span></h1>
-    <p class="login-sub" id="loginSubtitle">Select your branch and sign in</p>
+    <p class="login-sub" id="loginSubtitle">Select your location and sign in</p>
     <div class="field" id="loginBranchField" style="margin-bottom:14px;">
-      <label>Branch</label>
-      <select id="loginBranch"></select>
+      <label>Location / Branch</label>
+      <select id="loginBranch" onchange="onBranchSelectChange()"></select>
     </div>
     <div class="field" id="loginEmailField" style="margin-bottom:14px;display:none;">
-      <label>Email</label>
-      <input id="loginEmail" type="text" placeholder="you@company.com" autocomplete="username" />
+      <label>Admin Email</label>
+      <input id="loginEmail" type="text" placeholder="admin@company.com" autocomplete="username" />
     </div>
     <div class="field" style="margin-bottom:14px;">
       <label>Password</label>
@@ -370,7 +370,16 @@
 
     <!-- BRANCHES TAB -->
     <div class="tab-panel" id="panel-branches">
-      <div class="section-hdr"><div><h2>Branches</h2><p>Manage branch access and passwords</p></div></div>
+      <div class="section-hdr"><div><h2>Branches / Locations</h2><p>Manage branch access and users</p></div></div>
+      <div id="liveUserHelp" style="display:none;background:rgba(79,124,255,.08);border:1px solid rgba(79,124,255,.25);border-radius:8px;padding:16px;margin-bottom:16px;font-size:.85rem;line-height:1.6;">
+        <strong>How to add a new branch user:</strong><br>
+        1. Go to your <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent)">Supabase Dashboard</a> → Authentication → Users → <em>Add user</em><br>
+        2. Use the email format shown below next to each branch (e.g. <code>dallas@claw.internal</code>) and set a password<br>
+        3. Run this SQL in the SQL Editor (replace with your branch name and email):<br>
+        <code style="display:block;background:var(--surface2);padding:10px 12px;margin-top:8px;border-radius:6px;white-space:pre;font-size:.8rem">INSERT INTO profiles (id, role, branch_name)
+SELECT id, 'branch', 'Dallas'
+FROM auth.users WHERE email = 'dallas@claw.internal';</code>
+      </div>
       <div id="branchList"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-top:16px;">
         <div class="field"><label>Branch Name</label><input id="newBranchName" type="text" placeholder="e.g. Dallas" /></div>
@@ -745,12 +754,11 @@ function isLiveConfigured() {
 }
 
 function applyLoginModeUI() {
-  const live = isLiveConfigured();
-  $('loginSubtitle').textContent = live ? 'Sign in with your company email' : 'Select your branch and sign in';
-  $('loginBranchField').style.display = live ? 'none' : '';
-  $('loginEmailField').style.display  = live ? '' : 'none';
-  $('adminLink').style.display        = live ? 'none' : '';
-  $('loginError').textContent         = live ? 'Sign-in failed. Check email/password.' : 'Incorrect password. Try again.';
+  $('loginSubtitle').textContent = 'Select your location and sign in';
+  $('loginBranchField').style.display = '';
+  $('loginEmailField').style.display  = 'none'; // shown only when Admin is selected
+  $('adminLink').style.display        = isLiveConfigured() ? 'none' : '';
+  $('loginError').textContent         = 'Incorrect password. Try again.';
 }
 
 function applyLiveAdminUI() {
@@ -761,6 +769,8 @@ function applyLiveAdminUI() {
   if (ebPwField) ebPwField.style.display = 'none';
   const adminPwSection = $('adminPwSection');
   if (adminPwSection) adminPwSection.style.display = 'none';
+  const liveUserHelp = $('liveUserHelp');
+  if (liveUserHelp) liveUserHelp.style.display = '';
 }
 
 function ensureSupabaseClient() {
@@ -906,7 +916,18 @@ assets.forEach(a => { if (a.branch === undefined) a.branch = null; });
 
 // ── Login ─────────────────────────────────────────────────────────────
 function populateLoginBranches() {
-  $('loginBranch').innerHTML = branches.map(b => `<option>${esc(b.name)}</option>`).join('');
+  const opts = branches.map(b => `<option value="${escAttr(b.name)}">${esc(b.name)}</option>`).join('');
+  $('loginBranch').innerHTML = opts + `<option value="__admin__">— Admin —</option>`;
+  onBranchSelectChange();
+}
+
+function onBranchSelectChange() {
+  const isAdminOpt = $('loginBranch').value === '__admin__';
+  $('loginEmailField').style.display = isAdminOpt ? '' : 'none';
+}
+
+function branchToEmail(name) {
+  return name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '') + '@claw.internal';
 }
 
 async function doLogin() {
@@ -930,8 +951,11 @@ function doLocalLogin() {
 async function doLiveLogin() {
   ensureSupabaseClient();
   try {
-    const email = $('loginEmail').value.trim();
-    const pw    = $('loginPw').value;
+    const selectedBranch = $('loginBranch').value;
+    const email = selectedBranch === '__admin__'
+      ? $('loginEmail').value.trim()
+      : branchToEmail(selectedBranch);
+    const pw = $('loginPw').value;
     const { error } = await supa.auth.signInWithPassword({ email, password: pw });
     if (error) { $('loginError').style.display = 'block'; return; }
     await afterLiveAuth();
@@ -939,6 +963,19 @@ async function doLiveLogin() {
     console.error(e);
     $('loginError').style.display = 'block';
   }
+}
+
+async function loadBranchesForLogin() {
+  if (!isLiveConfigured()) return;
+  ensureSupabaseClient();
+  try {
+    const { data } = await supa.from('branches').select('name').order('name');
+    if (data && data.length) {
+      branches = data.map(r => ({ name: r.name, password: '—' }));
+      localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
+    }
+  } catch(e) { /* fall back to cached branches */ }
+  populateLoginBranches();
 }
 
 function adminLogin() {
@@ -962,8 +999,12 @@ async function logout() {
   $('loginPw').value = '';
   if ($('loginEmail')) $('loginEmail').value = '';
   $('loginError').style.display = 'none';
-  populateLoginBranches();
   applyLoginModeUI();
+  if (isLiveConfigured()) {
+    await loadBranchesForLogin();
+  } else {
+    populateLoginBranches();
+  }
 }
 
 document.addEventListener('keydown', e => {
@@ -986,8 +1027,8 @@ async function initApp() {
     }
     show('loginScreen');
     $('loginPw').value = '';
-    if ($('loginEmail')) $('loginEmail').value = '';
     $('loginError').style.display = 'none';
+    await loadBranchesForLogin();
   } else {
     populateLoginBranches();
   }
@@ -1676,7 +1717,9 @@ function renderBranchList() {
     ? branches.map(b => `
         <div class="branch-row">
           <div class="bname">${esc(b.name)}</div>
-          ${liveEnabled ? '' : `<div class="bpw">Password: ${esc(b.password)}</div>`}
+          ${liveEnabled
+            ? `<div class="bpw" style="font-size:.8rem">Login email: <code>${esc(branchToEmail(b.name))}</code></div>`
+            : `<div class="bpw">Password: ${esc(b.password)}</div>`}
           <div style="color:var(--text-muted);font-size:.8rem">${counts[b.name]||0} assets on lease</div>
           <button class="btn btn-ghost btn-xs" data-action="edit-branch" data-branch="${escAttr(b.name)}">Edit</button>
           <button class="btn btn-danger btn-xs" data-action="remove-branch" data-branch="${escAttr(b.name)}">Remove</button>
