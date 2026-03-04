@@ -179,6 +179,16 @@
     .toast.warn    { border-left: 3px solid var(--warning); }
     @keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 
+    /* ── Branch view tabs ── */
+    .branch-tabs { display:flex; gap:2px; margin-bottom:20px; border-bottom:1px solid var(--border); }
+    .btab { padding:9px 22px; border:none; background:transparent; color:var(--text-muted); font-size:.9rem; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color .15s, border-color .15s; }
+    .btab:hover { color:var(--text); }
+    .btab.active { color:var(--accent); border-bottom-color:var(--accent); }
+    .bpanel { display:none; }
+    .bpanel.active { display:block; }
+    .asset-nav-link { cursor:pointer; }
+    .asset-nav-link:hover { color:var(--accent); text-decoration:underline; }
+
     /* ── Print / PDF ── */
     #printHeader { display: none; }
     @media print {
@@ -343,55 +353,113 @@
   <div class="page">
     <div id="printHeader"><h1 id="printTitle"></h1><p id="printDate"></p></div>
     <div class="stats" id="branchStats"></div>
-    <div class="info-banner">&#128274; This is a read-only view. Assets are managed by the admin. Use the buttons below to submit requests.</div>
+    <div class="info-banner">&#128274; Read-only view. Assets are managed by the admin. Use requests below for changes.</div>
     <div id="renewalBanner" style="display:none;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.5);border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:.875rem;line-height:1.6;"></div>
-    <div class="toolbar">
-      <div class="search-wrap">
-        <input type="text" id="branchSearch" placeholder="Search your assets…" oninput="renderBranchAssets()" />
-      </div>
-      <button class="btn btn-ghost btn-sm" onclick="printView()">&#128438; Print / PDF</button>
-      <button class="btn btn-primary btn-sm" onclick="openRequestModal('request_asset', null)">+ Request an Asset</button>
+
+    <div class="branch-tabs">
+      <button class="btab active" id="btab-assets"  onclick="setBranchTab('assets')">My Assets</button>
+      <button class="btab"        id="btab-forsale" onclick="setBranchTab('forsale')">For Sale</button>
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Asset Name</th>
-            <th>Category</th>
-            <th>Make / Model / Year</th>
-            <th>Status</th>
-            <th>Monthly Lease</th>
-            <th>Lease End</th>
-            <th>Renewal Due</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="branchTableBody"></tbody>
-      </table>
-      <div class="empty" id="branchEmpty" style="display:none">
-        <div class="icon">📦</div>
-        <p>No assets currently leased to this branch.</p>
+
+    <!-- MY ASSETS PANEL -->
+    <div class="bpanel active" id="bpanel-assets">
+      <div class="toolbar">
+        <div class="search-wrap">
+          <input type="text" id="branchSearch" placeholder="Search your assets…" oninput="renderBranchAssets()" />
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="printView()">&#128438; Print / PDF</button>
+        <button class="btn btn-primary btn-sm" onclick="openRequestModal('request_asset', null)">+ Request an Asset</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Asset Name</th>
+              <th>Category</th>
+              <th>Make / Model / Year</th>
+              <th>Status</th>
+              <th>Monthly Lease</th>
+              <th>Lease End</th>
+              <th>Renewal Due</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="branchTableBody"></tbody>
+        </table>
+        <div class="empty" id="branchEmpty" style="display:none">
+          <div class="icon">📦</div>
+          <p>No assets currently leased to this branch.</p>
+        </div>
+      </div>
+
+      <div class="section-hdr">
+        <div>
+          <h2>My Requests</h2>
+          <p>Requests submitted to the admin</p>
+        </div>
+      </div>
+      <div class="req-list" id="myRequests">
+        <div class="empty" style="padding:30px"><p style="color:var(--text-muted)">No requests submitted yet.</p></div>
+      </div>
+
+      <div class="section-hdr" style="margin-top:28px">
+        <div>
+          <h2>Upcoming Renewals</h2>
+          <p>Assets with a renewal date on record</p>
+        </div>
+      </div>
+      <div id="branchRenewals">
+        <div class="empty" style="padding:20px"><p style="color:var(--text-muted)">No renewal dates set for your assets.</p></div>
       </div>
     </div>
 
-    <div class="section-hdr">
-      <div>
-        <h2>My Requests</h2>
-        <p>Requests submitted to the admin</p>
+    <!-- FOR SALE PANEL -->
+    <div class="bpanel" id="bpanel-forsale">
+      <div class="section-hdr" style="margin-top:8px">
+        <div><h2>Assets For Sale</h2><p>Active listings from this branch</p></div>
+        <button class="btn btn-primary btn-sm" onclick="openListForSaleModal()">+ List Asset for Sale</button>
       </div>
-    </div>
-    <div class="req-list" id="myRequests">
-      <div class="empty" style="padding:30px"><p style="color:var(--text-muted)">No requests submitted yet.</p></div>
-    </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Asking Price</th>
+              <th>Condition</th>
+              <th>Notes</th>
+              <th>Listed</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="forSaleTableBody"></tbody>
+        </table>
+        <div class="empty" id="forSaleEmpty" style="display:none">
+          <div class="icon">🏷️</div>
+          <p>No assets currently listed for sale.</p>
+        </div>
+      </div>
 
-    <div class="section-hdr" style="margin-top:28px">
-      <div>
-        <h2>Upcoming Renewals</h2>
-        <p>Assets with a renewal date on record</p>
+      <div class="section-hdr" style="margin-top:28px">
+        <div><h2>Sold</h2><p>Completed sales from this branch</p></div>
+        <button class="btn btn-ghost btn-sm" onclick="exportSoldCSV()">Export CSV</button>
       </div>
-    </div>
-    <div id="branchRenewals">
-      <div class="empty" style="padding:20px"><p style="color:var(--text-muted)">No renewal dates set for your assets.</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Asking Price</th>
+              <th>Sold Price</th>
+              <th>Sold Date</th>
+            </tr>
+          </thead>
+          <tbody id="soldTableBody"></tbody>
+        </table>
+        <div class="empty" id="soldEmpty" style="display:none">
+          <div class="icon">✅</div>
+          <p>No sold items yet.</p>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -922,6 +990,63 @@
   </div>
 </div>
 
+<!-- ══════════════ MODAL: LIST FOR SALE ══════════════ -->
+<div class="overlay" id="forSaleOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2 id="forSaleModalTitle">List Asset for Sale</h2>
+      <button class="close-btn" onclick="closeForSaleModal()">×</button>
+    </div>
+    <div class="form-grid">
+      <div class="field full">
+        <label>Asset</label>
+        <select id="saleAssetSelect" style="width:100%;"></select>
+      </div>
+      <div class="field">
+        <label>Asking Price</label>
+        <input type="number" id="saleAskingPrice" placeholder="e.g. 15000" min="0" step="0.01" />
+      </div>
+      <div class="field">
+        <label>Condition</label>
+        <input type="text" id="saleCondition" placeholder="e.g. Good, Excellent…" />
+      </div>
+      <div class="field full">
+        <label>Description / Notes</label>
+        <textarea id="saleDescription" rows="3" placeholder="Year, mileage, condition details…" style="width:100%;box-sizing:border-box;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeForSaleModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitForSaleListing()">List for Sale</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: MARK SOLD ══════════════ -->
+<div class="overlay" id="markSoldOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2>Mark as Sold</h2>
+      <button class="close-btn" onclick="closeMarkSoldModal()">×</button>
+    </div>
+    <p id="markSoldAssetName" style="font-weight:600;margin-bottom:16px;color:var(--text);"></p>
+    <div class="form-grid">
+      <div class="field">
+        <label>Sold Price (optional)</label>
+        <input type="number" id="soldPrice" placeholder="Actual sale price" min="0" step="0.01" />
+      </div>
+      <div class="field">
+        <label>Sold Date</label>
+        <input type="date" id="soldDate" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeMarkSoldModal()">Cancel</button>
+      <button class="btn btn-success" onclick="confirmMarkSold()">Mark as Sold</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-container" id="toastContainer"></div>
 
 <!-- Supabase (optional live backend) -->
@@ -936,6 +1061,7 @@ const ADMIN_KEY       = 'assetTracker_admin';
 const TELEM_KEY       = 'assetTracker_telematics';
 const RATES_KEY       = 'assetTracker_lrfPresets';
 const FILES_KEY_PREFIX = 'assetTracker_files_';
+const SALES_KEY = 'assetTracker_sales';
 
 function loadAssetFiles(id) {
   try { return JSON.parse(localStorage.getItem(FILES_KEY_PREFIX + id) || '[]'); } catch { return []; }
@@ -1099,6 +1225,7 @@ async function handleInspectionUpload(e) {
 let assets       = JSON.parse(localStorage.getItem(ASSETS_KEY)   || '[]').map(a => ({ ...a, files: loadAssetFiles(a.id) }));
 let branches     = JSON.parse(localStorage.getItem(BRANCHES_KEY) || '[]');
 let requests     = JSON.parse(localStorage.getItem(REQUESTS_KEY) || '[]');
+let saleListings = JSON.parse(localStorage.getItem(SALES_KEY) || '[]');
 let adminPw      = localStorage.getItem(ADMIN_KEY) || 'admin';
 let telematicsUrl = localStorage.getItem(TELEM_KEY) || '';
 let lrfPresets   = loadLRFPresets();
@@ -1126,6 +1253,7 @@ function saveAllLocal() {
   try { localStorage.setItem(ASSETS_KEY, JSON.stringify(stripped)); } catch(e) { console.warn('Could not save assets:', e); }
   try { localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches)); } catch(e) {}
   try { localStorage.setItem(REQUESTS_KEY, JSON.stringify(requests)); } catch(e) {}
+  try { localStorage.setItem(SALES_KEY, JSON.stringify(saleListings)); } catch(e) {}
   assets.forEach(a => saveAssetFiles(a.id, a.files));
 }
 function saveAll() {
@@ -1681,8 +1809,7 @@ function showBranchView() {
   checkRequestNotifications();
   checkRenewalNotifications();
   updateBellBadge();
-  renderBranchAssets();
-  renderMyRequests();
+  setBranchTab('assets');
 }
 
 function showAdminView() {
