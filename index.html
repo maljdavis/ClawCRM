@@ -1504,12 +1504,34 @@ async function afterLiveAuth() {
 }
 
 async function loadLiveData() {
+  // Snapshot local files before overwriting assets
+  const localFiles = {};
+  const localAssetMap = {};
+  assets.forEach(a => {
+    if (a.files && a.files.length) localFiles[a.id] = a.files;
+    localAssetMap[a.id] = a;
+  });
+
+  // Build all independent queries up-front
+  let assetQ = supa.from('assets').select('*');
+  if (!isAdmin && currentProfile?.branchName) assetQ = assetQ.eq('branch_name', currentProfile.branchName);
+  let reqQ = supa.from('requests').select('*');
+  if (!isAdmin && currentProfile?.branchName) reqQ = reqQ.eq('branch_name', currentProfile.branchName);
+
+  // Fire all queries in parallel
+  const [setRes, ratesRes, brRes, aRes, fcRes, rRes] = await Promise.all([
+    supa.from('settings').select('key,value').eq('key', 'telematics_url').maybeSingle(),
+    supa.from('lrf_presets').select('id,name,lrf').order('id'),
+    supa.from('branches').select('name').order('name'),
+    assetQ,
+    supa.from('asset_files').select('asset_id'),
+    reqQ,
+  ]);
+
   // Settings
-  const setRes = await supa.from('settings').select('key,value').eq('key', 'telematics_url').maybeSingle();
   if (!setRes.error && setRes.data) telematicsUrl = setRes.data.value || '';
 
   // LRF presets
-  const ratesRes = await supa.from('lrf_presets').select('id,name,lrf').order('id');
   if (!ratesRes.error && Array.isArray(ratesRes.data) && ratesRes.data.length) {
     lrfPresets = normalizeLRFPresets(ratesRes.data.map(r => ({ id: r.id, name: r.name, lrf: r.lrf })));
   } else if (isAdmin) {
@@ -1521,63 +1543,49 @@ async function loadLiveData() {
   }
 
   // Branches
-  const brRes = await supa.from('branches').select('name').order('name');
   if (!brRes.error && Array.isArray(brRes.data)) {
     branches = brRes.data.map(b => ({ name: b.name, password: '—' }));
   }
 
-  // Assets — preserve locally-stored files and any migrated fields not yet in the DB
-  const localFiles = {};
-  const localAssetMap = {};
-  assets.forEach(a => {
-    if (a.files && a.files.length) localFiles[a.id] = a.files;
-    localAssetMap[a.id] = a;
-  });
-  let assetQ = supa.from('assets').select('*');
-  if (!isAdmin && currentProfile?.branchName) assetQ = assetQ.eq('branch_name', currentProfile.branchName);
-  const aRes = await assetQ;
+  // Assets
   if (!aRes.error && Array.isArray(aRes.data)) {
+    // File counts from parallel query
+    const counts = {};
+    if (!fcRes.error && fcRes.data) {
+      fcRes.data.forEach(r => { counts[r.asset_id] = (counts[r.asset_id] || 0) + 1; });
+    }
+
     assets = aRes.data.map(a => {
       const local = localAssetMap[a.id] || {};
       // For columns added in schema migrations, fall back to the local value when
       // the DB column doesn't exist yet (undefined = column absent from select(*))
       return {
-      id: a.id,
-      name: a.name,
-      serial: a.serial || '',
-      make:  a.make  !== undefined ? (a.make  || '') : (local.make  || ''),
-      model: a.model !== undefined ? (a.model || '') : (local.model || ''),
-      year:  a.year  !== undefined ? (a.year  || '') : (local.year  || ''),
-      category: a.category || '',
-      branch: a.branch_name ?? null,
-      status: a.status || (a.branch_name ? 'On Lease' : 'Available'),
-      cost: a.cost ?? '',
-      lrf: a.lrf ?? '',
-      vendor: a.vendor || '',
-      acquiredDate: a.acquired_date || '',
-      leaseStart:   a.lease_start   || '',
-      leaseEnd:     a.lease_end     || '',
-      renewalDate:  a.renewal_date  !== undefined ? (a.renewal_date || '') : (local.renewalDate || ''),
-      notes:        a.notes         || '',
-      files:        localFiles[a.id] || loadAssetFiles(a.id),
-      fileCount:    0,
-      createdAt: a.created_at || '',
-      updatedAt: a.updated_at || '',
+        id: a.id,
+        name: a.name,
+        serial: a.serial || '',
+        make:  a.make  !== undefined ? (a.make  || '') : (local.make  || ''),
+        model: a.model !== undefined ? (a.model || '') : (local.model || ''),
+        year:  a.year  !== undefined ? (a.year  || '') : (local.year  || ''),
+        category: a.category || '',
+        branch: a.branch_name ?? null,
+        status: a.status || (a.branch_name ? 'On Lease' : 'Available'),
+        cost: a.cost ?? '',
+        lrf: a.lrf ?? '',
+        vendor: a.vendor || '',
+        acquiredDate: a.acquired_date || '',
+        leaseStart:   a.lease_start   || '',
+        leaseEnd:     a.lease_end     || '',
+        renewalDate:  a.renewal_date  !== undefined ? (a.renewal_date || '') : (local.renewalDate || ''),
+        notes:        a.notes         || '',
+        files:        localFiles[a.id] || loadAssetFiles(a.id),
+        fileCount:    counts[a.id] || 0,
+        createdAt: a.created_at || '',
+        updatedAt: a.updated_at || '',
       };
     });
-    // Fetch file counts for badges
-    const fcRes = await supa.from('asset_files').select('asset_id');
-    if (!fcRes.error && fcRes.data) {
-      const counts = {};
-      fcRes.data.forEach(r => { counts[r.asset_id] = (counts[r.asset_id] || 0) + 1; });
-      assets.forEach(a => { a.fileCount = counts[a.id] || 0; });
-    }
   }
 
   // Requests
-  let reqQ = supa.from('requests').select('*');
-  if (!isAdmin && currentProfile?.branchName) reqQ = reqQ.eq('branch_name', currentProfile.branchName);
-  const rRes = await reqQ;
   if (!rRes.error && Array.isArray(rRes.data)) {
     requests = rRes.data.map(r => ({
       id: r.id,
@@ -1607,8 +1615,9 @@ async function refreshLiveData() {
     if (adminTab === 'dashboard')  renderDashboard();
     if (adminTab === 'assets')     renderAdminAssets();
     if (adminTab === 'requests')   { populateReqBranchFilter(); renderRequests(); updatePendingBadge(); }
-    if (adminTab === 'branches')   { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
-    if (adminTab === 'activity')   loadActivityLog();
+    if (adminTab === 'branches')    { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
+    if (adminTab === 'inspections') loadAdminInspections();
+    if (adminTab === 'activity')    loadActivityLog();
   } else {
     checkRequestNotifications();
     checkRenewalNotifications();
@@ -1685,7 +1694,9 @@ function fmtPct(n) {
 }
 function fmtDate(d) {
   if (!d) return '—';
-  const [y,m,day] = d.split('-');
+  const parts = String(d).slice(0, 10).split('-');
+  if (parts.length !== 3 || parts[0].length !== 4) return d;
+  const [y, m, day] = parts;
   return `${m}/${day}/${y}`;
 }
 function monthlyPayment(cost, lrf) {
@@ -2871,16 +2882,19 @@ function confirmBulkLRF() {
 
 async function bulkDelete() {
   if (!selectedAssets.size) return;
-  const n = selectedAssets.size;
+  const ids = [...selectedAssets];
+  const n = ids.length;
   if (!confirm(`Delete ${n} selected asset(s)? This cannot be undone.`)) return;
+  const deletedNames = ids.map(id => assets.find(a => a.id === id)?.name).filter(Boolean);
   if (liveEnabled) {
-    const ids = [...selectedAssets];
     const { error } = await supa.from('assets').delete().in('id', ids);
     if (error) { toast('Error deleting assets: ' + error.message, 'danger'); return; }
+  } else {
     ids.forEach(id => pendingAssetDeletes.add(id));
   }
-  selectedAssets.forEach(id => deleteAssetFiles(id));
+  ids.forEach(id => deleteAssetFiles(id));
   assets = assets.filter(a => !selectedAssets.has(a.id));
+  deletedNames.forEach(name => logAudit('delete', 'asset', null, name, 'Bulk delete'));
   saveAll();
   toast(`${n} asset(s) deleted.`, 'danger');
   selectedAssets.clear();
@@ -3166,7 +3180,7 @@ function toast(msg, type='success') {
 }
 
 // ── Close overlays on backdrop click ─────────────────────────────────
-['assetFormOverlay','reassignOverlay','requestOverlay','approveAssetOverlay','simpleApproveOverlay','editBranchOverlay','filesOverlay','branchFilesOverlay','bulkReassignOverlay','bulkCategoryOverlay','bulkLRFOverlay','verifyPwOverlay'].forEach(id => {
+['assetFormOverlay','reassignOverlay','requestOverlay','approveAssetOverlay','simpleApproveOverlay','editBranchOverlay','filesOverlay','branchFilesOverlay','inspectionOverlay','bulkReassignOverlay','bulkCategoryOverlay','bulkLRFOverlay','verifyPwOverlay'].forEach(id => {
   $(id).addEventListener('click', e => { if (e.target === $(id)) $(id).classList.remove('open'); });
 });
 
