@@ -313,6 +313,16 @@
     <div class="req-list" id="myRequests">
       <div class="empty" style="padding:30px"><p style="color:var(--text-muted)">No requests submitted yet.</p></div>
     </div>
+
+    <div class="section-hdr" style="margin-top:28px">
+      <div>
+        <h2>Upcoming Renewals</h2>
+        <p>Assets with a renewal date on record</p>
+      </div>
+    </div>
+    <div id="branchRenewals">
+      <div class="empty" style="padding:20px"><p style="color:var(--text-muted)">No renewal dates set for your assets.</p></div>
+    </div>
   </div>
 </div>
 
@@ -2045,6 +2055,7 @@ function saveAsset() {
   saveAll();
   closeAssetModal();
   renderAdminAssets();
+  if (adminTab === 'dashboard') renderDashboard();
   toast(isEditing ? 'Asset updated.' : 'Asset added.', 'success');
 }
 
@@ -2832,19 +2843,18 @@ function renderDashboard() {
     }).join('') + '</div>';
   }
 
-  // Upcoming renewals within 60 days
+  // All upcoming renewals (no cap — show everything with a date set)
   const renewalsDue = assets
     .filter(a => a.renewalDate)
     .map(a => { const days = Math.round((new Date(a.renewalDate) - now) / 86400000); return { a, days }; })
-    .filter(x => x.days <= 60)
     .sort((a, b) => a.days - b.days);
 
   const renewalsEl = $('dashRenewals');
   if (!renewalsDue.length) {
-    renewalsEl.innerHTML = '<div class="empty" style="padding:20px"><p style="color:var(--text-muted)">No renewals due within 60 days.</p></div>';
+    renewalsEl.innerHTML = '<div class="empty" style="padding:20px"><p style="color:var(--text-muted)">No renewal dates have been set on any assets.</p></div>';
   } else {
     renewalsEl.innerHTML = '<div class="expiry-list">' + renewalsDue.map(({a, days}) => {
-      const cls   = days < 0 ? 'urgent' : days <= 14 ? 'urgent' : days <= 30 ? 'soon' : 'ok';
+      const cls   = days < 0 ? 'urgent' : days <= 30 ? 'urgent' : days <= 90 ? 'soon' : 'ok';
       const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`;
       return `<div class="expiry-item">
         <div class="expiry-days ${cls}">${label}</div>
@@ -2856,24 +2866,54 @@ function renderDashboard() {
   }
 }
 
-// Renewal notifications for branch users
+// Renewal notifications + section for branch users
 function checkRenewalNotifications() {
   const banner = $('renewalBanner');
-  if (!banner) return;
   const now = new Date();
-  const due = assets
+  const allRenewals = assets
     .filter(a => a.renewalDate && a.branch === currentBranch)
     .map(a => ({ a, days: Math.round((new Date(a.renewalDate) - now) / 86400000) }))
-    .filter(x => x.days <= 30)
     .sort((a, b) => a.days - b.days);
-  if (!due.length) { banner.style.display = 'none'; return; }
-  banner.style.display = '';
-  banner.innerHTML = '⚠️ <strong>Renewal Reminder:</strong> ' + due.map(({ a, days }) => {
-    const when = days < 0 ? `<strong style="color:#dc2626">${Math.abs(days)}d overdue</strong>`
-                : days === 0 ? '<strong style="color:#dc2626">due today</strong>'
-                : `due in <strong>${days}d</strong>`;
-    return `${esc(a.name)} (${when} — ${fmtDate(a.renewalDate)})`;
-  }).join(' &nbsp;·&nbsp; ');
+
+  // Urgent banner — only when ≤ 30 days away or overdue
+  if (banner) {
+    const urgent = allRenewals.filter(x => x.days <= 30);
+    if (!urgent.length) {
+      banner.style.display = 'none';
+    } else {
+      banner.style.display = '';
+      banner.innerHTML = '⚠️ <strong>Renewal Reminder:</strong> ' + urgent.map(({ a, days }) => {
+        const when = days < 0 ? `<strong style="color:#dc2626">${Math.abs(days)}d overdue</strong>`
+                    : days === 0 ? '<strong style="color:#dc2626">due today</strong>'
+                    : `due in <strong>${days}d</strong>`;
+        return `${esc(a.name)} (${when} — ${fmtDate(a.renewalDate)})`;
+      }).join(' &nbsp;·&nbsp; ');
+    }
+  }
+
+  // Dedicated renewals section — all assets with any renewal date
+  renderBranchRenewals(allRenewals);
+}
+
+function renderBranchRenewals(renewals) {
+  const el = $('branchRenewals');
+  if (!el) return;
+  if (!renewals || !renewals.length) {
+    el.innerHTML = '<div class="empty" style="padding:20px"><p style="color:var(--text-muted)">No renewal dates set for your assets.</p></div>';
+    return;
+  }
+  el.innerHTML = '<div class="expiry-list">' + renewals.map(({ a, days }) => {
+    const cls   = days < 0 ? 'urgent' : days <= 30 ? 'urgent' : days <= 90 ? 'soon' : 'ok';
+    const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`;
+    return `<div class="expiry-item">
+      <div class="expiry-days ${cls}">${label}</div>
+      <div style="flex:1">
+        <strong>${esc(a.name)}</strong>${a.serial ? ` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>` : ''}<br>
+        <span style="font-size:.8rem;color:var(--text-muted)">Renewal due ${fmtDate(a.renewalDate)}${a.category ? ' · ' + esc(a.category) : ''}</span>
+      </div>
+      ${liveEnabled ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${a.id}')">📋 Submit Inspection</button>` : ''}
+    </div>`;
+  }).join('') + '</div>';
 }
 
 // ── Transfer Approval ─────────────────────────────────────────────────
