@@ -1075,7 +1075,20 @@ async function liveSync() {
         created_at:   a.createdAt   || now,
         updated_at:   now,
       }));
-      if (assetRows.length) await supa.from('assets').upsert(assetRows, { onConflict: 'id' });
+      if (assetRows.length) {
+        const { error: assetErr } = await supa.from('assets').upsert(assetRows, { onConflict: 'id' });
+        if (assetErr) {
+          if (assetErr.message?.includes('renewal_date')) {
+            // Column not yet in DB — run schema.sql in Supabase to enable renewal dates
+            const fallback = assetRows.map(({ renewal_date, ...rest }) => rest);
+            const { error: fbErr } = await supa.from('assets').upsert(fallback, { onConflict: 'id' });
+            if (fbErr) throw new Error('Assets save failed: ' + fbErr.message);
+            console.warn('renewal_date column missing — run schema.sql in Supabase to enable this field.');
+          } else {
+            throw new Error('Assets save failed: ' + assetErr.message);
+          }
+        }
+      }
       if (pendingAssetDeletes.size) {
         await supa.from('assets').delete().in('id', [...pendingAssetDeletes]);
         pendingAssetDeletes.clear();
@@ -1132,8 +1145,8 @@ async function liveSync() {
       }
     }
   } catch (e) {
-    console.error(e);
-    toast('Live sync failed (check Supabase + internet).', 'warn');
+    console.error('liveSync error:', e);
+    toast('Sync error: ' + (e?.message || 'check console / Supabase'), 'warn');
   }
 }
 
