@@ -1379,7 +1379,6 @@ let livePollTimer   = null;
 let liveSyncRunning = false; // true while a liveSync() is in-flight
 let pendingBranchDeletes = new Set();
 let pendingAssetDeletes  = new Set();
-let pendingSaleDeletes   = new Set();
 
 function isLiveConfigured() {
   return Boolean(LIVE_CONFIG.SUPABASE_URL && LIVE_CONFIG.SUPABASE_ANON_KEY && window.supabase);
@@ -1546,11 +1545,6 @@ async function liveSync() {
         const { error: saleErr } = await supa.from('sale_listings').upsert(saleRows, { onConflict: 'id' });
         if (saleErr) throw new Error('Sale listings save failed: ' + saleErr.message);
       }
-      if (pendingSaleDeletes.size) {
-        const { error: saleDelErr } = await supa.from('sale_listings').delete().in('id', [...pendingSaleDeletes]);
-        if (saleDelErr) throw new Error('Sale listing delete failed: ' + saleDelErr.message);
-        pendingSaleDeletes.clear();
-      }
     } else {
       // Branch users only persist their own requests.
       const mine = requests.filter(r => r.branchName === currentBranch);
@@ -1588,11 +1582,6 @@ async function liveSync() {
       if (saleBranchRows.length) {
         const { error: saleErr } = await supa.from('sale_listings').upsert(saleBranchRows, { onConflict: 'id' });
         if (saleErr) throw new Error('Sale listings save failed: ' + saleErr.message);
-      }
-      if (pendingSaleDeletes.size) {
-        const { error: saleDelErr } = await supa.from('sale_listings').delete().in('id', [...pendingSaleDeletes]);
-        if (saleDelErr) throw new Error('Sale listing delete failed: ' + saleDelErr.message);
-        pendingSaleDeletes.clear();
       }
     }
   } catch (e) {
@@ -2100,13 +2089,10 @@ function saveSaleListings() {
   queueLiveSync();
 }
 
-function deleteSaleListingFromDB(id) {
-  pendingSaleDeletes.add(id);
-  queueLiveSync();
-}
+const SALE_HIDDEN = new Set(['sold', 'removed', 'denied']);
 
 function renderForSaleTab() {
-  const listed = saleListings.filter(s => s.branch === currentBranch && s.status !== 'sold');
+  const listed = saleListings.filter(s => s.branch === currentBranch && !SALE_HIDDEN.has(s.status));
   const sold   = saleListings.filter(s => s.branch === currentBranch && s.status === 'sold');
 
   const forSaleBody = $('forSaleTableBody');
@@ -2232,10 +2218,10 @@ function submitForSaleListing() {
 function removeListing(id) {
   if (!confirm('Remove this listing? The asset will return to active leases.')) return;
   const s = saleListings.find(x => x.id === id);
-  saleListings = saleListings.filter(x => x.id !== id);
+  if (!s) return;
+  s.status = 'removed';
   saveSaleListings();
-  void deleteSaleListingFromDB(id);
-  const a = assets.find(x => x.id === s?.assetId);
+  const a = assets.find(x => x.id === s.assetId);
   if (a) { a.forSale = false; if (a.status === 'For Sale') a.status = 'On Lease'; saveAll(); }
   renderForSaleTab();
   renderBranchAssets();
@@ -2319,7 +2305,8 @@ function renderAdminForSaleTab() {
   const fStatus = $('adminSaleStatusFilter').value;
   let list = saleListings.filter(s =>
     (!fBranch || s.branch === fBranch) &&
-    (!fStatus || s.status === fStatus)
+    (!fStatus || s.status === fStatus) &&
+    !SALE_HIDDEN.has(s.status)
   ).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const tbody = $('adminForSaleTableBody');
@@ -2425,14 +2412,13 @@ function approveListing(id) {
 function denyListing(id) {
   const s = saleListings.find(x => x.id === id);
   if (!s || !confirm(`Deny listing for "${s.assetName}"?`)) return;
-  saleListings = saleListings.filter(x => x.id !== id);
+  s.status = 'denied';
   saveSaleListings();
-  void deleteSaleListingFromDB(id);
   const a = assets.find(x => x.id === s.assetId);
   if (a) { a.forSale = false; saveAll(); }
   renderAdminForSaleTab();
   updatePendingBadge();
-  toast('Listing denied and removed.', 'danger');
+  toast('Listing denied.', 'danger');
 }
 
 function adminConfirmSale(id) {
@@ -2462,9 +2448,8 @@ function adminDenySale(id) {
 function adminRemoveListing(id) {
   const s = saleListings.find(x => x.id === id);
   if (!confirm(`Remove listing for "${s?.assetName}"? The asset will return to active leases.`)) return;
-  saleListings = saleListings.filter(x => x.id !== id);
+  s.status = 'removed';
   saveSaleListings();
-  void deleteSaleListingFromDB(id);
   const a = assets.find(x => x.id === s?.assetId);
   if (a) { a.forSale = false; if (a.status === 'For Sale') a.status = 'On Lease'; saveAll(); }
   renderAdminForSaleTab();
@@ -2609,8 +2594,8 @@ function submitBulkSale() {
   let added = 0;
   toList.forEach(r => {
     const a = r.asset;
-    // Skip if already listed (active or pending)
-    if (saleListings.find(s => s.assetId === a.id && s.status !== 'sold')) return;
+    // Skip if already listed (active or pending) — allow re-listing removed/denied
+    if (saleListings.find(s => s.assetId === a.id && !SALE_HIDDEN.has(s.status))) return;
     a.forSale = true;
     if (r.mileage) a.mileage = r.mileage;
     if (bulkSaleAdminMode) a.status = 'For Sale';
