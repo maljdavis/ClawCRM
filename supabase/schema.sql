@@ -229,10 +229,76 @@ create policy "audit_log: authenticated insert"
 -- Add target_branch_name to requests (for branch-to-branch transfers)
 alter table public.requests add column if not exists target_branch_name text;
 
--- Add make/model/year to assets
-alter table public.assets add column if not exists make  text;
-alter table public.assets add column if not exists model text;
-alter table public.assets add column if not exists year  text;
+-- Add make/model/year + renewal_date to assets
+alter table public.assets add column if not exists make         text;
+alter table public.assets add column if not exists model        text;
+alter table public.assets add column if not exists year         text;
+alter table public.assets add column if not exists renewal_date text;
+
+-- ══════════════════════════════════════════════════════════
+-- INSPECTIONS (branch-submitted inspection reports)
+-- Files stored in the "asset-files" bucket under inspections/ prefix
+-- ══════════════════════════════════════════════════════════
+
+create table if not exists public.inspections (
+  id           text primary key,
+  asset_id     text not null references public.assets(id) on delete cascade,
+  branch_name  text not null,
+  name         text not null,        -- original filename
+  storage_path text not null,        -- path in asset-files bucket
+  notes        text,
+  uploaded_at  timestamptz default now()
+);
+
+alter table public.inspections enable row level security;
+
+drop policy if exists "inspections: admin all"      on public.inspections;
+drop policy if exists "inspections: branch insert"  on public.inspections;
+drop policy if exists "inspections: branch read"    on public.inspections;
+
+-- Admins can do everything
+create policy "inspections: admin all"
+  on public.inspections for all
+  using (public.is_admin())
+  with check (public.is_admin());
+
+-- Branch users can insert inspections for assets assigned to their branch
+create policy "inspections: branch insert"
+  on public.inspections for insert
+  with check (
+    branch_name = public.my_branch()
+    and exists (select 1 from public.assets where id = asset_id and branch_name = public.my_branch())
+  );
+
+-- Branch users can read their own inspections
+create policy "inspections: branch read"
+  on public.inspections for select
+  using (branch_name = public.my_branch());
+
+-- Storage: branch users can upload inspection files (inspections/ prefix)
+drop policy if exists "storage asset-files: branch inspections upload" on storage.objects;
+drop policy if exists "storage asset-files: branch inspections read"   on storage.objects;
+
+create policy "storage asset-files: branch inspections upload"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'asset-files'
+    and name like 'inspections/%'
+    and auth.role() = 'authenticated'
+  );
+
+-- Branch users can download inspection files they submitted
+create policy "storage asset-files: branch inspections read"
+  on storage.objects for select
+  using (
+    bucket_id = 'asset-files'
+    and name like 'inspections/%'
+    and exists (
+      select 1 from public.inspections i
+      where i.storage_path = storage.objects.name
+        and i.branch_name = (select branch_name from public.profiles where id = auth.uid())
+    )
+  );
 
 -- ══════════════════════════════════════════════════════════
 -- ASSET FILES (Supabase Storage metadata)

@@ -275,6 +275,7 @@
   <div class="page">
     <div class="stats" id="branchStats"></div>
     <div class="info-banner">&#128274; This is a read-only view. Assets are managed by the admin. Use the buttons below to submit requests.</div>
+    <div id="renewalBanner" style="display:none;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.5);border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:.875rem;line-height:1.6;"></div>
     <div class="toolbar">
       <div class="search-wrap">
         <input type="text" id="branchSearch" placeholder="Search your assets…" oninput="renderBranchAssets()" />
@@ -291,6 +292,7 @@
             <th>Status</th>
             <th>Monthly Lease</th>
             <th>Lease End</th>
+            <th>Renewal Due</th>
             <th></th>
           </tr>
         </thead>
@@ -347,6 +349,8 @@
       </div>
       <div class="section-hdr"><div><h2>Leases Expiring Within 30 Days</h2></div></div>
       <div id="dashExpiring"></div>
+      <div class="section-hdr" style="margin-top:24px"><div><h2>Renewals Due Within 60 Days</h2></div></div>
+      <div id="dashRenewals"></div>
     </div>
 
     <!-- ASSETS TAB -->
@@ -545,6 +549,7 @@
       <div class="field"><label>Date Acquired</label><input id="f-acquiredDate" type="date" /></div>
       <div class="field"><label>Lease Start</label><input id="f-leaseStart" type="date" /></div>
       <div class="field"><label>Lease End</label><input id="f-leaseEnd" type="date" /></div>
+      <div class="field"><label>Renewal Date</label><input id="f-renewalDate" type="date" title="Date when inspection / renewal is due" /></div>
       <div class="field full"><label>Notes</label><textarea id="f-notes" placeholder="Condition, maintenance history, notes…"></textarea></div>
     </div>
     <div class="modal-footer">
@@ -701,6 +706,31 @@
   </div>
 </div>
 
+<!-- ══════════════ MODAL: SUBMIT INSPECTION (branch) ══════════════ -->
+<div class="overlay" id="inspectionOverlay">
+  <div class="modal modal-sm">
+    <div class="modal-hdr">
+      <h2 id="inspectionModalTitle">Submit Inspection</h2>
+      <button class="close-btn" onclick="closeInspectionModal()">×</button>
+    </div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="inspectionNotes" rows="3" placeholder="Inspection findings, condition notes…" style="width:100%;box-sizing:border-box;"></textarea>
+    </div>
+    <div class="field">
+      <label>Attach File(s)</label>
+      <input type="file" id="inspectionFileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onchange="handleInspectionUpload(event)" />
+      <p style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">PDF, images, or Word docs</p>
+    </div>
+    <div id="inspectionUploadStatus"></div>
+    <p style="font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin:16px 0 6px;font-weight:600;">Previous Inspections</p>
+    <div class="file-list" id="inspectionHistoryList"><span class="file-empty">Loading…</span></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeInspectionModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ MODAL: BULK REASSIGN ══════════════ -->
 <div class="overlay" id="bulkReassignOverlay">
   <div class="modal modal-sm">
@@ -813,6 +843,83 @@ async function loadFilesLive(assetId) {
 async function removeFileLive(fileId, storagePath) {
   await supa.storage.from('asset-files').remove([storagePath]);
   await supa.from('asset_files').delete().eq('id', fileId);
+}
+
+// ── Inspection helpers (live mode only) ──────────────────────────────
+async function uploadInspectionLive(assetId, branchName, file, notes) {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._\-]/g, '_');
+  const path = `inspections/${assetId}/${uid()}-${safeName}`;
+  const { error: upErr } = await supa.storage.from('asset-files').upload(path, file);
+  if (upErr) throw new Error('Upload failed: ' + upErr.message);
+  const rec = { id: uid(), asset_id: assetId, branch_name: branchName, name: file.name, storage_path: path, notes: notes || null };
+  const { error: dbErr } = await supa.from('inspections').insert(rec);
+  if (dbErr) { await supa.storage.from('asset-files').remove([path]); throw new Error(dbErr.message); }
+  return rec;
+}
+async function loadInspectionsLive(assetId) {
+  const q = supa.from('inspections').select('*').eq('asset_id', assetId).order('uploaded_at', { ascending: false });
+  const { data, error } = await q;
+  if (error || !data) return [];
+  return await Promise.all(data.map(async r => {
+    const { data: u } = await supa.storage.from('asset-files').createSignedUrl(r.storage_path, 3600);
+    return { ...r, url: u?.signedUrl || '' };
+  }));
+}
+
+let inspectionAssetId = null;
+
+async function openInspectionModal(assetId) {
+  inspectionAssetId = assetId;
+  const a = assets.find(x => x.id === assetId);
+  $('inspectionModalTitle').textContent = `Inspection — ${a?.name || ''}`;
+  $('inspectionNotes').value = '';
+  $('inspectionFileInput').value = '';
+  $('inspectionUploadStatus').innerHTML = '';
+  $('inspectionOverlay').classList.add('open');
+  await refreshInspectionHistory();
+}
+function closeInspectionModal() {
+  $('inspectionOverlay').classList.remove('open');
+  inspectionAssetId = null;
+}
+
+async function refreshInspectionHistory() {
+  const el = $('inspectionHistoryList');
+  el.innerHTML = '<span class="file-empty">Loading…</span>';
+  try {
+    const list = await loadInspectionsLive(inspectionAssetId);
+    if (list.length === 0) { el.innerHTML = '<span class="file-empty">No inspections submitted yet.</span>'; return; }
+    el.innerHTML = list.map(r => `
+      <div class="file-chip" style="flex-direction:column;align-items:flex-start;gap:2px;padding:8px 10px;">
+        <div style="display:flex;align-items:center;gap:8px;width:100%">
+          <a href="${escAttr(r.url)}" target="_blank" style="font-weight:500">${esc(r.name)}</a>
+          <span style="margin-left:auto;font-size:.72rem;color:var(--text-muted)">${fmtDate(r.uploaded_at?.slice(0,10))}</span>
+        </div>
+        ${r.notes ? `<span style="font-size:.78rem;color:var(--text-muted)">${esc(r.notes)}</span>` : ''}
+      </div>`).join('');
+  } catch { el.innerHTML = '<span class="file-empty">Could not load history.</span>'; }
+}
+
+async function handleInspectionUpload(e) {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+  const notes = $('inspectionNotes').value.trim();
+  const statusEl = $('inspectionUploadStatus');
+  const inp = $('inspectionFileInput');
+  inp.disabled = true;
+  statusEl.innerHTML = '<span class="file-empty">Uploading…</span>';
+  try {
+    for (const file of files) {
+      await uploadInspectionLive(inspectionAssetId, currentBranch, file, notes);
+    }
+    $('inspectionNotes').value = '';
+    inp.value = '';
+    statusEl.innerHTML = '';
+    toast(`${files.length} inspection file(s) submitted.`, 'success');
+    await refreshInspectionHistory();
+  } catch(err) {
+    statusEl.innerHTML = `<span style="color:var(--danger);font-size:.85rem">${esc(err.message)}</span>`;
+  } finally { inp.disabled = false; }
 }
 
 let assets       = JSON.parse(localStorage.getItem(ASSETS_KEY)   || '[]').map(a => ({ ...a, files: loadAssetFiles(a.id) }));
@@ -961,11 +1068,12 @@ async function liveSync() {
         lrf:  (a.lrf  === '' || a.lrf  == null) ? null : a.lrf,
         vendor: a.vendor || null,
         acquired_date: a.acquiredDate || null,
-        lease_start: a.leaseStart || null,
-        lease_end: a.leaseEnd || null,
-        notes: a.notes || null,
-        created_at: a.createdAt || now,
-        updated_at: now,
+        lease_start:  a.leaseStart  || null,
+        lease_end:    a.leaseEnd    || null,
+        renewal_date: a.renewalDate || null,
+        notes:        a.notes       || null,
+        created_at:   a.createdAt   || now,
+        updated_at:   now,
       }));
       if (assetRows.length) await supa.from('assets').upsert(assetRows, { onConflict: 'id' });
       if (pendingAssetDeletes.size) {
@@ -1275,11 +1383,12 @@ async function loadLiveData() {
       lrf: a.lrf ?? '',
       vendor: a.vendor || '',
       acquiredDate: a.acquired_date || '',
-      leaseStart: a.lease_start || '',
-      leaseEnd: a.lease_end || '',
-      notes: a.notes || '',
-      files: localFiles[a.id] || loadAssetFiles(a.id),
-      fileCount: 0,
+      leaseStart:   a.lease_start   || '',
+      leaseEnd:     a.lease_end     || '',
+      renewalDate:  a.renewal_date  || '',
+      notes:        a.notes         || '',
+      files:        localFiles[a.id] || loadAssetFiles(a.id),
+      fileCount:    0,
       createdAt: a.created_at || '',
       updatedAt: a.updated_at || '',
     }));
@@ -1329,6 +1438,7 @@ async function refreshLiveData() {
     if (adminTab === 'activity')   loadActivityLog();
   } else {
     checkRequestNotifications();
+    checkRenewalNotifications();
     renderBranchAssets();
     renderMyRequests();
   }
@@ -1348,6 +1458,7 @@ function showBranchView() {
   tBtn.href = telematicsUrl || '#';
   tBtn.style.display = telematicsUrl ? '' : 'none';
   checkRequestNotifications();
+  checkRenewalNotifications();
   updateBellBadge();
   renderBranchAssets();
   renderMyRequests();
@@ -1457,6 +1568,14 @@ function renderBranchAssets() {
     const transferBtn = pendingTransfers.has(a.id)
       ? `<span class="badge badge-pending" style="font-size:.7rem">Transfer Pending</span>`
       : (otherBranches.length > 0 ? `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('transfer_asset','${a.id}')">Transfer</button>` : '');
+    const renewalDays = a.renewalDate ? Math.round((new Date(a.renewalDate) - new Date()) / 86400000) : null;
+    const renewalCell = renewalDays === null ? '—'
+      : renewalDays < 0  ? `<span style="color:#dc2626;font-weight:600">${fmtDate(a.renewalDate)} <span style="font-size:.72rem">(${Math.abs(renewalDays)}d overdue)</span></span>`
+      : renewalDays <= 30 ? `<span style="color:#d97706;font-weight:600">${fmtDate(a.renewalDate)} <span style="font-size:.72rem">(${renewalDays}d)</span></span>`
+      : fmtDate(a.renewalDate);
+    const inspectBtn = liveEnabled
+      ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${a.id}')">📋 Inspect</button>`
+      : '';
     return `<tr>
       <td><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
       <td>${esc(a.category||'—')}</td>
@@ -1464,7 +1583,8 @@ function renderBranchAssets() {
       <td><span class="badge badge-lease">On Lease</span></td>
       <td style="color:var(--success);font-weight:600">${mp(a)}</td>
       <td>${fmtDate(a.leaseEnd)}</td>
-      <td><div class="actions">${returnBtn}${issueBtn}${transferBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button></div></td>
+      <td>${renewalCell}</td>
+      <td><div class="actions">${returnBtn}${issueBtn}${transferBtn}${inspectBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button></div></td>
     </tr>`;
   }).join('');
 }
@@ -1801,7 +1921,7 @@ function openAssetModal(id) {
   editingAssetId = id || null;
   $('assetModalTitle').textContent = id ? 'Edit Asset' : 'Add Asset';
   const a = id ? assets.find(x=>x.id===id) : {};
-  ['name','serial','make','model','year','category','vendor','acquiredDate','leaseStart','leaseEnd','notes'].forEach(f => {
+  ['name','serial','make','model','year','category','vendor','acquiredDate','leaseStart','leaseEnd','renewalDate','notes'].forEach(f => {
     const el = $('f-'+f); if (el) el.value = a?.[f]??'';
   });
   $('f-cost').value = a?.cost??'';
@@ -1890,10 +2010,11 @@ function saveAsset() {
     lrf:         $('f-lrf').value  !== '' ? parseFloat($('f-lrf').value)  : '',
     vendor:      $('f-vendor').value.trim(),
     acquiredDate:$('f-acquiredDate').value,
-    leaseStart:  $('f-leaseStart').value,
-    leaseEnd:    $('f-leaseEnd').value,
-    notes:       $('f-notes').value.trim(),
-    files:       editingAssetId ? (assets.find(x=>x.id===editingAssetId)?.files || []) : [],
+    leaseStart:   $('f-leaseStart').value,
+    leaseEnd:     $('f-leaseEnd').value,
+    renewalDate:  $('f-renewalDate').value,
+    notes:        $('f-notes').value.trim(),
+    files:        editingAssetId ? (assets.find(x=>x.id===editingAssetId)?.files || []) : [],
     updatedAt:   new Date().toISOString(),
   };
   if (isEditing) {
@@ -2183,10 +2304,11 @@ function importCSV(input) {
         lrf:         isNaN(lrf)  ? '' : lrf,
         vendor:      (cols[11] || '').trim(),
         acquiredDate:(cols[12] || '').trim(),
-        leaseStart:  (cols[13] || '').trim(),
-        leaseEnd:    (cols[14] || '').trim(),
-        notes:       (cols[15] || '').trim(),
-        files:       [],
+        leaseStart:   (cols[13] || '').trim(),
+        leaseEnd:     (cols[14] || '').trim(),
+        notes:        (cols[15] || '').trim(),
+        renewalDate:  (cols[16] || '').trim(),
+        files:        [],
         createdAt:   new Date().toISOString(),
         updatedAt:   new Date().toISOString(),
       });
@@ -2521,13 +2643,13 @@ async function bulkDelete() {
 
 // ── Sample CSV ────────────────────────────────────────────────────────
 function downloadSampleCSV() {
-  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
+  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes','Renewal Date'];
   const rows = [
-    ['Forklift #1','SN-10001','Toyota','8FGU25','2022','Heavy Equipment','Dallas','On Lease','45000','0.0185','','Toyota Industries','2023-01-15','2023-02-01','2025-01-31','Annual inspection due Jan 2025'],
-    ['Scissor Lift #2','SN-10002','JLG','2030ES','2021','Aerial Work Platform','Houston','On Lease','32000','0.0200','','JLG Industries','2022-06-10','2022-07-01','2024-06-30',''],
-    ['Generator 50kW','SN-10003','Generac','XD5000E','2020','Power Equipment','Pool','Available','18500','0.0175','','Generac','2023-03-20','','','Backup unit'],
-    ['Compactor Roller','SN-10004','Bomag','BW120AD-5','2019','Compaction','Austin','On Lease','67000','0.0190','','Bomag','2021-11-01','2022-01-01','2024-12-31','Recent service completed'],
-    ['Air Compressor','SN-10005','Atlas Copco','GA15','2023','Pneumatic Equipment','Pool','Available','9800','0.0165','','Atlas Copco','2023-08-05','','',''],
+    ['Forklift #1','SN-10001','Toyota','8FGU25','2022','Heavy Equipment','Dallas','On Lease','45000','0.0185','','Toyota Industries','2023-01-15','2023-02-01','2025-01-31','Annual inspection due Jan 2025','2026-01-01'],
+    ['Scissor Lift #2','SN-10002','JLG','2030ES','2021','Aerial Work Platform','Houston','On Lease','32000','0.0200','','JLG Industries','2022-06-10','2022-07-01','2024-06-30','','2025-07-01'],
+    ['Generator 50kW','SN-10003','Generac','XD5000E','2020','Power Equipment','Pool','Available','18500','0.0175','','Generac','2023-03-20','','','Backup unit',''],
+    ['Compactor Roller','SN-10004','Bomag','BW120AD-5','2019','Compaction','Austin','On Lease','67000','0.0190','','Bomag','2021-11-01','2022-01-01','2024-12-31','Recent service completed','2025-12-01'],
+    ['Air Compressor','SN-10005','Atlas Copco','GA15','2023','Pneumatic Equipment','Pool','Available','9800','0.0165','','Atlas Copco','2023-08-05','','','',''],
   ];
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -2693,6 +2815,49 @@ function renderDashboard() {
       </div>`;
     }).join('') + '</div>';
   }
+
+  // Upcoming renewals within 60 days
+  const renewalsDue = assets
+    .filter(a => a.renewalDate)
+    .map(a => { const days = Math.round((new Date(a.renewalDate) - now) / 86400000); return { a, days }; })
+    .filter(x => x.days <= 60)
+    .sort((a, b) => a.days - b.days);
+
+  const renewalsEl = $('dashRenewals');
+  if (!renewalsDue.length) {
+    renewalsEl.innerHTML = '<div class="empty" style="padding:20px"><p style="color:var(--text-muted)">No renewals due within 60 days.</p></div>';
+  } else {
+    renewalsEl.innerHTML = '<div class="expiry-list">' + renewalsDue.map(({a, days}) => {
+      const cls   = days < 0 ? 'urgent' : days <= 14 ? 'urgent' : days <= 30 ? 'soon' : 'ok';
+      const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`;
+      return `<div class="expiry-item">
+        <div class="expiry-days ${cls}">${label}</div>
+        <div style="flex:1"><strong>${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
+        <span style="font-size:.8rem;color:var(--text-muted)">${esc(a.branch||'Pool')} · renewal ${fmtDate(a.renewalDate)}</span></div>
+        <button class="btn btn-ghost btn-xs" onclick="setAdminTab('assets');$('adminBranchFilter').value='${escAttr(a.branch||'')}';renderAdminAssets()">View</button>
+      </div>`;
+    }).join('') + '</div>';
+  }
+}
+
+// Renewal notifications for branch users
+function checkRenewalNotifications() {
+  const banner = $('renewalBanner');
+  if (!banner) return;
+  const now = new Date();
+  const due = assets
+    .filter(a => a.renewalDate && a.branch === currentBranch)
+    .map(a => ({ a, days: Math.round((new Date(a.renewalDate) - now) / 86400000) }))
+    .filter(x => x.days <= 30)
+    .sort((a, b) => a.days - b.days);
+  if (!due.length) { banner.style.display = 'none'; return; }
+  banner.style.display = '';
+  banner.innerHTML = '⚠️ <strong>Renewal Reminder:</strong> ' + due.map(({ a, days }) => {
+    const when = days < 0 ? `<strong style="color:#dc2626">${Math.abs(days)}d overdue</strong>`
+                : days === 0 ? '<strong style="color:#dc2626">due today</strong>'
+                : `due in <strong>${days}d</strong>`;
+    return `${esc(a.name)} (${when} — ${fmtDate(a.renewalDate)})`;
+  }).join(' &nbsp;·&nbsp; ');
 }
 
 // ── Transfer Approval ─────────────────────────────────────────────────
