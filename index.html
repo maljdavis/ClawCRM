@@ -425,7 +425,10 @@
             <tr>
               <th>Asset</th>
               <th>Asking Price</th>
+              <th>Monthly Lease</th>
+              <th>Saves/mo</th>
               <th>Condition</th>
+              <th>Mileage</th>
               <th>Notes</th>
               <th>Listed</th>
               <th></th>
@@ -450,6 +453,7 @@
               <th>Asset</th>
               <th>Asking Price</th>
               <th>Sold Price</th>
+              <th>Monthly Lease (saved)</th>
               <th>Sold Date</th>
             </tr>
           </thead>
@@ -686,7 +690,10 @@
               <th>Branch</th>
               <th>Asking Price</th>
               <th>Sold Price</th>
+              <th>Monthly Lease</th>
+              <th>Saves/mo</th>
               <th>Condition</th>
+              <th>Mileage</th>
               <th>Notes</th>
               <th>Status</th>
               <th>Date</th>
@@ -1047,11 +1054,22 @@
       </div>
       <div class="field">
         <label>Condition</label>
-        <input type="text" id="saleCondition" placeholder="e.g. Good, Excellent…" />
+        <select id="saleCondition" style="width:100%;">
+          <option value="">— Select condition —</option>
+          <option value="Excellent">Excellent</option>
+          <option value="Good">Good</option>
+          <option value="Fair">Fair</option>
+          <option value="Poor">Poor</option>
+          <option value="Parts Only">Parts Only</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Mileage / Hours</label>
+        <input type="text" id="saleMileage" placeholder="e.g. 42,000 mi or 1,200 hrs" />
       </div>
       <div class="field full">
         <label>Description / Notes</label>
-        <textarea id="saleDescription" rows="3" placeholder="Year, mileage, condition details…" style="width:100%;box-sizing:border-box;"></textarea>
+        <textarea id="saleDescription" rows="3" placeholder="Additional details, history, etc." style="width:100%;box-sizing:border-box;"></textarea>
       </div>
     </div>
     <div class="modal-footer">
