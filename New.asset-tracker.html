@@ -1548,11 +1548,14 @@ function renderAdminAssets() {
   });
   list = sortedAssets(list);
 
-  // Admin stats
-  const allTotal   = assets.length;
-  const poolCount  = assets.filter(a=>!a.branch).length;
-  const leaseCount = assets.filter(a=>a.branch).length;
-  const totalMonthly = assets.filter(a=>a.branch).reduce((s,a)=>s+(monthlyPayment(a.cost,a.lrf)||0),0);
+  // Admin stats — always reflect the current filtered list
+  const isFiltered = !!(fBranch || fCat || q);
+  const statList   = list; // already filtered
+  const allTotal   = statList.length;
+  const poolCount  = statList.filter(a=>!a.branch).length;
+  const leaseCount = statList.filter(a=>a.branch).length;
+  const totalMonthly = statList.filter(a=>a.branch).reduce((s,a)=>s+(monthlyPayment(a.cost,a.lrf)||0),0);
+  const filterLabel  = isFiltered ? ' <span style="font-size:.7rem;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">(filtered)</span>' : '';
 
   // Show stats above table
   let statsEl = $('adminStats');
@@ -1564,10 +1567,10 @@ function renderAdminAssets() {
     $('panel-assets').prepend(statsEl);
   }
   statsEl.innerHTML = `
-    <div class="stat-card"><div class="stat-label">Total Assets</div><div class="stat-value c-blue">${allTotal}</div></div>
-    <div class="stat-card"><div class="stat-label">On Lease (Branches)</div><div class="stat-value c-green">${leaseCount}</div></div>
-    <div class="stat-card"><div class="stat-label">In Pool</div><div class="stat-value" style="color:var(--text-muted)">${poolCount}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Monthly Lease</div><div class="stat-value c-yellow">${fmt$(totalMonthly)}</div></div>
+    <div class="stat-card"><div class="stat-label">Assets${filterLabel}</div><div class="stat-value c-blue">${allTotal}</div></div>
+    <div class="stat-card"><div class="stat-label">On Lease${filterLabel}</div><div class="stat-value c-green">${leaseCount}</div></div>
+    <div class="stat-card"><div class="stat-label">In Pool${filterLabel}</div><div class="stat-value" style="color:var(--text-muted)">${poolCount}</div></div>
+    <div class="stat-card"><div class="stat-label">Monthly Lease${filterLabel}</div><div class="stat-value c-yellow">${fmt$(totalMonthly)}</div></div>
   `;
 
   const tbody = $('adminTableBody');
@@ -1743,16 +1746,22 @@ function confirmReassign() {
 
 // ── Branch Admin (Branches tab) ───────────────────────────────────────
 function renderBranchList() {
-  const counts = {};
-  assets.forEach(a => { if (a.branch) counts[a.branch] = (counts[a.branch]||0)+1; });
+  const counts   = {};
+  const monthlys = {};
+  assets.forEach(a => {
+    if (!a.branch) return;
+    counts[a.branch]   = (counts[a.branch]   || 0) + 1;
+    monthlys[a.branch] = (monthlys[a.branch] || 0) + (monthlyPayment(a.cost, a.lrf) || 0);
+  });
   $('branchList').innerHTML = branches.length
     ? branches.map(b => `
         <div class="branch-row">
           <div class="bname">${esc(b.name)}</div>
           ${liveEnabled
-            ? `<div class="bpw" style="font-size:.8rem">Login email: <code>${esc(branchToEmail(b.name))}</code></div>`
+            ? `<div class="bpw" style="font-size:.8rem">Login: <code>${esc(branchToEmail(b.name))}</code></div>`
             : `<div class="bpw">Password: ${esc(b.password)}</div>`}
           <div style="color:var(--text-muted);font-size:.8rem">${counts[b.name]||0} assets on lease</div>
+          <div style="color:var(--success);font-size:.85rem;font-weight:600">${monthlys[b.name] ? fmt$(monthlys[b.name]) + '/mo' : '—'}</div>
           <button class="btn btn-ghost btn-xs" data-action="edit-branch" data-branch="${escAttr(b.name)}">Edit</button>
           <button class="btn btn-danger btn-xs" data-action="remove-branch" data-branch="${escAttr(b.name)}">Remove</button>
         </div>`).join('')
