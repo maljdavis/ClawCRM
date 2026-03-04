@@ -1855,7 +1855,7 @@ function openEditBranch(name) {
   if (!b) return;
   editingBranchName = name;
   $('eb-name').value = b.name;
-  $('eb-pw').value   = b.password;
+  $('eb-pw').value   = liveEnabled ? '' : b.password;
   $('editBranchOverlay').classList.add('open');
 }
 function closeEditBranch() { $('editBranchOverlay').classList.remove('open'); editingBranchName = null; }
