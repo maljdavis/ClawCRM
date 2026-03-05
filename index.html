@@ -751,6 +751,13 @@
           <option value="">— Asset Pool (unassigned) —</option>
         </select>
       </div>
+      <div class="field" id="f-listingStatusWrap" style="display:none">
+        <label>Listing Status</label>
+        <select id="f-listingStatus">
+          <option value="lease">Active Lease</option>
+          <option value="forsale">For Sale</option>
+        </select>
+      </div>
       <div class="field"><label>Make *</label><input id="f-make" type="text" placeholder="e.g. Toyota" /></div>
       <div class="field"><label>Model *</label><input id="f-model" type="text" placeholder="e.g. 8FGU25" /></div>
       <div class="field"><label>Year *</label><input id="f-year" type="number" min="1900" max="2099" placeholder="e.g. 2022" /></div>
@@ -2100,10 +2107,7 @@ function renderForSaleTab() {
       : `<span class="badge badge-approved">Active</span>`;
     const actions = s.status === 'active'
       ? `<button class="btn btn-ghost btn-xs" onclick="openEditListing('${s.id}')">Edit</button>
-         <button class="btn btn-success btn-xs" onclick="openMarkSold('${s.id}')">Mark Sold</button>
-         <button class="btn btn-danger btn-xs" onclick="confirmRemoveListing(this,'${s.id}')">Remove</button>`
-      : s.status === 'pending'
-      ? `<button class="btn btn-danger btn-xs" onclick="confirmRemoveListing(this,'${s.id}')">Cancel</button>`
+         <button class="btn btn-success btn-xs" onclick="openMarkSold('${s.id}')">Mark Sold</button>`
       : ``;
     return `<tr>
       <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
@@ -2355,15 +2359,14 @@ function renderAdminForSaleTab() {
       : `<td style="color:var(--text-muted)">${s.status === 'pending_sold' && s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`;
     const actions = s.status === 'active'
       ? `<button class="btn btn-ghost btn-xs" onclick="openAdminEditListing('${s.id}')">Edit</button>
-         <button class="btn btn-success btn-xs" onclick="openAdminMarkSold('${s.id}')">Mark Sold</button>
-         <button class="btn btn-danger btn-xs" onclick="confirmAdminRemoveListing(this,'${s.id}')">Remove</button>`
+         <button class="btn btn-success btn-xs" onclick="openAdminMarkSold('${s.id}')">Mark Sold</button>`
       : s.status === 'pending'
       ? `<button class="btn btn-success btn-xs" onclick="approveListing('${s.id}')">Approve</button>
          <button class="btn btn-danger btn-xs" onclick="denyListing('${s.id}')">Deny</button>`
       : s.status === 'pending_sold'
       ? `<button class="btn btn-success btn-xs" onclick="adminConfirmSale('${s.id}')">Confirm Sale</button>
          <button class="btn btn-danger btn-xs" onclick="adminDenySale('${s.id}')">Deny Sale</button>`
-      : `<button class="btn btn-danger btn-xs" onclick="confirmAdminRemoveListing(this,'${s.id}')">Remove</button>`;
+      : ``;
     const date = s.status === 'sold' ? fmtDate(s.soldDate) : fmtDate(s.createdAt?.slice(0,10));
     const a = assets.find(x => x.id === s.assetId);
     const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
@@ -3093,6 +3096,15 @@ function openAssetModal(id) {
   $('f-branch').innerHTML = `<option value="">— Asset Pool (unassigned) —</option>` +
     branches.map(b => `<option value="${escAttr(b.name)}"${(a?.branch===b.name)?' selected':''}>${esc(b.name)}</option>`).join('');
   if (a?.branch) $('f-branch').value = a.branch;
+  // Show listing status field only when editing an existing asset
+  const listingWrap = $('f-listingStatusWrap');
+  if (id) {
+    listingWrap.style.display = '';
+    const hasListing = saleListings.find(s => s.assetId === id && !SALE_HIDDEN.has(s.status));
+    $('f-listingStatus').value = hasListing ? 'forsale' : 'lease';
+  } else {
+    listingWrap.style.display = 'none';
+  }
   updateLRFPreview();
   $('assetFormOverlay').classList.add('open');
 }
@@ -3156,6 +3168,8 @@ function saveAsset() {
   }
   const isEditing = !!editingAssetId;
   const branchVal = $('f-branch').value || null;
+  const listingStatusVal = $('f-listingStatusWrap').style.display !== 'none' ? $('f-listingStatus').value : null;
+  const assetStatus = listingStatusVal === 'forsale' ? 'For Sale' : (branchVal ? 'On Lease' : 'Available');
   const a = {
     id:          editingAssetId || uid(),
     name,
@@ -3165,7 +3179,7 @@ function saveAsset() {
     year,
     category:    $('f-category').value.trim(),
     branch:      branchVal,
-    status:      branchVal ? 'On Lease' : 'Available',
+    status:      assetStatus,
     cost:        $('f-cost').value !== '' ? parseFloat($('f-cost').value) : '',
     lrf:         $('f-lrf').value  !== '' ? parseFloat($('f-lrf').value)  : '',
     vendor:      $('f-vendor').value.trim(),
@@ -3186,10 +3200,25 @@ function saveAsset() {
     assets.push(a);
   }
   logAudit(isEditing ? 'update' : 'create', 'asset', a.id, a.name, isEditing ? 'Edited' : `Added to ${a.branch||'pool'}`);
+  // If switching to Active Lease, delete any active sale listings for this asset
+  if (isEditing && listingStatusVal === 'lease') {
+    const toRemove = saleListings.filter(s => s.assetId === a.id && !SALE_HIDDEN.has(s.status));
+    if (toRemove.length) {
+      toRemove.forEach(s => {
+        removedSaleIds.add(s.id);
+        const idx = saleListings.findIndex(x => x.id === s.id);
+        if (idx >= 0) saleListings.splice(idx, 1);
+        if (supa) supa.from('sale_listings').delete().eq('id', s.id).then(({ error }) => { if (error) console.error('Sale listing delete error:', error); });
+      });
+      saveRemovedSaleIds();
+      saveSaleListings();
+    }
+  }
   saveAll();
   closeAssetModal();
   renderAdminAssets();
   if (adminTab === 'dashboard') renderDashboard();
+  if (adminTab === 'forsale') { populateAdminSaleBranchFilter(); renderAdminForSaleTab(); }
   toast(isEditing ? 'Asset updated.' : 'Asset added.', 'success');
 }
 
