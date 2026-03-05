@@ -2241,6 +2241,7 @@ function removeListing(id) {
   if (!s) return;
   s.status = 'removed';
   saveSaleListings();
+  if (supa) supa.from('sale_listings').update({ status: 'removed' }).eq('id', id).then(({ error }) => { if (error) console.error('Remove listing sync error:', error); });
   const a = assets.find(x => x.id === s.assetId);
   if (a) { a.forSale = false; if (a.status === 'For Sale') a.status = 'On Lease'; saveAll(); }
   renderForSaleTab();
@@ -2470,6 +2471,7 @@ function adminRemoveListing(id) {
   if (!s) return;
   s.status = 'removed';
   saveSaleListings();
+  if (supa) supa.from('sale_listings').update({ status: 'removed' }).eq('id', id).then(({ error }) => { if (error) console.error('Admin remove listing sync error:', error); });
   const a = assets.find(x => x.id === s?.assetId);
   if (a) { a.forSale = false; if (a.status === 'For Sale') a.status = 'On Lease'; saveAll(); }
   renderAdminForSaleTab();
