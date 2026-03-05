@@ -1378,7 +1378,7 @@ let liveSyncTimer   = null;
 let livePollTimer   = null;
 let liveSyncRunning = false; // true while a liveSync() is in-flight
 let pendingBranchDeletes = new Set();
-let removedSaleIds = new Set(); // listings deleted this session — never re-add from polls
+let removedSaleIds = new Set(JSON.parse(localStorage.getItem('assetTracker_removed_sale_ids') || '[]')); // persisted so removals survive page refresh
 let pendingAssetDeletes  = new Set();
 
 function isLiveConfigured() {
@@ -2228,17 +2228,21 @@ function confirmAdminRemoveListing(btn, id) {
   setTimeout(() => { if (btn.dataset.confirming) { btn.textContent = orig; delete btn.dataset.confirming; btn.classList.remove('btn-warning'); btn.classList.add('btn-danger'); } }, 3000);
 }
 
+function saveRemovedSaleIds() {
+  try { localStorage.setItem('assetTracker_removed_sale_ids', JSON.stringify([...removedSaleIds])); } catch(e) {}
+}
+
 async function removeListing(id) {
   const idx = saleListings.findIndex(x => x.id === id);
   if (idx < 0) return;
   const s = saleListings[idx];
-  removedSaleIds.add(id);
+  removedSaleIds.add(id); saveRemovedSaleIds();
   saleListings.splice(idx, 1);
   saveSaleListings();
   if (supa) {
     const { error } = await supa.from('sale_listings').delete().eq('id', id);
     if (error) {
-      removedSaleIds.delete(id);
+      removedSaleIds.delete(id); saveRemovedSaleIds();
       saleListings.splice(idx, 0, s);
       saveSaleListings();
       renderForSaleTab();
@@ -2483,13 +2487,13 @@ async function adminRemoveListing(id) {
   const idx = saleListings.findIndex(x => x.id === id);
   if (idx < 0) return;
   const s = saleListings[idx];
-  removedSaleIds.add(id);
+  removedSaleIds.add(id); saveRemovedSaleIds();
   saleListings.splice(idx, 1);
   saveSaleListings();
   if (supa) {
     const { error } = await supa.from('sale_listings').delete().eq('id', id);
     if (error) {
-      removedSaleIds.delete(id);
+      removedSaleIds.delete(id); saveRemovedSaleIds();
       saleListings.splice(idx, 0, s);
       saveSaleListings();
       renderAdminForSaleTab();
