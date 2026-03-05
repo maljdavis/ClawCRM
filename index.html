@@ -1378,6 +1378,7 @@ let liveSyncTimer   = null;
 let livePollTimer   = null;
 let liveSyncRunning = false; // true while a liveSync() is in-flight
 let pendingBranchDeletes = new Set();
+let removedSaleIds = new Set(); // listings deleted this session — never re-add from polls
 let pendingAssetDeletes  = new Set();
 
 function isLiveConfigured() {
@@ -1911,7 +1912,7 @@ async function loadLiveData() {
 
   // Sale listings
   if (!saleRes.error && Array.isArray(saleRes.data)) {
-    saleListings = saleRes.data.map(s => ({
+    saleListings = saleRes.data.filter(s => !removedSaleIds.has(s.id)).map(s => ({
       id: s.id,
       assetId: s.asset_id || '',
       assetName: s.asset_name || '',
@@ -2231,11 +2232,13 @@ async function removeListing(id) {
   const idx = saleListings.findIndex(x => x.id === id);
   if (idx < 0) return;
   const s = saleListings[idx];
+  removedSaleIds.add(id);
   saleListings.splice(idx, 1);
   saveSaleListings();
   if (supa) {
     const { error } = await supa.from('sale_listings').delete().eq('id', id);
     if (error) {
+      removedSaleIds.delete(id);
       saleListings.splice(idx, 0, s);
       saveSaleListings();
       renderForSaleTab();
@@ -2480,11 +2483,13 @@ async function adminRemoveListing(id) {
   const idx = saleListings.findIndex(x => x.id === id);
   if (idx < 0) return;
   const s = saleListings[idx];
+  removedSaleIds.add(id);
   saleListings.splice(idx, 1);
   saveSaleListings();
   if (supa) {
     const { error } = await supa.from('sale_listings').delete().eq('id', id);
     if (error) {
+      removedSaleIds.delete(id);
       saleListings.splice(idx, 0, s);
       saveSaleListings();
       renderAdminForSaleTab();
