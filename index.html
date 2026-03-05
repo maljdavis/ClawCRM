@@ -2227,12 +2227,22 @@ function confirmAdminRemoveListing(btn, id) {
   setTimeout(() => { if (btn.dataset.confirming) { btn.textContent = orig; delete btn.dataset.confirming; btn.classList.remove('btn-warning'); btn.classList.add('btn-danger'); } }, 3000);
 }
 
-function removeListing(id) {
-  const s = saleListings.find(x => x.id === id);
-  if (!s) return;
-  s.status = 'removed';
+async function removeListing(id) {
+  const idx = saleListings.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const s = saleListings[idx];
+  saleListings.splice(idx, 1);
   saveSaleListings();
-  if (supa) supa.from('sale_listings').update({ status: 'removed' }).eq('id', id).then(({ error }) => { if (error) console.error('Remove listing sync error:', error); });
+  if (supa) {
+    const { error } = await supa.from('sale_listings').delete().eq('id', id);
+    if (error) {
+      saleListings.splice(idx, 0, s);
+      saveSaleListings();
+      renderForSaleTab();
+      toast('Remove failed: ' + error.message, 'danger');
+      return;
+    }
+  }
   const a = assets.find(x => x.id === s.assetId);
   if (a) { a.forSale = false; if (a.status === 'For Sale') a.status = 'On Lease'; saveAll(); }
   renderForSaleTab();
@@ -2466,13 +2476,23 @@ function adminDenySale(id) {
   toast('Sale denied. Asset returned to active listings.', 'warn');
 }
 
-function adminRemoveListing(id) {
-  const s = saleListings.find(x => x.id === id);
-  if (!s) return;
-  s.status = 'removed';
+async function adminRemoveListing(id) {
+  const idx = saleListings.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const s = saleListings[idx];
+  saleListings.splice(idx, 1);
   saveSaleListings();
-  if (supa) supa.from('sale_listings').update({ status: 'removed' }).eq('id', id).then(({ error }) => { if (error) console.error('Admin remove listing sync error:', error); });
-  const a = assets.find(x => x.id === s?.assetId);
+  if (supa) {
+    const { error } = await supa.from('sale_listings').delete().eq('id', id);
+    if (error) {
+      saleListings.splice(idx, 0, s);
+      saveSaleListings();
+      renderAdminForSaleTab();
+      toast('Remove failed: ' + error.message, 'danger');
+      return;
+    }
+  }
+  const a = assets.find(x => x.id === s.assetId);
   if (a) {
     a.forSale = false;
     if (a.status === 'For Sale') {
