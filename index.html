@@ -1939,7 +1939,7 @@ async function loadLiveData() {
       soldPrice: s.sold_price ?? null,
       soldDate: s.sold_date || '',
     }));
-    saveSaleListings(); // keep localStorage in sync
+    try { localStorage.setItem(SALES_KEY, JSON.stringify(saleListings)); } catch(e) {} // keep localStorage in sync without triggering a write-back
   }
 
   applyLiveAdminUI();
