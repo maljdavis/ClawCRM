@@ -2423,8 +2423,13 @@ function approveListing(id) {
   s.status = 'active';
   s.approvedAt = new Date().toISOString();
   saveSaleListings();
+  if (supa) supa.from('sale_listings').update({ status: 'active', approved_at: s.approvedAt }).eq('id', id).then(({ error }) => { if (error) console.error('Approve listing sync error:', error); });
   const a = assets.find(x => x.id === s.assetId);
-  if (a) { a.status = 'For Sale'; saveAll(); }
+  if (a) {
+    a.status = 'For Sale';
+    if (supa) supa.from('assets').update({ status: 'For Sale' }).eq('id', a.id).then(({ error }) => { if (error) console.error('Approve asset status sync error:', error); });
+    saveAll();
+  }
   renderAdminForSaleTab();
   updatePendingBadge();
   toast(`Listing for "${s.assetName}" approved.`, 'success');
@@ -2432,9 +2437,10 @@ function approveListing(id) {
 
 function denyListing(id) {
   const s = saleListings.find(x => x.id === id);
-  if (!s || !confirm(`Deny listing for "${s.assetName}"?`)) return;
+  if (!s) return;
   s.status = 'denied';
   saveSaleListings();
+  if (supa) supa.from('sale_listings').update({ status: 'denied' }).eq('id', id).then(({ error }) => { if (error) console.error('Deny listing sync error:', error); });
   const a = assets.find(x => x.id === s.assetId);
   if (a) { a.forSale = false; saveAll(); }
   renderAdminForSaleTab();
@@ -2473,7 +2479,14 @@ function adminRemoveListing(id) {
   saveSaleListings();
   if (supa) supa.from('sale_listings').update({ status: 'removed' }).eq('id', id).then(({ error }) => { if (error) console.error('Admin remove listing sync error:', error); });
   const a = assets.find(x => x.id === s?.assetId);
-  if (a) { a.forSale = false; if (a.status === 'For Sale') a.status = 'On Lease'; saveAll(); }
+  if (a) {
+    a.forSale = false;
+    if (a.status === 'For Sale') {
+      a.status = 'On Lease';
+      if (supa) supa.from('assets').update({ status: 'On Lease' }).eq('id', a.id).then(({ error }) => { if (error) console.error('Admin remove asset status sync error:', error); });
+    }
+    saveAll();
+  }
   renderAdminForSaleTab();
   updatePendingBadge();
   toast('Listing removed. Asset is back in active leases.', 'success');
