@@ -1531,20 +1531,8 @@ async function liveSync() {
 
       await supa.from('settings').upsert([{ key: 'telematics_url', value: telematicsUrl || '' }], { onConflict: 'key' });
 
-      // Sync all sale listings (admin sees and manages all)
-      const saleRows = saleListings.map(s => ({
-        id: s.id, asset_id: s.assetId || null, asset_name: s.assetName || null,
-        asset_serial: s.assetSerial || null, branch: s.branch || null,
-        asking_price: s.askingPrice || null, condition: s.condition || null,
-        mileage: s.mileage || null, description: s.description || null,
-        status: s.status, created_at: s.createdAt || now,
-        approved_at: s.approvedAt || null,
-        sold_price: s.soldPrice || null, sold_date: s.soldDate || null,
-      }));
-      if (saleRows.length) {
-        const { error: saleErr } = await supa.from('sale_listings').upsert(saleRows, { onConflict: 'id' });
-        if (saleErr) throw new Error('Sale listings save failed: ' + saleErr.message);
-      }
+      // Admin sale listing changes go through direct .update()/.upsert() calls in each action
+      // function to avoid overwriting branch changes with stale in-memory data.
     } else {
       // Branch users only persist their own requests.
       const mine = requests.filter(r => r.branchName === currentBranch);
@@ -2192,6 +2180,7 @@ function submitForSaleListing() {
     const idx = saleListings.findIndex(s => s.id === editingSaleId);
     if (idx >= 0) {
       saleListings[idx] = { ...saleListings[idx], askingPrice, condition, mileage, description };
+      if (supa) supa.from('sale_listings').update({ asking_price: askingPrice || null, condition: condition || null, mileage: mileage || null, description: description || null }).eq('id', editingSaleId).then(({ error }) => { if (error) console.error('Edit listing sync error:', error); });
       // Update mileage on the asset itself if provided
       const a = assets.find(x => x.id === saleListings[idx].assetId);
       if (a && mileage) { a.mileage = mileage; saveAll(); } else { saveSaleListings(); }
@@ -2204,11 +2193,13 @@ function submitForSaleListing() {
     // Branch listings start as 'pending' (require admin approval); admin listings go straight to 'active'
     const listingStatus = adminMode ? 'active' : 'pending';
     if (adminMode && a) { a.status = 'For Sale'; saveAll(); }
-    saleListings.push({
+    const newListing = {
       id: uid(), assetId, assetName: a?.name || assetId, assetSerial: a?.serial || '',
       branch: adminMode ? (a?.branch || '—') : currentBranch, askingPrice, condition, mileage, description,
       status: listingStatus, createdAt: new Date().toISOString()
-    });
+    };
+    saleListings.push(newListing);
+    if (supa) supa.from('sale_listings').upsert([{ id: newListing.id, asset_id: newListing.assetId || null, asset_name: newListing.assetName || null, asset_serial: newListing.assetSerial || null, branch: newListing.branch || null, asking_price: newListing.askingPrice || null, condition: newListing.condition || null, mileage: newListing.mileage || null, description: newListing.description || null, status: newListing.status, created_at: newListing.createdAt }], { onConflict: 'id' }).then(({ error }) => { if (error) console.error('New listing sync error:', error); });
     saveSaleListings();
     adminMode ? renderAdminForSaleTab() : renderForSaleTab();
     toast(adminMode ? 'Asset listed for sale.' : 'Listing submitted — awaiting admin approval.', 'success');
@@ -2278,6 +2269,7 @@ function confirmMarkSold() {
     saleListings[idx].soldPrice = soldPrice;
     saleListings[idx].soldDate  = soldDate;
     saveSaleListings();
+    if (supa) supa.from('sale_listings').update({ status: 'sold', sold_price: soldPrice, sold_date: soldDate }).eq('id', markingSoldId).then(({ error }) => { if (error) console.error('Mark sold sync error:', error); });
     const soldAsset = assets.find(x => x.id === saleListings[idx].assetId);
     if (soldAsset) { soldAsset.forSale = false; saveAll(); }
     renderAdminForSaleTab();
@@ -2289,6 +2281,7 @@ function confirmMarkSold() {
     saleListings[idx].soldPrice = soldPrice;
     saleListings[idx].soldDate  = soldDate;
     saveSaleListings();
+    if (supa) supa.from('sale_listings').update({ status: 'pending_sold', sold_price: soldPrice, sold_date: soldDate }).eq('id', markingSoldId).then(({ error }) => { if (error) console.error('Pending sold sync error:', error); });
     renderForSaleTab();
     updatePendingBadge();
     toast('Sale request submitted — awaiting admin approval.', 'success');
@@ -2467,6 +2460,7 @@ function adminDenySale(id) {
   delete s.soldPrice;
   delete s.soldDate;
   saveSaleListings();
+  if (supa) supa.from('sale_listings').update({ status: 'active', sold_price: null, sold_date: null }).eq('id', id).then(({ error }) => { if (error) console.error('Admin deny sale sync error:', error); });
   renderAdminForSaleTab();
   updatePendingBadge();
   toast('Sale denied. Asset returned to active listings.', 'warn');
@@ -2627,6 +2621,7 @@ function submitBulkSale() {
   const now = new Date().toISOString();
   const listingStatus = bulkSaleAdminMode ? 'active' : 'pending';
   let added = 0;
+  const newBulkRows = [];
   toList.forEach(r => {
     const a = r.asset;
     // Skip if already listed (active or pending) — allow re-listing removed/denied
@@ -2634,14 +2629,17 @@ function submitBulkSale() {
     a.forSale = true;
     if (r.mileage) a.mileage = r.mileage;
     if (bulkSaleAdminMode) a.status = 'For Sale';
+    const newId = uid();
+    const newBranch = a.branch || (bulkSaleAdminMode ? '—' : currentBranch);
     saleListings.push({
-      id: uid(), assetId: a.id, assetName: a.name, assetSerial: a.serial || '',
-      branch: a.branch || (bulkSaleAdminMode ? '—' : currentBranch),
-      askingPrice: r.askingPrice, condition: r.condition, mileage: r.mileage,
+      id: newId, assetId: a.id, assetName: a.name, assetSerial: a.serial || '',
+      branch: newBranch, askingPrice: r.askingPrice, condition: r.condition, mileage: r.mileage,
       description: r.description, status: listingStatus, createdAt: now,
     });
+    newBulkRows.push({ id: newId, asset_id: a.id, asset_name: a.name, asset_serial: a.serial || null, branch: newBranch, asking_price: r.askingPrice || null, condition: r.condition || null, mileage: r.mileage || null, description: r.description || null, status: listingStatus, created_at: now });
     added++;
   });
+  if (supa && newBulkRows.length) supa.from('sale_listings').upsert(newBulkRows, { onConflict: 'id' }).then(({ error }) => { if (error) console.error('Bulk sale sync error:', error); });
   saveSaleListings();
   saveAll();
   closeBulkSaleModal();
