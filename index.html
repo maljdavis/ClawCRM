@@ -267,22 +267,27 @@
     @media (max-width: 640px) {
       .form-grid { grid-template-columns: 1fr; }
       .form-grid .full { grid-column: 1; }
-      .h-right { gap: 6px; }
-      .page { padding: 14px; }
+      .page { padding: 12px; }
 
-      /* Header: shrink logo, hide telematics label text */
-      header { padding: 0 12px; gap: 8px; }
+      /* ── Header: stack on mobile ── */
+      header { padding: 0 10px; gap: 6px; height: auto; min-height: 56px; flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
+      .h-left { flex-wrap: wrap; gap: 8px; width: 100%; }
+      .h-right { gap: 6px; width: 100%; justify-content: flex-end; }
       .logo { font-size: .95rem; }
       .btn-telematics .telem-label { display: none; }
 
-      /* Admin tab nav: scrollable row */
-      .tab-nav { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
-      .tab-btn { padding: 6px 12px; font-size: .8rem; white-space: nowrap; }
+      /* ── Admin tab nav: horizontal scroll ── */
+      .tab-nav { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; -webkit-overflow-scrolling: touch; width: 100%; scrollbar-width: none; }
+      .tab-nav::-webkit-scrollbar { display: none; }
+      .tab-btn { padding: 6px 12px; font-size: .78rem; white-space: nowrap; flex-shrink: 0; }
 
-      /* Stats: 2 columns on mobile */
-      .stats { grid-template-columns: repeat(2, 1fr); }
+      /* ── Stats: 2 columns ── */
+      .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .stat-card { padding: 12px 14px; }
+      .stat-value { font-size: 1.3rem; }
+      .stat-label { font-size: .7rem; }
 
-      /* Branch view: card layout instead of wide table */
+      /* ── Branch view: card layout ── */
       #branchView .table-wrap { background: none; border: none; overflow: visible; }
       #branchView table thead { display: none; }
       #branchView table, #branchView tbody, #branchView tr, #branchView td { display: block; width: 100%; }
@@ -301,13 +306,100 @@
       #branchView td[data-label=""]::before { display: none; }
       #branchView .actions { flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 
-      /* Branch toolbar: stack on mobile */
-      #branchView .toolbar { flex-direction: column; align-items: stretch; }
-      #branchView .toolbar button { width: 100%; }
-      #branchView .search-wrap { min-width: 0; }
+      /* ── All toolbars: stack vertically ── */
+      .toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+      .toolbar button, .toolbar select { width: 100%; }
+      .search-wrap { min-width: 0; }
 
-      /* Bulk bar: wrap */
-      .bulk-bar { flex-wrap: wrap; gap: 6px; }
+      /* ── Bulk bar: wrap on mobile ── */
+      .bulk-bar { flex-wrap: wrap; gap: 6px; padding: 8px 12px; }
+      .bulk-bar .btn { flex: 1; min-width: 0; font-size: .75rem; padding: 6px 8px; text-align: center; }
+      .bulk-count { width: 100%; text-align: center; }
+
+      /* ── Admin tables: horizontal scroll with snap ── */
+      #adminView .table-wrap { -webkit-overflow-scrolling: touch; }
+      #adminView table { min-width: 600px; }
+      #adminView td, #adminView th { padding: 10px 12px; font-size: .8rem; }
+      #panel-forsale table { min-width: 800px; }
+
+      /* ── Section headers: stack on mobile ── */
+      .section-hdr { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .section-hdr > div:last-child { width: 100%; }
+      .section-hdr > div:last-child > .toolbar,
+      .section-hdr > div:last-child > div { width: 100%; }
+
+      /* ── Branch tabs: scrollable ── */
+      .branch-tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .branch-tabs::-webkit-scrollbar { display: none; }
+      .btab { padding: 8px 16px; font-size: .85rem; white-space: nowrap; flex-shrink: 0; }
+
+      /* ── Modals: full-width on mobile ── */
+      .overlay { padding: 16px 8px; align-items: flex-start; }
+      .modal { padding: 18px; max-width: 100%; border-radius: 10px; }
+      .modal-sm { max-width: 100%; }
+      .modal-hdr h2 { font-size: 1rem; }
+      .modal-footer { flex-wrap: wrap; }
+      .modal-footer .btn { flex: 1; min-width: 0; text-align: center; }
+
+      /* ── Notification panel: full-width ── */
+      .notif-panel { width: calc(100vw - 24px); right: -8px; max-height: 50vh; }
+
+      /* ── Request cards: stack actions ── */
+      .req-card { grid-template-columns: auto 1fr; gap: 8px; padding: 12px; }
+      .req-actions { flex-direction: row; flex-wrap: wrap; width: 100%; grid-column: 1 / -1; }
+      .req-actions .btn { flex: 1; text-align: center; }
+
+      /* ── Branch admin inline grids: stack ── */
+      #panel-branches div[style*="grid-template-columns:1fr 1fr auto"] {
+        grid-template-columns: 1fr !important;
+      }
+      #panel-branches div[style*="grid-template-columns:1fr 1fr auto"] button {
+        width: 100%;
+      }
+      #panel-branches div[style*="grid-template-columns:1fr 1fr;"] {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* ── Branch row: stack on mobile ── */
+      .branch-row { flex-wrap: wrap; gap: 8px; }
+      .branch-row .bname { width: 100%; }
+      .branch-row .actions, .branch-row .btn { width: 100%; }
+
+      /* ── Expiry items: stack ── */
+      .expiry-item { flex-wrap: wrap; gap: 6px; padding: 10px 12px; font-size: .82rem; }
+
+      /* ── Toast: bottom-center on mobile ── */
+      .toast-container { right: 12px; left: 12px; bottom: 16px; }
+      .toast { max-width: 100%; }
+
+      /* ── Buttons: bigger tap targets ── */
+      .btn { padding: 10px 16px; font-size: .85rem; }
+      .btn-sm { padding: 8px 14px; font-size: .8rem; }
+      .btn-xs { padding: 6px 10px; font-size: .75rem; }
+
+      /* ── Inputs: larger for touch ── */
+      select, input[type=text], input[type=password], input[type=number], input[type=date], input[type=url], textarea {
+        padding: 11px 12px; font-size: 16px; /* 16px prevents iOS zoom */
+      }
+
+      /* ── Info banner ── */
+      .info-banner { font-size: .8rem; padding: 10px 12px; }
+
+      /* ── Login: tighter padding ── */
+      .login-box { padding: 24px 18px; }
+
+      /* ── File chips: wrap better ── */
+      .file-list { gap: 6px; }
+      .file-chip { font-size: .72rem; }
+    }
+
+    /* ── Small phones (< 380px) ── */
+    @media (max-width: 380px) {
+      .stats { grid-template-columns: 1fr; }
+      .stat-card { padding: 10px 12px; }
+      .badge { font-size: .68rem; padding: 2px 8px; }
+      .tab-btn { padding: 5px 10px; font-size: .75rem; }
+      .page { padding: 8px; }
     }
   </style>
 </head>
