@@ -1,7 +1,7 @@
 {
-  "name": "Asset Tracker",
-  "short_name": "Assets",
-  "description": "Track and manage assets across branches",
+  "name": "Goodhouse Asset Tracker",
+  "short_name": "Goodhouse",
+  "description": "Goodhouse Property Management - Track and manage assets across branches",
   "start_url": "/Claw/",
   "scope": "/Claw/",
   "display": "standalone",

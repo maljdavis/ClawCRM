@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Asset Tracker</title>
+  <title>Goodhouse Asset Tracker</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#191919">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co; img-src 'self' data: blob:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';">
@@ -11,7 +11,7 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Assets">
+  <meta name="apple-mobile-web-app-title" content="Goodhouse">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
@@ -47,8 +47,11 @@
     }
     .h-left  { display: flex; align-items: center; gap: 14px; }
     .h-right { display: flex; align-items: center; gap: 10px; }
-    .logo { font-size: 1.1rem; font-weight: 700; }
+    .logo { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; font-weight: 700; }
     .logo span { color: var(--accent); }
+    .logo-icon { width: 32px; height: 32px; flex-shrink: 0; }
+    .login-logo { width: 72px; height: 72px; margin: 0 auto 12px; display: block; }
+    .company-name { font-size: .75rem; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
     .badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
     .badge-branch  { background: var(--accent); color: #fff; }
     .badge-admin   { background: var(--warning); color: #000; }
@@ -277,6 +280,8 @@
       .h-left { flex-wrap: wrap; gap: 8px; width: 100%; }
       .h-right { gap: 6px; width: 100%; justify-content: flex-end; }
       .logo { font-size: .95rem; }
+      .logo-icon { width: 26px; height: 26px; }
+      .login-logo { width: 56px; height: 56px; }
       .btn-telematics .telem-label { display: none; }
 
       /* ── Admin tab nav: horizontal scroll ── */
@@ -411,7 +416,12 @@
 <!-- ══════════════ LOGIN ══════════════ -->
 <div class="screen active" id="loginScreen">
   <div class="login-box">
-    <h1>Asset<span>Track</span></h1>
+    <svg class="login-logo" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M60 8L10 52c-2 1.6-1 4.5 1.5 4.5H22v46c0 5.5 4.5 10 10 10h56c5.5 0 10-4.5 10-10v-46h10.5c2.5 0 3.5-2.9 1.5-4.5L60 8z" fill="#9EAA9E"/>
+      <path d="M42 72c0 0 8 14 18 14s18-14 18-14" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
+    </svg>
+    <h1>Goodhouse <span>Asset Tracker</span></h1>
+    <p class="company-name">Goodhouse Property Management</p>
     <p class="login-sub" id="loginSubtitle">Select your location and sign in</p>
     <div class="field" id="loginBranchField" style="margin-bottom:14px;">
       <label>Location / Branch</label>
@@ -435,7 +445,13 @@
 <div class="screen" id="branchView">
   <header>
     <div class="h-left">
-      <div class="logo">Asset<span>Track</span></div>
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M60 8L10 52c-2 1.6-1 4.5 1.5 4.5H22v46c0 5.5 4.5 10 10 10h56c5.5 0 10-4.5 10-10v-46h10.5c2.5 0 3.5-2.9 1.5-4.5L60 8z" fill="#9EAA9E"/>
+          <path d="M42 72c0 0 8 14 18 14s18-14 18-14" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
+        </svg>
+        Goodhouse <span>Asset Tracker</span>
+      </div>
       <div class="badge badge-branch" id="branchBadge"></div>
     </div>
     <div class="h-right">
@@ -579,7 +595,13 @@
 <div class="screen" id="adminView">
   <header>
     <div class="h-left">
-      <div class="logo">Asset<span>Track</span></div>
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M60 8L10 52c-2 1.6-1 4.5 1.5 4.5H22v46c0 5.5 4.5 10 10 10h56c5.5 0 10-4.5 10-10v-46h10.5c2.5 0 3.5-2.9 1.5-4.5L60 8z" fill="#9EAA9E"/>
+          <path d="M42 72c0 0 8 14 18 14s18-14 18-14" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
+        </svg>
+        Goodhouse <span>Asset Tracker</span>
+      </div>
       <div class="badge badge-admin">ADMIN</div>
       <nav class="tab-nav">
         <button class="tab-btn" id="tab-dashboard" onclick="setAdminTab('dashboard')">Dashboard</button>
@@ -1881,7 +1903,7 @@ function printView() {
 }
 
 async function logout() {
-  if (!confirm('Log out of Asset Tracker?')) return;
+  if (!confirm('Log out of Goodhouse Asset Tracker?')) return;
   currentBranch = null; isAdmin = false;
   liveReady = false;
   currentProfile = null;
