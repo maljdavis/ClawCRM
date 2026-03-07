@@ -418,7 +418,7 @@
   <div class="login-box">
     <svg class="login-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M15 95V45c0-2 .8-3.8 2.2-5.2L47.8 9.2c2.4-2.4 6-2.4 8.4 0l26.6 30.6c1.4 1.4 2.2 3.2 2.2 5.2v50c0 3.3-2.7 6-6 6H21c-3.3 0-6-2.7-6-6z" fill="#94A39A" rx="6"/>
-      <path d="M34 65c0 0 7 15 18 15s18-15 18-15" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
+      <path d="M25 58c0 0 10 18 24 18" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
     </svg>
     <h1>Goodhouse <span>Asset Tracker</span></h1>
     <p class="company-name">Goodhouse Property Management</p>
@@ -448,7 +448,7 @@
       <div class="logo">
         <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M15 95V45c0-2 .8-3.8 2.2-5.2L47.8 9.2c2.4-2.4 6-2.4 8.4 0l26.6 30.6c1.4 1.4 2.2 3.2 2.2 5.2v50c0 3.3-2.7 6-6 6H21c-3.3 0-6-2.7-6-6z" fill="#94A39A" rx="6"/>
-          <path d="M34 65c0 0 7 15 18 15s18-15 18-15" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
+          <path d="M25 58c0 0 10 18 24 18" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
         </svg>
         Goodhouse <span>Asset Tracker</span>
       </div>
@@ -598,7 +598,7 @@
       <div class="logo">
         <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M15 95V45c0-2 .8-3.8 2.2-5.2L47.8 9.2c2.4-2.4 6-2.4 8.4 0l26.6 30.6c1.4 1.4 2.2 3.2 2.2 5.2v50c0 3.3-2.7 6-6 6H21c-3.3 0-6-2.7-6-6z" fill="#94A39A" rx="6"/>
-          <path d="M34 65c0 0 7 15 18 15s18-15 18-15" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
+          <path d="M25 58c0 0 10 18 24 18" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
         </svg>
         Goodhouse <span>Asset Tracker</span>
       </div>
@@ -2876,7 +2876,7 @@ function renderBranchStats() {
   $('branchStats').innerHTML = `
     <div class="stat-card"><div class="stat-label">Assets On Lease</div><div class="stat-value c-blue">${mine.length}</div></div>
     <div class="stat-card"><div class="stat-label">Total Asset Value</div><div class="stat-value c-yellow">${fmt$(totalCost)}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Monthly Lease</div><div class="stat-value c-green">${fmt$(totalMonthly)}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Monthly Expense</div><div class="stat-value c-green">${fmt$(totalMonthly)}</div></div>
   `;
 }
 
@@ -3214,7 +3214,7 @@ function renderAdminAssets() {
     <div class="stat-card"><div class="stat-label">Assets${filterLabel}</div><div class="stat-value c-blue">${allTotal}</div></div>
     <div class="stat-card"><div class="stat-label">On Lease${filterLabel}</div><div class="stat-value c-green">${leaseCount}</div></div>
     <div class="stat-card"><div class="stat-label">In Pool${filterLabel}</div><div class="stat-value" style="color:var(--text-muted)">${poolCount}</div></div>
-    <div class="stat-card"><div class="stat-label">Monthly Lease${filterLabel}</div><div class="stat-value c-yellow">${fmt$(totalMonthly)}</div></div>
+    <div class="stat-card"><div class="stat-label">Monthly Expense${filterLabel}</div><div class="stat-value c-yellow">${fmt$(totalMonthly)}</div></div>
   `;
 
   const tbody = $('adminTableBody');
