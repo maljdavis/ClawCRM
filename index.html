@@ -6,6 +6,9 @@
   <title>Asset Tracker</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#191919">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co; img-src 'self' data: blob:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Assets">
@@ -1759,8 +1762,42 @@ function branchToEmail(name) {
   return name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '') + '@claw.internal';
 }
 
+// ── Rate Limiting ──
+const loginAttempts = { count: 0, lockUntil: 0 };
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MS = 60000; // 1 minute lockout
+
+function checkRateLimit() {
+  if (Date.now() < loginAttempts.lockUntil) {
+    const secs = Math.ceil((loginAttempts.lockUntil - Date.now()) / 1000);
+    $('loginError').textContent = `Too many attempts. Try again in ${secs}s.`;
+    $('loginError').style.display = 'block';
+    return false;
+  }
+  if (loginAttempts.count >= MAX_LOGIN_ATTEMPTS) {
+    loginAttempts.lockUntil = Date.now() + LOCKOUT_MS;
+    loginAttempts.count = 0;
+    const secs = Math.ceil(LOCKOUT_MS / 1000);
+    $('loginError').textContent = `Too many attempts. Try again in ${secs}s.`;
+    $('loginError').style.display = 'block';
+    return false;
+  }
+  return true;
+}
+
+function recordFailedLogin() {
+  loginAttempts.count++;
+}
+
+function resetLoginAttempts() {
+  loginAttempts.count = 0;
+  loginAttempts.lockUntil = 0;
+}
+
 async function doLogin() {
+  $('loginError').textContent = 'Incorrect password. Try again.';
   $('loginError').style.display = 'none';
+  if (!checkRateLimit()) return;
   if (isLiveConfigured()) return doLiveLogin();
   return doLocalLogin();
 }
@@ -1770,9 +1807,11 @@ function doLocalLogin() {
   const pw   = $('loginPw').value;
   const branch = branches.find(b => b.name === name);
   if (branch && branch.password === pw) {
+    resetLoginAttempts();
     currentBranch = name; isAdmin = false;
     showBranchView();
   } else {
+    recordFailedLogin();
     $('loginError').style.display = 'block';
   }
 }
@@ -1786,10 +1825,12 @@ async function doLiveLogin() {
       : branchToEmail(selectedBranch);
     const pw = $('loginPw').value;
     const { error } = await supa.auth.signInWithPassword({ email, password: pw });
-    if (error) { $('loginError').style.display = 'block'; return; }
+    if (error) { recordFailedLogin(); $('loginError').style.display = 'block'; return; }
+    resetLoginAttempts();
     await afterLiveAuth();
   } catch (e) {
     console.error(e);
+    recordFailedLogin();
     $('loginError').style.display = 'block';
   }
 }
@@ -1809,10 +1850,11 @@ async function loadBranchesForLogin() {
 
 function adminLogin() {
   if (isLiveConfigured()) return;
+  if (!checkRateLimit()) return;
   const pw = prompt('Enter admin password:');
   if (pw === null) return;
-  if (pw === adminPw) { isAdmin = true; currentBranch = null; showAdminView(); }
-  else alert('Incorrect admin password.');
+  if (pw === adminPw) { resetLoginAttempts(); isAdmin = true; currentBranch = null; showAdminView(); }
+  else { recordFailedLogin(); alert('Incorrect admin password.'); }
 }
 
 function navigateToAsset(id) {
@@ -1863,6 +1905,23 @@ async function logout() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && $('loginScreen').classList.contains('active')) doLogin();
 });
+
+// ── Session Timeout (auto-logout after inactivity) ──
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+let sessionTimer = null;
+function resetSessionTimer() {
+  if (sessionTimer) clearTimeout(sessionTimer);
+  if (!currentBranch && !isAdmin) return;
+  sessionTimer = setTimeout(() => {
+    if (currentBranch || isAdmin) {
+      toast('Session expired due to inactivity.', 'warn');
+      logout();
+    }
+  }, SESSION_TIMEOUT_MS);
+}
+['click', 'keydown', 'scroll', 'touchstart'].forEach(evt =>
+  document.addEventListener(evt, resetSessionTimer, { passive: true })
+);
 
 async function initApp() {
   applyLoginModeUI();
@@ -2206,8 +2265,8 @@ function renderForSaleTab() {
       ? `<span class="badge badge-pending">Sale Pending</span>`
       : `<span class="badge badge-approved">Active</span>`;
     const actions = s.status === 'active'
-      ? `<button class="btn btn-ghost btn-xs" onclick="openEditListing('${s.id}')">Edit</button>
-         <button class="btn btn-success btn-xs" onclick="openMarkSold('${s.id}')">Mark Sold</button>`
+      ? `<button class="btn btn-ghost btn-xs" onclick="openEditListing('${escAttr(s.id)}')">Edit</button>
+         <button class="btn btn-success btn-xs" onclick="openMarkSold('${escAttr(s.id)}')">Mark Sold</button>`
       : ``;
     return `<tr>
       <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
@@ -2458,16 +2517,16 @@ function renderAdminForSaleTab() {
       ? `<td style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`
       : `<td style="color:var(--text-muted)">${s.status === 'pending_sold' && s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`;
     const actions = s.status === 'active'
-      ? `<button class="btn btn-ghost btn-xs" onclick="openAdminEditListing('${s.id}')">Edit Listing</button>
-         <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${s.assetId}')">Edit Asset</button>
-         <button class="btn btn-success btn-xs" onclick="openAdminMarkSold('${s.id}')">Mark Sold</button>`
+      ? `<button class="btn btn-ghost btn-xs" onclick="openAdminEditListing('${escAttr(s.id)}')">Edit Listing</button>
+         <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${escAttr(s.assetId)}')">Edit Asset</button>
+         <button class="btn btn-success btn-xs" onclick="openAdminMarkSold('${escAttr(s.id)}')">Mark Sold</button>`
       : s.status === 'pending'
-      ? `<button class="btn btn-ghost btn-xs" onclick="openAssetModal('${s.assetId}')">Edit Asset</button>
-         <button class="btn btn-success btn-xs" onclick="approveListing('${s.id}')">Approve</button>
-         <button class="btn btn-danger btn-xs" onclick="denyListing('${s.id}')">Deny</button>`
+      ? `<button class="btn btn-ghost btn-xs" onclick="openAssetModal('${escAttr(s.assetId)}')">Edit Asset</button>
+         <button class="btn btn-success btn-xs" onclick="approveListing('${escAttr(s.id)}')">Approve</button>
+         <button class="btn btn-danger btn-xs" onclick="denyListing('${escAttr(s.id)}')">Deny</button>`
       : s.status === 'pending_sold'
-      ? `<button class="btn btn-success btn-xs" onclick="adminConfirmSale('${s.id}')">Confirm Sale</button>
-         <button class="btn btn-danger btn-xs" onclick="adminDenySale('${s.id}')">Deny Sale</button>`
+      ? `<button class="btn btn-success btn-xs" onclick="adminConfirmSale('${escAttr(s.id)}')">Confirm Sale</button>
+         <button class="btn btn-danger btn-xs" onclick="adminDenySale('${escAttr(s.id)}')">Deny Sale</button>`
       : ``;
     const date = s.status === 'sold' ? fmtDate(s.soldDate) : fmtDate(s.createdAt?.slice(0,10));
     const a = assets.find(x => x.id === s.assetId);
@@ -2824,21 +2883,21 @@ function renderBranchAssets() {
   tbody.innerHTML = list.map(a => {
     const returnBtn = pendingReturns.has(a.id)
       ? `<span class="badge badge-pending" style="font-size:.7rem">Return Pending</span>`
-      : `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('return_asset','${a.id}')">Return</button>`;
+      : `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('return_asset','${escAttr(a.id)}')">Return</button>`;
     const issueBtn = pendingIssues.has(a.id)
       ? `<span class="badge badge-pending" style="font-size:.7rem">Issue Reported</span>`
-      : `<button class="btn btn-warn btn-xs" onclick="openRequestModal('report_issue','${a.id}')">Report Issue</button>`;
+      : `<button class="btn btn-warn btn-xs" onclick="openRequestModal('report_issue','${escAttr(a.id)}')">Report Issue</button>`;
     const otherBranches = branches.filter(b => b.name !== currentBranch);
     const transferBtn = pendingTransfers.has(a.id)
       ? `<span class="badge badge-pending" style="font-size:.7rem">Transfer Pending</span>`
-      : (otherBranches.length > 0 ? `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('transfer_asset','${a.id}')">Transfer</button>` : '');
+      : (otherBranches.length > 0 ? `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('transfer_asset','${escAttr(a.id)}')">Transfer</button>` : '');
     const renewalDays = a.renewalDate ? Math.round((new Date(a.renewalDate) - new Date()) / 86400000) : null;
     const renewalCell = renewalDays === null ? '—'
       : renewalDays < 0  ? `<span style="color:#dc2626;font-weight:600">${fmtDate(a.renewalDate)} <span style="font-size:.72rem">(${Math.abs(renewalDays)}d overdue)</span></span>`
       : renewalDays <= 30 ? `<span style="color:#d97706;font-weight:600">${fmtDate(a.renewalDate)} <span style="font-size:.72rem">(${renewalDays}d)</span></span>`
       : fmtDate(a.renewalDate);
     const inspectBtn = liveEnabled
-      ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${a.id}')">📋 Inspect</button>`
+      ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${escAttr(a.id)}')">📋 Inspect</button>`
       : '';
     return `<tr>
       <td data-label="Asset"><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
@@ -2848,7 +2907,7 @@ function renderBranchAssets() {
       <td data-label="Monthly" style="color:var(--success);font-weight:600">${mp(a)}</td>
       <td data-label="Lease End">${fmtDate(a.leaseEnd)}</td>
       <td data-label="Renewal">${renewalCell}</td>
-      <td data-label=""><div class="actions">${returnBtn}${issueBtn}${transferBtn}${inspectBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button></div></td>
+      <td data-label=""><div class="actions">${returnBtn}${issueBtn}${transferBtn}${inspectBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${escAttr(a.id)}')">📎 Files${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button></div></td>
     </tr>`;
   }).join('');
 }
@@ -2940,7 +2999,7 @@ function reqCardHTML(r, adminMode) {
                       <button class="btn btn-danger btn-xs"  onclick="denyRequest('${r.id}')">Deny</button>`;
     }
   }
-  const assetLine = r.assetName ? `<span> · <span class="asset-nav-link" onclick="navigateToAsset('${r.assetId}')">${esc(r.assetName)}</span></span>` : '';
+  const assetLine = r.assetName ? `<span> · <span class="asset-nav-link" onclick="navigateToAsset('${escAttr(r.assetId)}')">${esc(r.assetName)}</span></span>` : '';
   const branchLine = adminMode ? `<span> · ${esc(r.branchName)}</span>` : '';
   const noteLine = r.adminNote ? `<div class="req-admin-note">Admin: ${esc(r.adminNote)}</div>` : '';
   const transferLine = r.type === 'transfer_asset' && r.targetBranchName
@@ -3152,8 +3211,8 @@ function renderAdminAssets() {
       : `<span class="badge badge-pool" style="font-size:.75rem">Pool</span>`;
     const mp = monthlyPayment(a.cost, a.lrf);
     const checked = selectedAssets.has(a.id) ? 'checked' : '';
-    return `<tr data-asset-id="${a.id}">
-      <td><input type="checkbox" class="asset-cb" data-id="${a.id}" onchange="toggleAssetSelect('${a.id}',this.checked)" ${checked}></td>
+    return `<tr data-asset-id="${escAttr(a.id)}">
+      <td><input type="checkbox" class="asset-cb" data-id="${escAttr(a.id)}" onchange="toggleAssetSelect('${escAttr(a.id)}',this.checked)" ${checked}></td>
       <td><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
       <td>${esc(a.category||'—')}</td>
       <td>${branchCell}</td>
@@ -3162,11 +3221,11 @@ function renderAdminAssets() {
       <td>${mp!==null?fmt$(mp):'—'}</td>
       <td>${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
       <td><div class="actions">
-        <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${a.id}')">Edit</button>
-        <button class="btn btn-primary btn-xs" onclick="openReassign('${a.id}')">Reassign</button>
-        <button class="btn btn-ghost btn-xs" onclick="openFilesModal('${a.id}')">📎${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button>
-        ${liveEnabled?`<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${a.id}')">📋 Inspect</button>`:''}
-        <button class="btn btn-danger btn-xs" onclick="deleteAsset('${a.id}')">Del</button>
+        <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${escAttr(a.id)}')">Edit</button>
+        <button class="btn btn-primary btn-xs" onclick="openReassign('${escAttr(a.id)}')">Reassign</button>
+        <button class="btn btn-ghost btn-xs" onclick="openFilesModal('${escAttr(a.id)}')">📎${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button>
+        ${liveEnabled?`<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${escAttr(a.id)}')">📋 Inspect</button>`:''}
+        <button class="btn btn-danger btn-xs" onclick="deleteAsset('${escAttr(a.id)}')">Del</button>
       </div></td>
     </tr>`;
   }).join('');
@@ -3643,34 +3702,40 @@ function importCSV(input) {
   reader.onload = e => {
     const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) { toast('CSV has no data rows.', 'warn'); input.value = ''; return; }
+    const MAX_FIELD_LEN = 500;
+    const MAX_ROWS = 5000;
+    const sanitize = s => (s || '').trim().slice(0, MAX_FIELD_LEN).replace(/[<>]/g, '');
+    const sanitizeDate = s => { const d = (s || '').trim().slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : ''; };
     let added = 0, skipped = 0;
-    for (let i = 1; i < lines.length; i++) {
+    for (let i = 1; i < Math.min(lines.length, MAX_ROWS + 1); i++) {
       const cols = parseCSVRow(lines[i]);
-      const name = (cols[0] || '').trim();
+      const name = sanitize(cols[0]);
       if (!name) { skipped++; continue; }
-      const branchRaw = (cols[6] || '').trim();
+      const branchRaw = sanitize(cols[6]);
       const branchVal = (!branchRaw || branchRaw.toLowerCase() === 'pool') ? null
         : (branches.find(b => b.name.toLowerCase() === branchRaw.toLowerCase())?.name || null);
       const cost = parseFloat(cols[8]);
       const lrf  = parseFloat(cols[9]);
+      if (!isNaN(cost) && (cost < 0 || cost > 100000000)) { skipped++; continue; }
+      if (!isNaN(lrf) && (lrf < 0 || lrf > 1)) { skipped++; continue; }
       assets.push({
         id:          uid(),
         name,
-        serial:      (cols[1]  || '').trim(),
-        make:        (cols[2]  || '').trim(),
-        model:       (cols[3]  || '').trim(),
-        year:        (cols[4]  || '').trim(),
-        category:    (cols[5]  || '').trim(),
+        serial:      sanitize(cols[1]),
+        make:        sanitize(cols[2]),
+        model:       sanitize(cols[3]),
+        year:        sanitize(cols[4]),
+        category:    sanitize(cols[5]),
         branch:      branchVal,
         status:      branchVal ? 'On Lease' : 'Available',
         cost:        isNaN(cost) ? '' : cost,
         lrf:         isNaN(lrf)  ? '' : lrf,
-        vendor:      (cols[11] || '').trim(),
-        acquiredDate:(cols[12] || '').trim(),
-        leaseStart:   (cols[13] || '').trim(),
-        leaseEnd:     (cols[14] || '').trim(),
-        notes:        (cols[15] || '').trim(),
-        renewalDate:  (cols[16] || '').trim(),
+        vendor:      sanitize(cols[11]),
+        acquiredDate: sanitizeDate(cols[12]),
+        leaseStart:   sanitizeDate(cols[13]),
+        leaseEnd:     sanitizeDate(cols[14]),
+        notes:        sanitize(cols[15]),
+        renewalDate:  sanitizeDate(cols[16]),
         files:        [],
         createdAt:   new Date().toISOString(),
         updatedAt:   new Date().toISOString(),
@@ -4175,7 +4240,7 @@ function renderDashboard() {
       const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`;
       return `<div class="expiry-item">
         <div class="expiry-days ${cls}">${label}</div>
-        <div style="flex:1"><strong class="asset-nav-link" onclick="navigateToAsset('${a.id}')">${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
+        <div style="flex:1"><strong class="asset-nav-link" onclick="navigateToAsset('${escAttr(a.id)}')">${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
         <span style="font-size:.8rem;color:var(--text-muted)">${esc(a.branch||'')} · ends ${fmtDate(a.leaseEnd)}</span></div>
       </div>`;
     }).join('') + '</div>';
@@ -4196,7 +4261,7 @@ function renderDashboard() {
       const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`;
       return `<div class="expiry-item">
         <div class="expiry-days ${cls}">${label}</div>
-        <div style="flex:1"><strong class="asset-nav-link" onclick="navigateToAsset('${a.id}')">${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
+        <div style="flex:1"><strong class="asset-nav-link" onclick="navigateToAsset('${escAttr(a.id)}')">${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
         <span style="font-size:.8rem;color:var(--text-muted)">${esc(a.branch||'Pool')} · renewal ${fmtDate(a.renewalDate)}</span></div>
       </div>`;
     }).join('') + '</div>';
@@ -4248,7 +4313,7 @@ function renderBranchRenewals(renewals) {
         <strong>${esc(a.name)}</strong>${a.serial ? ` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>` : ''}<br>
         <span style="font-size:.8rem;color:var(--text-muted)">Renewal due ${fmtDate(a.renewalDate)}${a.category ? ' · ' + esc(a.category) : ''}</span>
       </div>
-      ${liveEnabled ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${a.id}')">📋 Submit Inspection</button>` : ''}
+      ${liveEnabled ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${escAttr(a.id)}')">📋 Submit Inspection</button>` : ''}
     </div>`;
   }).join('') + '</div>';
 }
