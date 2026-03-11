@@ -275,6 +275,9 @@
       .form-grid .full { grid-column: 1; }
       .page { padding: 12px; }
 
+      /* ── Prevent all horizontal scroll ── */
+      body, html { overflow-x: hidden; }
+
       /* ── Hide non-essential fields on mobile ── */
       .mobile-hide { display: none !important; }
 
@@ -298,44 +301,29 @@
       .stat-value { font-size: 1.3rem; }
       .stat-label { font-size: .7rem; }
 
-      /* ── Branch view: card layout ── */
-      #branchView .table-wrap { background: none; border: none; overflow: visible; }
-      #branchView table thead { display: none; }
-      #branchView table, #branchView tbody, #branchView tr, #branchView td { display: block; width: 100%; }
-      #branchView tbody tr {
+      /* ── Shared card layout for all tables on mobile ── */
+      .table-wrap { background: none !important; border: none !important; overflow: visible !important; }
+      table { min-width: 0 !important; }
+      table thead { display: none; }
+      table, tbody, tr, td { display: block; width: 100%; box-sizing: border-box; }
+      tbody tr {
         background: var(--surface); border: 1px solid var(--border);
         border-radius: var(--radius); margin-bottom: 10px; padding: 12px 14px;
+        overflow: hidden;
       }
-      #branchView tbody tr:hover { background: var(--surface2); }
-      #branchView td { padding: 4px 0; border: none; white-space: normal; }
-      #branchView td[data-label]::before {
+      tbody tr:hover { background: var(--surface2); }
+      td { padding: 3px 0; border: none; white-space: normal; word-break: break-word; overflow-wrap: break-word; max-width: 100%; }
+      td[data-label]::before {
         content: attr(data-label);
-        display: inline-block; width: 110px; font-size: .72rem;
+        display: block; font-size: .68rem; margin-bottom: 1px;
         color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; font-weight: 600;
       }
-      #branchView td[data-label=""] { margin-top: 10px; }
-      #branchView td[data-label=""]::before { display: none; }
-      #branchView .actions { flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+      td[data-label=""] { margin-top: 8px; }
+      td[data-label=""]::before { display: none; }
 
-      /* ── Admin view: card layout on mobile ── */
-      #adminView .table-wrap { background: none; border: none; overflow: visible; }
-      #adminView table { min-width: 0; }
-      #adminView table thead { display: none; }
-      #adminView table, #adminView tbody, #adminView tr, #adminView td { display: block; width: 100%; }
-      #adminView tbody tr {
-        background: var(--surface); border: 1px solid var(--border);
-        border-radius: var(--radius); margin-bottom: 10px; padding: 12px 14px;
-      }
-      #adminView tbody tr:hover { background: var(--surface2); }
-      #adminView td { padding: 4px 0; border: none; white-space: normal; font-size: .85rem; }
-      #adminView td[data-label]::before {
-        content: attr(data-label);
-        display: inline-block; width: 110px; font-size: .72rem;
-        color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; font-weight: 600;
-      }
-      #adminView td[data-label=""] { margin-top: 10px; }
-      #adminView td[data-label=""]::before { display: none; }
-      #adminView .actions { flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+      /* ── Action buttons: grid layout to fit in card ── */
+      .actions { display: grid !important; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 6px; }
+      .actions .btn { width: 100%; text-align: center; white-space: nowrap; font-size: .75rem; }
 
       /* ── All toolbars: stack vertically ── */
       .toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
