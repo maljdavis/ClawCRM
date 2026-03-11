@@ -3728,6 +3728,7 @@ function importCSV(input) {
     const MAX_ROWS = 5000;
     const sanitize = s => (s || '').trim().slice(0, MAX_FIELD_LEN).replace(/[<>]/g, '');
     const sanitizeDate = s => { const d = (s || '').trim().slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : ''; };
+    const parseNum = s => parseFloat((s || '').replace(/[$,\s]/g, ''));
     let added = 0, skipped = 0;
     for (let i = 1; i < Math.min(lines.length, MAX_ROWS + 1); i++) {
       const cols = parseCSVRow(lines[i]);
@@ -3736,8 +3737,8 @@ function importCSV(input) {
       const branchRaw = sanitize(cols[6]);
       const branchVal = (!branchRaw || branchRaw.toLowerCase() === 'pool') ? null
         : (branches.find(b => b.name.toLowerCase() === branchRaw.toLowerCase())?.name || null);
-      const cost = parseFloat(cols[8]);
-      const lrf  = parseFloat(cols[9]);
+      const cost = parseNum(cols[8]);
+      const lrf  = parseNum(cols[9]);
       if (!isNaN(cost) && (cost < 0 || cost > 100000000)) { skipped++; continue; }
       if (!isNaN(lrf) && (lrf < 0 || lrf > 1)) { skipped++; continue; }
       assets.push({
