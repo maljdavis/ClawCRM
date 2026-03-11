@@ -275,6 +275,9 @@
       .form-grid .full { grid-column: 1; }
       .page { padding: 12px; }
 
+      /* ── Hide non-essential fields on mobile ── */
+      .mobile-hide { display: none !important; }
+
       /* ── Header: stack on mobile ── */
       header { padding: 0 10px; gap: 6px; height: auto; min-height: 56px; flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
       .h-left { flex-wrap: wrap; gap: 8px; width: 100%; }
@@ -314,6 +317,26 @@
       #branchView td[data-label=""]::before { display: none; }
       #branchView .actions { flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 
+      /* ── Admin view: card layout on mobile ── */
+      #adminView .table-wrap { background: none; border: none; overflow: visible; }
+      #adminView table { min-width: 0; }
+      #adminView table thead { display: none; }
+      #adminView table, #adminView tbody, #adminView tr, #adminView td { display: block; width: 100%; }
+      #adminView tbody tr {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius); margin-bottom: 10px; padding: 12px 14px;
+      }
+      #adminView tbody tr:hover { background: var(--surface2); }
+      #adminView td { padding: 4px 0; border: none; white-space: normal; font-size: .85rem; }
+      #adminView td[data-label]::before {
+        content: attr(data-label);
+        display: inline-block; width: 110px; font-size: .72rem;
+        color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; font-weight: 600;
+      }
+      #adminView td[data-label=""] { margin-top: 10px; }
+      #adminView td[data-label=""]::before { display: none; }
+      #adminView .actions { flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
       /* ── All toolbars: stack vertically ── */
       .toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
       .toolbar button, .toolbar select { width: 100%; }
@@ -323,12 +346,6 @@
       .bulk-bar { flex-wrap: wrap; gap: 6px; padding: 8px 12px; }
       .bulk-bar .btn { flex: 1; min-width: 0; font-size: .75rem; padding: 6px 8px; text-align: center; }
       .bulk-count { width: 100%; text-align: center; }
-
-      /* ── Admin tables: horizontal scroll with snap ── */
-      #adminView .table-wrap { -webkit-overflow-scrolling: touch; }
-      #adminView table { min-width: 600px; }
-      #adminView td, #adminView th { padding: 10px 12px; font-size: .8rem; }
-      #panel-forsale table { min-width: 800px; }
 
       /* ── Section headers: stack on mobile ── */
       .section-hdr { flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -1381,12 +1398,12 @@ async function loadAdminInspections() {
 
     empty.style.display = 'none';
     tbody.innerHTML = signed.map(r => `<tr>
-      <td style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">${new Date(r.uploaded_at).toLocaleString()}</td>
-      <td><strong>${esc(assetMap[r.asset_id] || r.asset_id)}</strong></td>
-      <td><span class="badge badge-branch" style="font-size:.7rem">${esc(r.branch_name)}</span></td>
-      <td><a href="${escAttr(r.url)}" target="_blank" style="color:var(--accent);font-weight:500">${esc(r.name)}</a></td>
-      <td style="color:var(--text-muted);font-size:.85rem">${r.notes ? esc(r.notes) : '—'}</td>
-      <td><button class="btn btn-ghost btn-xs" onclick="openInspectionModal('${escAttr(r.asset_id)}')">View Asset</button></td>
+      <td data-label="Date" style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">${new Date(r.uploaded_at).toLocaleString()}</td>
+      <td data-label="Asset"><strong>${esc(assetMap[r.asset_id] || r.asset_id)}</strong></td>
+      <td data-label="Branch"><span class="badge badge-branch" style="font-size:.7rem">${esc(r.branch_name)}</span></td>
+      <td data-label="File"><a href="${escAttr(r.url)}" target="_blank" style="color:var(--accent);font-weight:500">${esc(r.name)}</a></td>
+      <td data-label="Notes" class="mobile-hide" style="color:var(--text-muted);font-size:.85rem">${r.notes ? esc(r.notes) : '—'}</td>
+      <td data-label=""><button class="btn btn-ghost btn-xs" onclick="openInspectionModal('${escAttr(r.asset_id)}')">View Asset</button></td>
     </tr>`).join('');
   } catch(e) { toast('Could not load inspections: ' + e.message, 'warn'); }
 }
@@ -2291,16 +2308,16 @@ function renderForSaleTab() {
          <button class="btn btn-success btn-xs" onclick="openMarkSold('${escAttr(s.id)}')">Mark Sold</button>`
       : ``;
     return `<tr>
-      <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
-      <td style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
-      <td style="color:var(--warning);font-weight:600">${mpFmt}</td>
-      <td style="color:var(--success);font-weight:600">${yrFmt}</td>
-      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
-      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
-      <td style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
-      <td>${fmtDate(s.createdAt?.slice(0,10))}</td>
-      <td>${statusBadge}</td>
-      <td><div class="actions">${actions}</div></td>
+      <td data-label="Asset"><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
+      <td data-label="Asking" style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
+      <td data-label="Monthly" class="mobile-hide" style="color:var(--warning);font-weight:600">${mpFmt}</td>
+      <td data-label="Saves/yr" class="mobile-hide" style="color:var(--success);font-weight:600">${yrFmt}</td>
+      <td data-label="Condition" class="mobile-hide" style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
+      <td data-label="Mileage" class="mobile-hide" style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
+      <td data-label="Notes" class="mobile-hide" style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
+      <td data-label="Listed" class="mobile-hide">${fmtDate(s.createdAt?.slice(0,10))}</td>
+      <td data-label="Status">${statusBadge}</td>
+      <td data-label=""><div class="actions">${actions}</div></td>
     </tr>`;
   }).join('');
 
@@ -2311,11 +2328,11 @@ function renderForSaleTab() {
     const a = assets.find(x => x.id === s.assetId);
     const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
     return `<tr>
-      <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
-      <td>${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
-      <td style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>
-      <td style="color:var(--success);font-weight:600">${mp !== null ? fmt$(mp) : '—'}</td>
-      <td>${fmtDate(s.soldDate)}</td>
+      <td data-label="Asset"><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
+      <td data-label="Asking">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
+      <td data-label="Sold Price" style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>
+      <td data-label="Monthly" class="mobile-hide" style="color:var(--success);font-weight:600">${mp !== null ? fmt$(mp) : '—'}</td>
+      <td data-label="Sold Date">${fmtDate(s.soldDate)}</td>
     </tr>`;
   }).join('');
 }
@@ -2536,8 +2553,8 @@ function renderAdminForSaleTab() {
       ? `<span class="badge badge-pending">Sale Pending</span>`
       : `<span class="badge badge-pending">Pending Approval</span>`;
     const soldCells = s.status === 'sold'
-      ? `<td style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`
-      : `<td style="color:var(--text-muted)">${s.status === 'pending_sold' && s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`;
+      ? `<td data-label="Sold Price" style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`
+      : `<td data-label="Sold Price" class="mobile-hide" style="color:var(--text-muted)">${s.status === 'pending_sold' && s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`;
     const actions = s.status === 'active'
       ? `<button class="btn btn-ghost btn-xs" onclick="openAdminEditListing('${escAttr(s.id)}')">Edit Listing</button>
          <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${escAttr(s.assetId)}')">Edit Asset</button>
@@ -2556,17 +2573,17 @@ function renderAdminForSaleTab() {
     const mpFmt = mp !== null ? fmt$(mp) : '—';
     const yrFmt = mp !== null ? fmt$(mp * 12) : '—';
     return `<tr>
-      <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
-      <td><span class="badge badge-branch" style="font-size:.75rem">${esc(s.branch)}</span></td>
-      <td style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
+      <td data-label="Asset"><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
+      <td data-label="Branch"><span class="badge badge-branch" style="font-size:.75rem">${esc(s.branch)}</span></td>
+      <td data-label="Asking" style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
       ${soldCells}
-      <td style="color:var(--warning);font-weight:600">${mpFmt}</td>
-      <td style="color:var(--success);font-weight:600">${yrFmt}</td>
-      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
-      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
-      <td style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
-      <td>${statusBadge}</td>
-      <td>${date}</td>
+      <td data-label="Monthly" class="mobile-hide" style="color:var(--warning);font-weight:600">${mpFmt}</td>
+      <td data-label="Saves/yr" class="mobile-hide" style="color:var(--success);font-weight:600">${yrFmt}</td>
+      <td data-label="Condition" class="mobile-hide" style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
+      <td data-label="Mileage" class="mobile-hide" style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
+      <td data-label="Notes" class="mobile-hide" style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
+      <td data-label="Status">${statusBadge}</td>
+      <td data-label="Date" class="mobile-hide">${date}</td>
       <td><div class="actions">${actions}</div></td>
     </tr>`;
   }).join('');
@@ -2923,8 +2940,8 @@ function renderBranchAssets() {
       : '';
     return `<tr>
       <td data-label="Asset"><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
-      <td data-label="Category">${esc(a.category||'—')}</td>
-      <td data-label="Make/Model">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
+      <td data-label="Category" class="mobile-hide">${esc(a.category||'—')}</td>
+      <td data-label="Make/Model" class="mobile-hide">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
       <td data-label="Status"><span class="badge badge-lease">On Lease</span>${(() => { const sl = saleListings.find(x => x.assetId === a.id && x.status !== 'sold'); return sl ? ` <span class="badge badge-pending" style="font-size:.7rem">${sl.status === 'pending' ? 'For Sale Pending' : sl.status === 'pending_sold' ? 'Sale Pending' : 'For Sale'}</span>` : ''; })()}</td>
       <td data-label="Monthly" style="color:var(--success);font-weight:600">${mp(a)}</td>
       <td data-label="Lease End">${fmtDate(a.leaseEnd)}</td>
@@ -3234,15 +3251,15 @@ function renderAdminAssets() {
     const mp = monthlyPayment(a.cost, a.lrf);
     const checked = selectedAssets.has(a.id) ? 'checked' : '';
     return `<tr data-asset-id="${escAttr(a.id)}">
-      <td><input type="checkbox" class="asset-cb" data-id="${escAttr(a.id)}" onchange="toggleAssetSelect('${escAttr(a.id)}',this.checked)" ${checked}></td>
-      <td><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
-      <td>${esc(a.category||'—')}</td>
-      <td>${branchCell}</td>
-      <td>${fmt$(a.cost)}</td>
-      <td>${fmtPct(a.lrf)}</td>
-      <td>${mp!==null?fmt$(mp):'—'}</td>
-      <td>${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
-      <td><div class="actions">
+      <td class="mobile-hide"><input type="checkbox" class="asset-cb" data-id="${escAttr(a.id)}" onchange="toggleAssetSelect('${escAttr(a.id)}',this.checked)" ${checked}></td>
+      <td data-label="Asset"><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
+      <td data-label="Category" class="mobile-hide">${esc(a.category||'—')}</td>
+      <td data-label="Branch">${branchCell}</td>
+      <td data-label="Cost">${fmt$(a.cost)}</td>
+      <td data-label="LRF" class="mobile-hide">${fmtPct(a.lrf)}</td>
+      <td data-label="Monthly">${mp!==null?fmt$(mp):'—'}</td>
+      <td data-label="Make/Model" class="mobile-hide">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
+      <td data-label=""><div class="actions">
         <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${escAttr(a.id)}')">Edit</button>
         <button class="btn btn-primary btn-xs" onclick="openReassign('${escAttr(a.id)}')">Reassign</button>
         <button class="btn btn-ghost btn-xs" onclick="openFilesModal('${escAttr(a.id)}')">📎${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button>
@@ -3727,38 +3744,95 @@ function importCSV(input) {
     const MAX_FIELD_LEN = 500;
     const MAX_ROWS = 5000;
     const sanitize = s => (s || '').trim().slice(0, MAX_FIELD_LEN).replace(/[<>]/g, '');
-    const sanitizeDate = s => { const d = (s || '').trim().slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : ''; };
     const parseNum = s => parseFloat((s || '').replace(/[$,\s]/g, ''));
+    const parseDateFlex = s => {
+      if (!s) return '';
+      const t = s.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+      const m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      if (m) {
+        const yr = m[3].length === 2 ? '20' + m[3] : m[3];
+        return `${yr}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+      }
+      return '';
+    };
+
+    // Build column map from header row
+    const headerCols = parseCSVRow(lines[0]);
+    const colMap = {};
+    const HEADER_ALIASES = {
+      'asset name': 'name', 'name': 'name', 'asset': 'name',
+      'serial': 'serial', 'serial number': 'serial', 'serial #': 'serial', 'sn': 'serial',
+      'make': 'make', 'manufacturer': 'make',
+      'model': 'model',
+      'year': 'year', 'yr': 'year',
+      'category': 'category', 'cat': 'category', 'type': 'category',
+      'branch': 'branch', 'location': 'branch',
+      'status': 'status',
+      'cost': 'cost', 'cost ($)': 'cost', 'price': 'cost', 'value': 'cost', 'equipment cost': 'cost',
+      'lrf': 'lrf', 'lease rate factor': 'lrf', 'rate factor': 'lrf',
+      'monthly': 'monthly', 'monthly ($)': 'monthly', 'monthly lease': 'monthly',
+      'vendor': 'vendor', 'supplier': 'vendor',
+      'acquired': 'acquired', 'acquired date': 'acquired', 'purchase date': 'acquired',
+      'lease start': 'leaseStart', 'start date': 'leaseStart',
+      'lease end': 'leaseEnd', 'end date': 'leaseEnd',
+      'notes': 'notes', 'note': 'notes', 'description': 'notes', 'comments': 'notes',
+      'renewal date': 'renewal', 'renewal': 'renewal', 'renewal due': 'renewal',
+    };
+    headerCols.forEach((h, i) => {
+      const key = HEADER_ALIASES[h.replace(/[<>]/g, '').trim().toLowerCase()];
+      if (key && !(key in colMap)) colMap[key] = i;
+    });
+
+    // Fall back to positional mapping if no header match for required 'name' column
+    const useHeaders = 'name' in colMap;
+    const col = field => useHeaders ? colMap[field] : undefined;
+    const C_NAME     = col('name')       ?? 0;
+    const C_SERIAL   = col('serial')     ?? 1;
+    const C_MAKE     = col('make')       ?? 2;
+    const C_MODEL    = col('model')      ?? 3;
+    const C_YEAR     = col('year')       ?? 4;
+    const C_CATEGORY = col('category')   ?? 5;
+    const C_BRANCH   = col('branch')     ?? 6;
+    const C_COST     = col('cost')       ?? 8;
+    const C_LRF      = col('lrf')        ?? 9;
+    const C_VENDOR   = col('vendor')     ?? 11;
+    const C_ACQUIRED = col('acquired')   ?? 12;
+    const C_LSTART   = col('leaseStart') ?? 13;
+    const C_LEND     = col('leaseEnd')   ?? 14;
+    const C_NOTES    = col('notes')      ?? 15;
+    const C_RENEWAL  = col('renewal')    ?? 16;
+
     let added = 0, skipped = 0;
     for (let i = 1; i < Math.min(lines.length, MAX_ROWS + 1); i++) {
       const cols = parseCSVRow(lines[i]);
-      const name = sanitize(cols[0]);
+      const name = sanitize(cols[C_NAME]);
       if (!name) { skipped++; continue; }
-      const branchRaw = sanitize(cols[6]);
+      const branchRaw = sanitize(cols[C_BRANCH]);
       const branchVal = (!branchRaw || branchRaw.toLowerCase() === 'pool') ? null
         : (branches.find(b => b.name.toLowerCase() === branchRaw.toLowerCase())?.name || null);
-      const cost = parseNum(cols[8]);
-      const lrf  = parseNum(cols[9]);
+      const cost = parseNum(cols[C_COST]);
+      const lrf  = parseNum(cols[C_LRF]);
       if (!isNaN(cost) && (cost < 0 || cost > 100000000)) { skipped++; continue; }
       if (!isNaN(lrf) && (lrf < 0 || lrf > 1)) { skipped++; continue; }
       assets.push({
         id:          uid(),
         name,
-        serial:      sanitize(cols[1]),
-        make:        sanitize(cols[2]),
-        model:       sanitize(cols[3]),
-        year:        sanitize(cols[4]),
-        category:    sanitize(cols[5]),
+        serial:      sanitize(cols[C_SERIAL]),
+        make:        sanitize(cols[C_MAKE]),
+        model:       sanitize(cols[C_MODEL]),
+        year:        sanitize(cols[C_YEAR]),
+        category:    sanitize(cols[C_CATEGORY]),
         branch:      branchVal,
         status:      branchVal ? 'On Lease' : 'Available',
         cost:        isNaN(cost) ? '' : cost,
         lrf:         isNaN(lrf)  ? '' : lrf,
-        vendor:      sanitize(cols[11]),
-        acquiredDate: sanitizeDate(cols[12]),
-        leaseStart:   sanitizeDate(cols[13]),
-        leaseEnd:     sanitizeDate(cols[14]),
-        notes:        sanitize(cols[15]),
-        renewalDate:  sanitizeDate(cols[16]),
+        vendor:      sanitize(cols[C_VENDOR]),
+        acquiredDate: parseDateFlex(cols[C_ACQUIRED]),
+        leaseStart:   parseDateFlex(cols[C_LSTART]),
+        leaseEnd:     parseDateFlex(cols[C_LEND]),
+        notes:        sanitize(cols[C_NOTES]),
+        renewalDate:  parseDateFlex(cols[C_RENEWAL]),
         files:        [],
         createdAt:   new Date().toISOString(),
         updatedAt:   new Date().toISOString(),
@@ -4141,11 +4215,11 @@ async function loadActivityLog() {
     if (error || !data?.length) { empty.style.display = ''; return; }
     empty.style.display = 'none';
     tbody.innerHTML = data.map(r => `<tr>
-      <td style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">${new Date(r.created_at).toLocaleString()}</td>
-      <td><span class="act-action">${esc(r.action)}</span></td>
-      <td>${r.entity_name ? `<strong>${esc(r.entity_name)}</strong>` : (r.entity_id ? `<span style="color:var(--text-muted)">${esc(r.entity_id)}</span>` : '—')}</td>
-      <td>${r.actor_role ? `<span class="badge badge-${r.actor_role==='admin'?'admin':'branch'}" style="font-size:.7rem">${esc(r.actor_role)}</span>` : '—'}</td>
-      <td class="act-detail">${r.details ? esc(r.details) : '—'}</td>
+      <td data-label="Time" style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">${new Date(r.created_at).toLocaleString()}</td>
+      <td data-label="Action"><span class="act-action">${esc(r.action)}</span></td>
+      <td data-label="Entity">${r.entity_name ? `<strong>${esc(r.entity_name)}</strong>` : (r.entity_id ? `<span style="color:var(--text-muted)">${esc(r.entity_id)}</span>` : '—')}</td>
+      <td data-label="Actor" class="mobile-hide">${r.actor_role ? `<span class="badge badge-${r.actor_role==='admin'?'admin':'branch'}" style="font-size:.7rem">${esc(r.actor_role)}</span>` : '—'}</td>
+      <td data-label="Details" class="mobile-hide act-detail">${r.details ? esc(r.details) : '—'}</td>
     </tr>`).join('');
   } catch(e) { toast('Could not load activity log.', 'warn'); }
 }
@@ -4238,10 +4312,10 @@ function renderDashboard() {
       const bMonthly = bAssets.reduce((s,a) => s + (monthlyPayment(a.cost,a.lrf)||0), 0);
       const bPending = requests.filter(r => r.branchName === b.name && r.status === 'pending').length;
       return `<tr>
-        <td><strong>${esc(b.name)}</strong></td>
-        <td>${bAssets.length}</td>
-        <td style="color:var(--success);font-weight:600">${bMonthly ? fmt$(bMonthly) : '—'}</td>
-        <td>${bPending ? `<span class="badge badge-pending">${bPending} pending</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td data-label="Branch"><strong>${esc(b.name)}</strong></td>
+        <td data-label="Assets">${bAssets.length}</td>
+        <td data-label="Monthly" style="color:var(--success);font-weight:600">${bMonthly ? fmt$(bMonthly) : '—'}</td>
+        <td data-label="Requests">${bPending ? `<span class="badge badge-pending">${bPending} pending</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
       </tr>`;
     }).join('');
   }
