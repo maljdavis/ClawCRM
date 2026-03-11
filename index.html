@@ -116,14 +116,15 @@
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
 
     /* ── Tables ── */
-    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: auto; margin-bottom: 24px; }
-    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
-    thead th { background: var(--surface2); padding: 12px 16px; text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); white-space: nowrap; cursor: pointer; user-select: none; }
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; table-layout: fixed; }
+    thead th { background: var(--surface2); padding: 12px 16px; text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); white-space: nowrap; cursor: pointer; user-select: none; overflow: hidden; text-overflow: ellipsis; }
     thead th:hover { color: var(--text); }
     tbody tr { border-top: 1px solid var(--border); transition: background .1s; }
     tbody tr:hover { background: var(--surface2); }
-    td { padding: 11px 16px; white-space: nowrap; vertical-align: middle; }
-    .actions { display: flex; gap: 6px; }
+    td { padding: 11px 16px; vertical-align: middle; white-space: normal; word-break: break-word; overflow-wrap: break-word; }
+    .cell-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
     /* ── Empty state ── */
     .empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
@@ -498,14 +499,14 @@
         <table>
           <thead>
             <tr>
-              <th>Asset Name</th>
-              <th>Category</th>
-              <th>Make / Model / Year</th>
-              <th>Status</th>
-              <th>Monthly Lease</th>
-              <th>Lease End</th>
-              <th>Renewal Due</th>
-              <th></th>
+              <th style="width:22%">Asset Name</th>
+              <th style="width:12%">Category</th>
+              <th style="width:18%">Make / Model / Year</th>
+              <th style="width:10%">Status</th>
+              <th style="width:10%">Monthly Lease</th>
+              <th style="width:10%">Lease End</th>
+              <th style="width:10%">Renewal Due</th>
+              <th style="width:auto"></th>
             </tr>
           </thead>
           <tbody id="branchTableBody"></tbody>
@@ -550,16 +551,16 @@
         <table>
           <thead>
             <tr>
-              <th>Asset</th>
-              <th>Asking Price</th>
-              <th>Monthly Lease</th>
-              <th>Saves/yr</th>
-              <th>Condition</th>
-              <th>Mileage</th>
-              <th>Notes</th>
-              <th>Listed</th>
-              <th>Status</th>
-              <th></th>
+              <th style="width:20%">Asset</th>
+              <th style="width:10%">Asking Price</th>
+              <th style="width:10%">Monthly Lease</th>
+              <th style="width:10%">Saves/yr</th>
+              <th style="width:9%">Condition</th>
+              <th style="width:8%">Mileage</th>
+              <th style="width:13%">Notes</th>
+              <th style="width:8%">Listed</th>
+              <th style="width:8%">Status</th>
+              <th style="width:auto"></th>
             </tr>
           </thead>
           <tbody id="forSaleTableBody"></tbody>
@@ -578,11 +579,11 @@
         <table>
           <thead>
             <tr>
-              <th>Asset</th>
-              <th>Asking Price</th>
-              <th>Sold Price</th>
-              <th>Monthly Lease (saved)</th>
-              <th>Sold Date</th>
+              <th style="width:30%">Asset</th>
+              <th style="width:15%">Asking Price</th>
+              <th style="width:15%">Sold Price</th>
+              <th style="width:20%">Monthly Lease (saved)</th>
+              <th style="width:20%">Sold Date</th>
             </tr>
           </thead>
           <tbody id="soldTableBody"></tbody>
@@ -631,7 +632,7 @@
       <div class="section-hdr"><div><h2>Branch Breakdown</h2></div></div>
       <div class="table-wrap" style="margin-bottom:24px">
         <table>
-          <thead><tr><th>Branch</th><th>Assets On Lease</th><th>Monthly Total</th><th>Pending Requests</th></tr></thead>
+          <thead><tr><th style="width:30%">Branch</th><th style="width:20%">Assets On Lease</th><th style="width:25%">Monthly Total</th><th style="width:25%">Pending Requests</th></tr></thead>
           <tbody id="dashBranchBody"></tbody>
         </table>
       </div>
@@ -673,15 +674,15 @@
         <table>
           <thead>
             <tr>
-              <th style="width:32px"><input type="checkbox" id="selectAllCb" onchange="toggleSelectAll(this.checked)" /></th>
-              <th onclick="setSort('name')">Asset Name</th>
-              <th onclick="setSort('category')">Category</th>
-              <th>Branch / Status</th>
-              <th onclick="setSort('cost')">Cost</th>
-              <th onclick="setSort('lrf')">LRF</th>
-              <th>Monthly</th>
-              <th>Make / Model / Year</th>
-              <th></th>
+              <th style="width:36px"><input type="checkbox" id="selectAllCb" onchange="toggleSelectAll(this.checked)" /></th>
+              <th style="width:22%" onclick="setSort('name')">Asset Name</th>
+              <th style="width:12%" onclick="setSort('category')">Category</th>
+              <th style="width:14%">Branch / Status</th>
+              <th style="width:10%" onclick="setSort('cost')">Cost</th>
+              <th style="width:7%" onclick="setSort('lrf')">LRF</th>
+              <th style="width:10%">Monthly</th>
+              <th style="width:15%">Make / Model / Year</th>
+              <th style="width:auto"></th>
             </tr>
           </thead>
           <tbody id="adminTableBody"></tbody>
@@ -795,7 +796,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Date</th><th>Asset</th><th>Branch</th><th>File</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th style="width:15%">Date</th><th style="width:22%">Asset</th><th style="width:13%">Branch</th><th style="width:18%">File</th><th style="width:20%">Notes</th><th style="width:auto"></th></tr></thead>
           <tbody id="inspTableBody"></tbody>
         </table>
         <div class="empty" id="inspEmpty" style="display:none"><div class="icon">📋</div><p>No inspections submitted yet.</p></div>
@@ -823,18 +824,18 @@
         <table>
           <thead>
             <tr>
-              <th>Asset</th>
-              <th>Branch</th>
-              <th>Asking Price</th>
-              <th>Sold Price</th>
-              <th>Monthly Lease</th>
-              <th>Saves/yr</th>
-              <th>Condition</th>
-              <th>Mileage</th>
-              <th>Notes</th>
-              <th>Status</th>
-              <th>Date</th>
-              <th></th>
+              <th style="width:14%">Asset</th>
+              <th style="width:8%">Branch</th>
+              <th style="width:8%">Asking</th>
+              <th style="width:8%">Sold</th>
+              <th style="width:8%">Monthly</th>
+              <th style="width:8%">Saves/yr</th>
+              <th style="width:7%">Condition</th>
+              <th style="width:7%">Mileage</th>
+              <th style="width:10%">Notes</th>
+              <th style="width:8%">Status</th>
+              <th style="width:7%">Date</th>
+              <th style="width:auto"></th>
             </tr>
           </thead>
           <tbody id="adminForSaleTableBody"></tbody>
@@ -854,7 +855,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Time</th><th>Action</th><th>Entity</th><th>Actor</th><th>Details</th></tr></thead>
+          <thead><tr><th style="width:18%">Time</th><th style="width:12%">Action</th><th style="width:22%">Entity</th><th style="width:10%">Actor</th><th style="width:38%">Details</th></tr></thead>
           <tbody id="activityTableBody"></tbody>
         </table>
         <div class="empty" id="activityEmpty" style="display:none"><div class="icon">📋</div><p>No activity recorded yet.</p></div>
@@ -1270,7 +1271,7 @@
       <div style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:6px" id="bulkSalePreviewHdr"></div>
       <div class="table-wrap" style="max-height:260px;overflow-y:auto">
         <table style="font-size:.82rem">
-          <thead><tr><th>Serial</th><th>Asset Found</th><th>Asking Price</th><th>Condition</th><th>Mileage</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th style="width:15%">Serial</th><th style="width:22%">Asset Found</th><th style="width:13%">Asking Price</th><th style="width:12%">Condition</th><th style="width:10%">Mileage</th><th style="width:20%">Notes</th><th style="width:auto"></th></tr></thead>
           <tbody id="bulkSalePreviewBody"></tbody>
         </table>
       </div>
