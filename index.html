@@ -745,27 +745,27 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="field">
             <label>Preset 1 Name</label>
-            <input id="rateName1" type="text" placeholder="e.g. Standard" />
+            <input id="rateName1" type="text" placeholder="e.g. Standard" oninput="markLRFDirty()" />
           </div>
           <div class="field">
             <label>Preset 1 LRF</label>
-            <input id="rateVal1" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0185" />
+            <input id="rateVal1" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0185" oninput="markLRFDirty()" />
           </div>
           <div class="field">
             <label>Preset 2 Name</label>
-            <input id="rateName2" type="text" placeholder="e.g. Promo" />
+            <input id="rateName2" type="text" placeholder="e.g. Promo" oninput="markLRFDirty()" />
           </div>
           <div class="field">
             <label>Preset 2 LRF</label>
-            <input id="rateVal2" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0200" />
+            <input id="rateVal2" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0200" oninput="markLRFDirty()" />
           </div>
           <div class="field">
             <label>Preset 3 Name</label>
-            <input id="rateName3" type="text" placeholder="e.g. Special" />
+            <input id="rateName3" type="text" placeholder="e.g. Special" oninput="markLRFDirty()" />
           </div>
           <div class="field">
             <label>Preset 3 LRF</label>
-            <input id="rateVal3" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0165" />
+            <input id="rateVal3" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0165" oninput="markLRFDirty()" />
           </div>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:12px;">
@@ -2191,7 +2191,7 @@ function setAdminTab(tab) {
   if (tab === 'assets')       { populateBranchFilter(); renderAdminAssets(); }
   if (tab === 'requests')     { populateReqBranchFilter(); renderRequests(); }
   if (tab === 'forsale')      { reloadSaleListings(); populateAdminSaleBranchFilter(); renderAdminForSaleTab(); updatePendingBadge(); }
-  if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
+  if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; lrfFieldsDirty = false; renderRatesUI(true); }
   if (tab === 'inspections')  loadAdminInspections();
   if (tab === 'activity')     loadActivityLog();
   updatePendingBadge();
@@ -3603,8 +3603,13 @@ function changeAdminPw() {
 }
 
 // ── LRF Presets ───────────────────────────────────────────────────────
-function renderRatesUI() {
+let lrfFieldsDirty = false;
+function markLRFDirty() { lrfFieldsDirty = true; }
+
+function renderRatesUI(force) {
   if (!$('rateName1')) return;
+  // Don't overwrite user edits during background refresh
+  if (!force && lrfFieldsDirty) return;
   const list = normalizeLRFPresets(lrfPresets);
   $('rateName1').value = list[0].name;
   $('rateVal1').value  = list[0].lrf;
@@ -3626,6 +3631,8 @@ function saveRatesFromUI() {
     if (!Number.isFinite(r.lrf) || r.lrf <= 0 || r.lrf >= 1) { toast('Each preset LRF must be a number between 0 and 1.', 'warn'); return; }
   }
   saveLRFPresets(rows);
+  lrfFieldsDirty = false;
+  renderRatesUI(true);
   toast('LRF presets saved.', 'success');
 }
 
