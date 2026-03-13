@@ -175,7 +175,6 @@
     .field input, .field select, .field textarea { width: 100%; }
     .field textarea { resize: vertical; min-height: 90px; }
     .field .hint { font-size: .75rem; color: var(--text-muted); }
-    .field .lrf-preview { font-size: .75rem; color: var(--success); font-weight: 600; }
     .field input[readonly] { color: var(--success); font-weight: 600; }
 
     /* ── Branch admin list ── */
@@ -665,7 +664,6 @@
         <span class="bulk-count" id="bulkCount">0 selected</span>
         <button class="btn btn-primary btn-sm" onclick="openBulkReassign()">Reassign</button>
         <button class="btn btn-ghost btn-sm" onclick="openBulkCategory()">Set Category</button>
-        <button class="btn btn-ghost btn-sm" onclick="openBulkLRF()">Set LRF</button>
         <button class="btn btn-ghost btn-sm" onclick="exportSelectedCSV()">Export CSV</button>
         <button class="btn btn-danger btn-sm" onclick="bulkDelete()">Delete</button>
         <button class="btn btn-ghost btn-sm" onclick="clearSelection()">Clear selection</button>
@@ -679,7 +677,6 @@
               <th style="width:12%" onclick="setSort('category')">Category</th>
               <th style="width:14%">Branch / Status</th>
               <th style="width:10%" onclick="setSort('cost')">Cost</th>
-              <th style="width:7%" onclick="setSort('lrf')">LRF</th>
               <th style="width:10%">Monthly</th>
               <th style="width:15%">Make / Model / Year</th>
               <th style="width:auto"></th>
@@ -740,38 +737,6 @@
         <input id="telematicsUrlInput" type="url" placeholder="https://t3.equipmentshare.com/..." style="width:100%;" oninput="saveTelematicsUrl()" />
       </div>
 
-      <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
-        <div class="section-hdr"><div><h2>Lease Rate Factors (LRF)</h2><p>3 preset lease rate factors you can assign to assets</p></div></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="field">
-            <label>Preset 1 Name</label>
-            <input id="rateName1" type="text" placeholder="e.g. Standard" oninput="markLRFDirty()" />
-          </div>
-          <div class="field">
-            <label>Preset 1 LRF</label>
-            <input id="rateVal1" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0185" oninput="markLRFDirty()" />
-          </div>
-          <div class="field">
-            <label>Preset 2 Name</label>
-            <input id="rateName2" type="text" placeholder="e.g. Promo" oninput="markLRFDirty()" />
-          </div>
-          <div class="field">
-            <label>Preset 2 LRF</label>
-            <input id="rateVal2" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0200" oninput="markLRFDirty()" />
-          </div>
-          <div class="field">
-            <label>Preset 3 Name</label>
-            <input id="rateName3" type="text" placeholder="e.g. Special" oninput="markLRFDirty()" />
-          </div>
-          <div class="field">
-            <label>Preset 3 LRF</label>
-            <input id="rateVal3" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0165" oninput="markLRFDirty()" />
-          </div>
-        </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-          <button class="btn btn-primary btn-sm" onclick="saveRatesFromUI()">Save LRF Presets</button>
-        </div>
-      </div>
 
       <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
         <div class="section-hdr"><div><h2>Import from Google Sheets</h2><p>Copy from your spreadsheet, paste here &mdash; your data stays private</p></div></div>
@@ -782,10 +747,9 @@
         <div style="display:flex;gap:6px;margin-bottom:10px;">
           <button class="btn btn-sm" id="gsTabAssets" onclick="switchGSTab('assets')" style="font-weight:600;">Assets</button>
           <button class="btn btn-ghost btn-sm" id="gsTabBranches" onclick="switchGSTab('branches')">Branches</button>
-          <button class="btn btn-ghost btn-sm" id="gsTabLRF" onclick="switchGSTab('lrf')">LRF Presets</button>
         </div>
         <div id="gsTabContent-assets">
-          <textarea id="gsPasteAssets" rows="7" oninput="previewGSPaste()" placeholder="Paste your Google Sheets data here...&#10;&#10;Header row is detected automatically. Columns can be in any order.&#10;Recognized: Asset Name, Serial, Make, Model, Year, Category, Branch, Cost, Sales Tax, Buyout &amp; Enhancement, Freight, LRF, HP, Mileage, Vendor, Lease Start, Lease End, Notes..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
+          <textarea id="gsPasteAssets" rows="7" oninput="previewGSPaste()" placeholder="Paste your Google Sheets data here...&#10;&#10;Header row is detected automatically. Columns can be in any order.&#10;Recognized: Asset Name, Serial, Make, Model, Year, Category, Branch, Cost, Sales Tax, Buyout &amp; Enhancement, Freight, Monthly, HP, Mileage, Vendor, Lease Start, Lease End, Notes..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
           <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;">
             <div id="gsAssetsPreview" style="font-size:.78rem;color:var(--text-muted);"></div>
             <div style="display:flex;gap:10px;align-items:center;">
@@ -799,13 +763,6 @@
           <textarea id="gsPasteBranches" rows="5" placeholder="Paste branch rows here..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
             <button class="btn btn-primary btn-sm" onclick="importGSBranches()">Import Branches</button>
-          </div>
-        </div>
-        <div id="gsTabContent-lrf" style="display:none;">
-          <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:6px;">Columns: <strong>Name</strong>, <strong>LRF</strong> (up to 3 presets)</div>
-          <textarea id="gsPasteLRF" rows="4" placeholder="Paste LRF preset rows here..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-            <button class="btn btn-primary btn-sm" onclick="importGSLRF()">Import LRF Presets</button>
           </div>
         </div>
       </div>
@@ -931,22 +888,12 @@
       <div class="field"><label>Year *</label><input id="f-year" type="number" min="1900" max="2099" placeholder="e.g. 2022" /></div>
       <div class="field">
         <label>Equipment Cost ($)</label>
-        <input id="f-cost" type="number" min="0" step="0.01" placeholder="0.00" oninput="updateLRFPreview()" />
+        <input id="f-cost" type="number" min="0" step="0.01" placeholder="0.00" />
       </div>
       <div class="field"><label>Sales Tax ($)</label><input id="f-salesTax" type="number" min="0" step="0.01" placeholder="0.00" /></div>
       <div class="field"><label>Buyout &amp; Enhancement ($)</label><input id="f-buyoutEnhancement" type="number" min="0" step="0.01" placeholder="0.00" /></div>
       <div class="field"><label>Freight ($)</label><input id="f-freight" type="number" min="0" step="0.01" placeholder="0.00" /></div>
-      <div class="field">
-        <label>LRF Preset (optional)</label>
-        <select id="f-lrfPreset" onchange="applyPresetToAssetForm(this.value)"></select>
-        <div class="hint">Pick a preset to fill the LRF field automatically.</div>
-      </div>
-      <div class="field">
-        <label>LRF — Lease Rate Factor</label>
-        <input id="f-lrf" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0185" oninput="updateLRFPreview()" />
-        <div class="hint">e.g. 0.0185 = 1.85%</div>
-        <div class="lrf-preview" id="lrfPreview"></div>
-      </div>
+      <div class="field"><label>Monthly Lease ($)</label><input id="f-monthly" type="number" min="0" step="0.01" placeholder="0.00" /></div>
       <div class="field"><label>HP (Horsepower)</label><input id="f-hp" type="text" placeholder="e.g. 25" /></div>
       <div class="field"><label>Mileage / Hours</label><input id="f-mileage" type="text" placeholder="e.g. 1200 hrs" /></div>
       <div class="field"><label>Vendor / Supplier</label><input id="f-vendor" type="text" placeholder="e.g. Caterpillar Inc." /></div>
@@ -1199,30 +1146,6 @@
   </div>
 </div>
 
-<!-- ══════════════ MODAL: BULK SET LRF ══════════════ -->
-<div class="overlay" id="bulkLRFOverlay">
-  <div class="modal modal-sm">
-    <div class="modal-hdr">
-      <h2>Set LRF</h2>
-      <button class="close-btn" onclick="closeBulkLRF()">×</button>
-    </div>
-    <p id="bulkLRFCount" style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;"></p>
-    <div class="field">
-      <label>Choose preset</label>
-      <select id="bulkLRFSelect" style="width:100%;" onchange="onBulkLRFSelectChange(this.value)"></select>
-    </div>
-    <div class="field" style="margin-top:12px;">
-      <label>Custom LRF (optional)</label>
-      <input id="bulkLRFCustom" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0185" />
-      <div class="hint">If you enter a custom value, it overrides the preset.</div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeBulkLRF()">Cancel</button>
-      <button class="btn btn-primary" onclick="confirmBulkLRF()">Apply</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══════════════ MODAL: LIST FOR SALE ══════════════ -->
 <div class="overlay" id="forSaleOverlay">
   <div class="modal modal-sm">
@@ -1337,7 +1260,6 @@ const BRANCHES_KEY    = 'assetTracker_branches';
 const REQUESTS_KEY    = 'assetTracker_requests';
 const ADMIN_KEY       = 'assetTracker_admin';
 const TELEM_KEY       = 'assetTracker_telematics';
-const RATES_KEY       = 'assetTracker_lrfPresets';
 const FILES_KEY_PREFIX = 'assetTracker_files_';
 const SALES_KEY = 'assetTracker_sales';
 
@@ -1506,7 +1428,6 @@ let requests     = JSON.parse(localStorage.getItem(REQUESTS_KEY) || '[]');
 let saleListings = JSON.parse(localStorage.getItem(SALES_KEY) || '[]');
 let adminPw      = localStorage.getItem(ADMIN_KEY) || 'admin';
 let telematicsUrl = localStorage.getItem(TELEM_KEY) || '';
-let lrfPresets   = loadLRFPresets();
 
 // ── Session State ─────────────────────────────────────────────────────
 let currentBranch     = null;
@@ -1649,7 +1570,7 @@ async function liveSync() {
         branch_name: a.branch || null,
         status: a.status || null,
         cost: (a.cost === '' || a.cost == null) ? null : a.cost,
-        lrf:  (a.lrf  === '' || a.lrf  == null) ? null : a.lrf,
+        monthly: (a.monthly === '' || a.monthly == null) ? null : a.monthly,
         vendor: a.vendor || null,
         acquired_date: a.acquiredDate || null,
         lease_start:  a.leaseStart  || null,
@@ -1707,8 +1628,6 @@ async function liveSync() {
         }
       }
 
-      const presetRows = lrfPresets.map(p => ({ id: p.id, name: p.name, lrf: p.lrf, updated_at: now }));
-      await supa.from('lrf_presets').upsert(presetRows, { onConflict: 'id' });
 
       await supa.from('settings').upsert([{ key: 'telematics_url', value: telematicsUrl || '' }], { onConflict: 'key' });
 
@@ -1759,52 +1678,6 @@ async function liveSync() {
   } finally {
     liveSyncRunning = false;
   }
-}
-
-function defaultLRFPresets() {
-  return [
-    { id: 'p1', name: 'Standard', lrf: 0.0185 },
-    { id: 'p2', name: 'Promo',    lrf: 0.0200 },
-    { id: 'p3', name: 'Special',  lrf: 0.0165 },
-  ];
-}
-
-function normalizeLRFPresets(value) {
-  const defaults = defaultLRFPresets();
-  const list = Array.isArray(value) ? value : [];
-  return defaults.map((d, i) => {
-    const src = list[i] || {};
-    const name = String(src.name ?? d.name).trim() || d.name;
-    const lrfNum = Number(src.lrf);
-    const lrf = Number.isFinite(lrfNum) ? lrfNum : d.lrf;
-    return { id: d.id, name, lrf };
-  });
-}
-
-function loadLRFPresets() {
-  try {
-    const raw = localStorage.getItem(RATES_KEY);
-    if (!raw) {
-      const defaults = defaultLRFPresets();
-      localStorage.setItem(RATES_KEY, JSON.stringify(defaults));
-      return defaults;
-    }
-    const parsed = JSON.parse(raw);
-    const normalized = normalizeLRFPresets(parsed);
-    localStorage.setItem(RATES_KEY, JSON.stringify(normalized));
-    return normalized;
-  } catch {
-    const defaults = defaultLRFPresets();
-    localStorage.setItem(RATES_KEY, JSON.stringify(defaults));
-    return defaults;
-  }
-}
-
-function saveLRFPresets(presets) {
-  lrfPresets = normalizeLRFPresets(presets);
-  localStorage.setItem(RATES_KEY, JSON.stringify(lrfPresets));
-  populateLRFPresetSelects();
-  queueLiveSync();
 }
 
 // ── First run ─────────────────────────────────────────────────────────
@@ -2062,9 +1935,8 @@ async function loadLiveData() {
   if (!isAdmin && currentProfile?.branchName) saleQ = saleQ.eq('branch', currentProfile.branchName);
 
   // Fire all queries in parallel
-  const [setRes, ratesRes, brRes, aRes, fcRes, rRes, saleRes] = await Promise.all([
+  const [setRes, brRes, aRes, fcRes, rRes, saleRes] = await Promise.all([
     supa.from('settings').select('key,value').eq('key', 'telematics_url').maybeSingle(),
-    supa.from('lrf_presets').select('id,name,lrf').order('id'),
     supa.from('branches').select('name').order('name'),
     assetQ,
     supa.from('asset_files').select('asset_id'),
@@ -2074,17 +1946,6 @@ async function loadLiveData() {
 
   // Settings
   if (!setRes.error && setRes.data) telematicsUrl = setRes.data.value || '';
-
-  // LRF presets
-  if (!ratesRes.error && Array.isArray(ratesRes.data) && ratesRes.data.length) {
-    lrfPresets = normalizeLRFPresets(ratesRes.data.map(r => ({ id: r.id, name: r.name, lrf: r.lrf })));
-  } else if (isAdmin) {
-    // Seed defaults once for admin.
-    const now = new Date().toISOString();
-    const defaults = defaultLRFPresets();
-    await supa.from('lrf_presets').upsert(defaults.map(p => ({ id: p.id, name: p.name, lrf: p.lrf, updated_at: now })), { onConflict: 'id' });
-    lrfPresets = defaults;
-  }
 
   // Branches
   if (!brRes.error && Array.isArray(brRes.data)) {
@@ -2114,7 +1975,7 @@ async function loadLiveData() {
         branch: a.branch_name ?? null,
         status: a.status || (a.branch_name ? 'On Lease' : 'Available'),
         cost: a.cost ?? '',
-        lrf: a.lrf ?? '',
+        monthly: a.monthly ?? '',
         vendor: a.vendor || '',
         acquiredDate: a.acquired_date || '',
         leaseStart:   a.lease_start   || '',
@@ -2168,7 +2029,6 @@ async function loadLiveData() {
   }
 
   applyLiveAdminUI();
-  populateLRFPresetSelects();
   if (isAdmin) updatePendingBadge();
 }
 
@@ -2183,7 +2043,7 @@ async function refreshLiveData() {
     if (adminTab === 'assets')     renderAdminAssets();
     if (adminTab === 'requests')   { populateReqBranchFilter(); renderRequests(); updatePendingBadge(); }
     if (adminTab === 'forsale')    { populateAdminSaleBranchFilter(); renderAdminForSaleTab(); updatePendingBadge(); }
-    if (adminTab === 'branches')    { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
+    if (adminTab === 'branches')    { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; }
     if (adminTab === 'inspections') loadAdminInspections();
     if (adminTab === 'activity')    loadActivityLog();
   } else {
@@ -2233,7 +2093,7 @@ function setAdminTab(tab) {
   if (tab === 'assets')       { populateBranchFilter(); renderAdminAssets(); }
   if (tab === 'requests')     { populateReqBranchFilter(); renderRequests(); }
   if (tab === 'forsale')      { reloadSaleListings(); populateAdminSaleBranchFilter(); renderAdminForSaleTab(); updatePendingBadge(); }
-  if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; lrfFieldsDirty = false; renderRatesUI(true); }
+  if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; }
   if (tab === 'inspections')  loadAdminInspections();
   if (tab === 'activity')     loadActivityLog();
   updatePendingBadge();
@@ -2270,10 +2130,6 @@ function fmt$(n) {
   if (n === '' || n == null || isNaN(n)) return '—';
   return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
-function fmtPct(n) {
-  if (n === '' || n == null || isNaN(n)) return '—';
-  return (Number(n)*100).toFixed(4).replace(/\.?0+$/,'') + '%';
-}
 function fmtDate(d) {
   if (!d) return '—';
   const parts = String(d).slice(0, 10).split('-');
@@ -2281,9 +2137,9 @@ function fmtDate(d) {
   const [y, m, day] = parts;
   return `${m}/${day}/${y}`;
 }
-function monthlyPayment(cost, lrf) {
-  if (!cost || !lrf || isNaN(cost) || isNaN(lrf)) return null;
-  return Number(cost) * Number(lrf);
+function getMonthly(asset) {
+  const v = Number(asset?.monthly);
+  return Number.isFinite(v) && v > 0 ? v : null;
 }
 
 // ── Branch Tabs ───────────────────────────────────────────────────────
@@ -2326,7 +2182,7 @@ function renderForSaleTab() {
   if (forSaleEmpty) forSaleEmpty.style.display = listed.length ? 'none' : '';
   if (forSaleBody) forSaleBody.innerHTML = listed.map(s => {
     const a = assets.find(x => x.id === s.assetId);
-    const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
+    const mp = a ? getMonthly(a) : null;
     const mpFmt = mp !== null ? fmt$(mp) : '—';
     const yrFmt = mp !== null ? fmt$(mp * 12) : '—';
     const statusBadge = s.status === 'pending'
@@ -2357,7 +2213,7 @@ function renderForSaleTab() {
   if (soldEmpty) soldEmpty.style.display = sold.length ? 'none' : '';
   if (soldBody) soldBody.innerHTML = sold.map(s => {
     const a = assets.find(x => x.id === s.assetId);
-    const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
+    const mp = a ? getMonthly(a) : null;
     return `<tr>
       <td data-label="Asset"><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
       <td data-label="Asking">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
@@ -2600,7 +2456,7 @@ function renderAdminForSaleTab() {
       : ``;
     const date = s.status === 'sold' ? fmtDate(s.soldDate) : fmtDate(s.createdAt?.slice(0,10));
     const a = assets.find(x => x.id === s.assetId);
-    const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
+    const mp = a ? getMonthly(a) : null;
     const mpFmt = mp !== null ? fmt$(mp) : '—';
     const yrFmt = mp !== null ? fmt$(mp * 12) : '—';
     return `<tr>
@@ -2919,7 +2775,7 @@ function branchAssets() {
 
 function renderBranchStats() {
   const mine = branchAssets();
-  const totalMonthly = mine.reduce((s,a) => s + (monthlyPayment(a.cost,a.lrf)||0), 0);
+  const totalMonthly = mine.reduce((s,a) => s + (getMonthly(a)||0), 0);
   const totalCost    = mine.reduce((s,a) => s + (Number(a.cost)||0), 0);
   $('branchStats').innerHTML = `
     <div class="stat-card"><div class="stat-label">Assets On Lease</div><div class="stat-value c-blue">${mine.length}</div></div>
@@ -2948,7 +2804,7 @@ function renderBranchAssets() {
   const pendingReturns   = new Set(requests.filter(r => r.type === 'return_asset'   && r.status === 'pending').map(r => r.assetId));
   const pendingIssues    = new Set(requests.filter(r => r.type === 'report_issue'    && r.status === 'pending').map(r => r.assetId));
   const pendingTransfers = new Set(requests.filter(r => r.type === 'transfer_asset' && r.status === 'pending').map(r => r.assetId));
-  const mp = a => { const v = monthlyPayment(a.cost,a.lrf); return v !== null ? fmt$(v) : '—'; };
+  const mp = a => { const v = getMonthly(a); return v !== null ? fmt$(v) : '—'; };
 
   tbody.innerHTML = list.map(a => {
     const returnBtn = pendingReturns.has(a.id)
@@ -3219,7 +3075,7 @@ function setSort(key) {
 function sortedAssets(list) {
   return [...list].sort((a,b) => {
     let va = a[sortKey]??'', vb = b[sortKey]??'';
-    if (['cost','lrf'].includes(sortKey)) return sortAsc?(Number(va)||0)-(Number(vb)||0):(Number(vb)||0)-(Number(va)||0);
+    if (['cost','monthly'].includes(sortKey)) return sortAsc?(Number(va)||0)-(Number(vb)||0):(Number(vb)||0)-(Number(va)||0);
     va=String(va).toLowerCase(); vb=String(vb).toLowerCase();
     return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
   });
@@ -3246,7 +3102,7 @@ function renderAdminAssets() {
   const allTotal   = statList.length;
   const poolCount  = statList.filter(a=>!a.branch).length;
   const leaseCount = statList.filter(a=>a.branch).length;
-  const totalMonthly = statList.filter(a=>a.branch).reduce((s,a)=>s+(monthlyPayment(a.cost,a.lrf)||0),0);
+  const totalMonthly = statList.filter(a=>a.branch).reduce((s,a)=>s+(getMonthly(a)||0),0);
   const filterLabel  = isFiltered ? ' <span style="font-size:.7rem;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">(filtered)</span>' : '';
 
   // Show stats above table
@@ -3279,7 +3135,7 @@ function renderAdminAssets() {
     const branchCell = a.branch
       ? `<span class="badge badge-lease" style="font-size:.75rem">${esc(a.branch)}</span>${(() => { const sl = saleListings.find(x => x.assetId === a.id && x.status !== 'sold'); return sl ? ` <span class="badge badge-pending" style="font-size:.7rem">${sl.status === 'pending' ? 'For Sale Pending' : sl.status === 'pending_sold' ? 'Sale Pending' : 'For Sale'}</span>` : ''; })()}`
       : `<span class="badge badge-pool" style="font-size:.75rem">Pool</span>`;
-    const mp = monthlyPayment(a.cost, a.lrf);
+    const mp = getMonthly(a);
     const checked = selectedAssets.has(a.id) ? 'checked' : '';
     return `<tr data-asset-id="${escAttr(a.id)}">
       <td class="mobile-hide"><input type="checkbox" class="asset-cb" data-id="${escAttr(a.id)}" onchange="toggleAssetSelect('${escAttr(a.id)}',this.checked)" ${checked}></td>
@@ -3287,7 +3143,6 @@ function renderAdminAssets() {
       <td data-label="Category" class="mobile-hide">${esc(a.category||'—')}</td>
       <td data-label="Branch">${branchCell}</td>
       <td data-label="Cost">${fmt$(a.cost)}</td>
-      <td data-label="LRF" class="mobile-hide">${fmtPct(a.lrf)}</td>
       <td data-label="Monthly">${mp!==null?fmt$(mp):'—'}</td>
       <td data-label="Make/Model" class="mobile-hide">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
       <td data-label=""><div class="actions">
@@ -3319,13 +3174,10 @@ function openAssetModal(id) {
     const el = $('f-'+f); if (el) el.value = a?.[f]??'';
   });
   $('f-cost').value = a?.cost??'';
-  $('f-lrf').value  = a?.lrf??'';
+  $('f-monthly').value = a?.monthly??'';
   $('f-salesTax').value = a?.salesTax??'';
   $('f-buyoutEnhancement').value = a?.buyoutEnhancement??'';
   $('f-freight').value = a?.freight??'';
-  populateLRFPresetSelects();
-  const presetSel = $('f-lrfPreset');
-  if (presetSel) presetSel.value = presetIdForLRF(a?.lrf);
   // Populate branch dropdown
   $('f-branch').innerHTML = `<option value="">— Asset Pool (unassigned) —</option>` +
     branches.map(b => `<option value="${escAttr(b.name)}"${(a?.branch===b.name)?' selected':''}>${esc(b.name)}</option>`).join('');
@@ -3339,45 +3191,9 @@ function openAssetModal(id) {
   } else {
     listingWrap.style.display = 'none';
   }
-  updateLRFPreview();
   $('assetFormOverlay').classList.add('open');
 }
 function closeAssetModal() { $('assetFormOverlay').classList.remove('open'); editingAssetId = null; }
-
-function updateLRFPreview() {
-  const cost = parseFloat($('f-cost').value);
-  const lrf  = parseFloat($('f-lrf').value);
-  const mp   = monthlyPayment(cost, lrf);
-  $('lrfPreview').textContent = mp !== null ? `Monthly lease: ${fmt$(mp)}` : '';
-}
-
-function presetIdForLRF(lrf) {
-  const n = Number(lrf);
-  if (!Number.isFinite(n)) return '';
-  const match = lrfPresets.find(p => Math.abs(Number(p.lrf) - n) < 1e-10);
-  return match ? match.id : '';
-}
-
-function populateLRFPresetSelects() {
-  const assetSel = $('f-lrfPreset');
-  if (assetSel) {
-    assetSel.innerHTML = `<option value="">— Select preset —</option>` +
-      lrfPresets.map(p => `<option value="${escAttr(p.id)}">${esc(p.name)} — ${fmtPct(p.lrf)}</option>`).join('');
-  }
-  const bulkSel = $('bulkLRFSelect');
-  if (bulkSel) {
-    bulkSel.innerHTML = `<option value="">— Select preset —</option>` +
-      lrfPresets.map(p => `<option value="${escAttr(p.id)}">${esc(p.name)} — ${fmtPct(p.lrf)}</option>`).join('');
-  }
-}
-
-function applyPresetToAssetForm(presetId) {
-  if (!presetId) return;
-  const preset = lrfPresets.find(p => p.id === presetId);
-  if (!preset) return;
-  $('f-lrf').value = preset.lrf;
-  updateLRFPreview();
-}
 
 function saveAsset() {
   const name = $('f-name').value.trim();
@@ -3418,7 +3234,7 @@ function saveAsset() {
     salesTax:    $('f-salesTax').value !== '' ? parseFloat($('f-salesTax').value) : '',
     buyoutEnhancement: $('f-buyoutEnhancement').value !== '' ? parseFloat($('f-buyoutEnhancement').value) : '',
     freight:     $('f-freight').value !== '' ? parseFloat($('f-freight').value) : '',
-    lrf:         $('f-lrf').value  !== '' ? parseFloat($('f-lrf').value)  : '',
+    monthly:     $('f-monthly').value !== '' ? parseFloat($('f-monthly').value) : '',
     hp:          $('f-hp').value.trim(),
     mileage:     $('f-mileage').value.trim(),
     vendor:      $('f-vendor').value.trim(),
@@ -3510,7 +3326,7 @@ function renderBranchList() {
   assets.forEach(a => {
     if (!a.branch) return;
     counts[a.branch]   = (counts[a.branch]   || 0) + 1;
-    monthlys[a.branch] = (monthlys[a.branch] || 0) + (monthlyPayment(a.cost, a.lrf) || 0);
+    monthlys[a.branch] = (monthlys[a.branch] || 0) + (getMonthly(a) || 0);
   });
   $('branchList').innerHTML = branches.length
     ? branches.map(b => `
@@ -3652,46 +3468,12 @@ function changeAdminPw() {
   toast('Admin password updated.', 'success');
 }
 
-// ── LRF Presets ───────────────────────────────────────────────────────
-let lrfFieldsDirty = false;
-function markLRFDirty() { lrfFieldsDirty = true; }
-
-function renderRatesUI(force) {
-  if (!$('rateName1')) return;
-  // Don't overwrite user edits during background refresh
-  if (!force && lrfFieldsDirty) return;
-  const list = normalizeLRFPresets(lrfPresets);
-  $('rateName1').value = list[0].name;
-  $('rateVal1').value  = list[0].lrf;
-  $('rateName2').value = list[1].name;
-  $('rateVal2').value  = list[1].lrf;
-  $('rateName3').value = list[2].name;
-  $('rateVal3').value  = list[2].lrf;
-  populateLRFPresetSelects();
-}
-
-function saveRatesFromUI() {
-  const rows = [
-    { id: 'p1', name: $('rateName1').value.trim(), lrf: Number($('rateVal1').value) },
-    { id: 'p2', name: $('rateName2').value.trim(), lrf: Number($('rateVal2').value) },
-    { id: 'p3', name: $('rateName3').value.trim(), lrf: Number($('rateVal3').value) },
-  ];
-  for (const r of rows) {
-    if (!r.name) { toast('Preset names cannot be empty.', 'warn'); return; }
-    if (!Number.isFinite(r.lrf) || r.lrf <= 0 || r.lrf >= 1) { toast('Each preset LRF must be a number between 0 and 1.', 'warn'); return; }
-  }
-  saveLRFPresets(rows);
-  lrfFieldsDirty = false;
-  renderRatesUI(true);
-  toast('LRF presets saved.', 'success');
-}
-
 // ── Export CSV ────────────────────────────────────────────────────────
 function exportCSV() {
-  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','Sales Tax','Buyout & Enhancement','Freight','LRF','Monthly ($)','HP','Mileage','Vendor','Acquired','Lease Start','Lease End','Renewal Date','Notes'];
+  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','Sales Tax','Buyout & Enhancement','Freight','Monthly ($)','HP','Mileage','Vendor','Acquired','Lease Start','Lease End','Renewal Date','Notes'];
   const rows = [headers, ...assets.map(a => {
-    const mp = monthlyPayment(a.cost, a.lrf);
-    return [a.name,a.serial,a.make,a.model,a.year,a.category,a.branch||'Pool',a.status,a.cost,a.salesTax||'',a.buyoutEnhancement||'',a.freight||'',a.lrf,mp!=null?mp.toFixed(2):'',a.hp||'',a.mileage||'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.renewalDate||'',a.notes]
+    const mp = getMonthly(a);
+    return [a.name,a.serial,a.make,a.model,a.year,a.category,a.branch||'Pool',a.status,a.cost,a.salesTax||'',a.buyoutEnhancement||'',a.freight||'',mp!=null?mp.toFixed(2):'',a.hp||'',a.mileage||'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.renewalDate||'',a.notes]
       .map(v=>`"${String(v??'').replace(/"/g,'""')}"`);
   })];
   const blob = new Blob([rows.map(r=>r.join(',')).join('\r\n')],{type:'text/csv'});
@@ -3704,10 +3486,10 @@ function exportCSV() {
 
 function exportSelectedCSV() {
   if (!selectedAssets.size) return;
-  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
+  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
   const rows = [headers, ...assets.filter(a => selectedAssets.has(a.id)).map(a => {
-    const mp = monthlyPayment(a.cost, a.lrf);
-    return [a.name,a.serial,a.make,a.model,a.year,a.category,a.branch||'Pool',a.status,a.cost,a.lrf,mp!=null?mp.toFixed(2):'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.notes]
+    const mp = getMonthly(a);
+    return [a.name,a.serial,a.make,a.model,a.year,a.category,a.branch||'Pool',a.status,a.cost,mp!=null?mp.toFixed(2):'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.notes]
       .map(v=>`"${String(v??'').replace(/"/g,'""')}"`);
   })];
   const blob = new Blob([rows.map(r=>r.join(',')).join('\r\n')],{type:'text/csv'});
@@ -3816,7 +3598,6 @@ function importCSV(input) {
       'branch': 'branch', 'location': 'branch',
       'status': 'status',
       'cost': 'cost', 'cost ($)': 'cost', 'price': 'cost', 'value': 'cost', 'equipment cost': 'cost',
-      'lrf': 'lrf', 'lease rate factor': 'lrf', 'rate factor': 'lrf',
       'monthly': 'monthly', 'monthly ($)': 'monthly', 'monthly lease': 'monthly',
       'vendor': 'vendor', 'supplier': 'vendor',
       'acquired': 'acquired', 'acquired date': 'acquired', 'purchase date': 'acquired',
@@ -3841,7 +3622,7 @@ function importCSV(input) {
     const C_CATEGORY = col('category')   ?? 5;
     const C_BRANCH   = col('branch')     ?? 6;
     const C_COST     = col('cost')       ?? 8;
-    const C_LRF      = col('lrf')        ?? 9;
+    const C_MONTHLY  = col('monthly')    ?? 9;
     const C_VENDOR   = col('vendor')     ?? 11;
     const C_ACQUIRED = col('acquired')   ?? 12;
     const C_LSTART   = col('leaseStart') ?? 13;
@@ -3858,9 +3639,8 @@ function importCSV(input) {
       const branchVal = (!branchRaw || branchRaw.toLowerCase() === 'pool') ? null
         : (branches.find(b => b.name.toLowerCase() === branchRaw.toLowerCase())?.name || null);
       const cost = parseNum(cols[C_COST]);
-      const lrf  = parseNum(cols[C_LRF]);
+      const monthly = parseNum(cols[C_MONTHLY]);
       if (!isNaN(cost) && (cost < 0 || cost > 100000000)) { skipped++; continue; }
-      if (!isNaN(lrf) && (lrf < 0 || lrf > 1)) { skipped++; continue; }
       assets.push({
         id:          uid(),
         name,
@@ -3872,7 +3652,7 @@ function importCSV(input) {
         branch:      branchVal,
         status:      branchVal ? 'On Lease' : 'Available',
         cost:        isNaN(cost) ? '' : cost,
-        lrf:         isNaN(lrf)  ? '' : lrf,
+        monthly:     isNaN(monthly) ? '' : monthly,
         vendor:      sanitize(cols[C_VENDOR]),
         acquiredDate: parseDateFlex(cols[C_ACQUIRED]),
         leaseStart:   parseDateFlex(cols[C_LSTART]),
@@ -3913,7 +3693,7 @@ function parseCSVRow(row) {
 
 // ── Google Sheets Import ──────────────────────────────────────────────
 function switchGSTab(tab) {
-  ['assets','branches','lrf'].forEach(t => {
+  ['assets','branches'].forEach(t => {
     const content = $('gsTabContent-' + t);
     const btn = $('gsTab' + t.charAt(0).toUpperCase() + t.slice(1));
     if (!content || !btn) return;
@@ -3979,10 +3759,8 @@ function processAssetRows(rows, replaceAll) {
     'sales tax': 'salesTax', 'tax': 'salesTax', 'sales tax ($)': 'salesTax',
     'buyout & enhancement': 'buyoutEnhancement', 'buyout': 'buyoutEnhancement', 'enhancement': 'buyoutEnhancement', 'buyout and enhancement': 'buyoutEnhancement', 'buyout enhancement': 'buyoutEnhancement',
     'freight': 'freight', 'shipping': 'freight', 'freight ($)': 'freight',
-    'lrf': 'lrf', 'lease rate factor': 'lrf', 'rate factor': 'lrf',
-    'lrf %': 'lrfPct',
     'hp': 'hp', 'horsepower': 'hp', 'horse power': 'hp',
-    'monthly': 'monthly', 'monthly lease': 'monthly', 'monthly ($)': 'monthly',
+    'monthly': 'monthly', 'monthly lease': 'monthly', 'monthly ($)': 'monthly', 'monthly cost': 'monthly',
     'vendor': 'vendor', 'supplier': 'vendor',
     'acquired': 'acquired', 'acquired date': 'acquired', 'purchase date': 'acquired',
     'lease start': 'leaseStart', 'start date': 'leaseStart',
@@ -4018,13 +3796,7 @@ function processAssetRows(rows, replaceAll) {
     const salesTax = parseNum(get(r, 'salesTax'));
     const buyoutEnh = parseNum(get(r, 'buyoutEnhancement'));
     const freight = parseNum(get(r, 'freight'));
-    let lrf = parseNum(get(r, 'lrf'));
-    // If LRF column has a percentage value (e.g. "3.0%" → 0.03), detect and convert
-    if (!isNaN(lrf) && lrf > 1) lrf = lrf / 100; // sheet likely has percentage, not decimal
-    if (isNaN(lrf)) {
-      const lrfPct = parseNum(get(r, 'lrfPct'));
-      if (!isNaN(lrfPct) && lrfPct > 0) lrf = lrfPct / 100;
-    }
+    const monthly = parseNum(get(r, 'monthly'));
 
     let existing = null;
     if (!replaceAll) {
@@ -4044,7 +3816,7 @@ function processAssetRows(rows, replaceAll) {
       salesTax:    isNaN(salesTax) ? '' : salesTax,
       buyoutEnhancement: isNaN(buyoutEnh) ? '' : buyoutEnh,
       freight:     isNaN(freight) ? '' : freight,
-      lrf:         isNaN(lrf)  ? '' : lrf,
+      monthly:     isNaN(monthly) ? '' : monthly,
       hp:          sanitize(get(r, 'hp')),
       mileage:     sanitize(get(r, 'mileage')),
       vendor:      sanitize(get(r, 'vendor')),
@@ -4123,38 +3895,6 @@ function importGSBranches() {
   toast(`Branches imported: ${added} added, ${skipped} skipped (already exist).`, 'success');
 }
 
-function importGSLRF() {
-  const text = $('gsPasteLRF').value.trim();
-  if (!text) { toast('Paste your LRF data first.', 'warn'); return; }
-  const rows = parsePastedRows(text);
-  if (rows.length < 2) { toast('Need a header row + at least one data row.', 'warn'); return; }
-
-  const headerCols = rows[0];
-  const colMap = {};
-  const ALIASES = { 'name': 0, 'preset': 0, 'preset name': 0, 'label': 0, 'lrf': 1, 'rate': 1, 'factor': 1, 'lease rate factor': 1, 'value': 1 };
-  headerCols.forEach((h, i) => {
-    const key = h.replace(/[<>]/g, '').trim().toLowerCase();
-    if (key in ALIASES && !(ALIASES[key] in colMap)) colMap[ALIASES[key]] = i;
-  });
-  const nameCol = colMap[0] ?? 0;
-  const lrfCol = colMap[1] ?? 1;
-
-  const presets = [];
-  for (let i = 1; i < Math.min(rows.length, 4); i++) {
-    const name = (rows[i][nameCol] || '').trim().slice(0, 50).replace(/[<>]/g, '');
-    const lrfNum = parseFloat((rows[i][lrfCol] || '').replace(/[$,\s]/g, ''));
-    if (!name || !Number.isFinite(lrfNum) || lrfNum <= 0 || lrfNum >= 1) continue;
-    presets.push({ id: `p${presets.length + 1}`, name, lrf: lrfNum });
-  }
-
-  if (!presets.length) { toast('No valid LRF presets found. Each needs a name and a number between 0 and 1.', 'warn'); return; }
-
-  saveLRFPresets(presets);
-  lrfFieldsDirty = false;
-  renderRatesUI(true);
-  $('gsPasteLRF').value = '';
-  toast(`Imported ${presets.length} LRF preset(s).`, 'success');
-}
 
 // ── Asset Files ───────────────────────────────────────────────────────
 let filesAssetId = null;
@@ -4394,49 +4134,6 @@ function confirmBulkCategory() {
   renderAdminAssets();
 }
 
-function openBulkLRF() {
-  if (!selectedAssets.size) return;
-  $('bulkLRFCount').textContent = `${selectedAssets.size} asset(s) will be updated.`;
-  populateLRFPresetSelects();
-  $('bulkLRFSelect').value = '';
-  $('bulkLRFCustom').value = '';
-  $('bulkLRFOverlay').classList.add('open');
-}
-function closeBulkLRF() { $('bulkLRFOverlay').classList.remove('open'); }
-
-function onBulkLRFSelectChange(_presetId) {
-  // Leave custom field untouched; custom overrides preset if provided.
-}
-
-function confirmBulkLRF() {
-  const customRaw = $('bulkLRFCustom').value;
-  const presetId  = $('bulkLRFSelect').value;
-  const hasCustom = customRaw !== '';
-
-  let lrf = null;
-  if (hasCustom) {
-    const n = Number(customRaw);
-    if (!Number.isFinite(n) || n <= 0 || n >= 1) { toast('Custom LRF must be a number between 0 and 1.', 'warn'); return; }
-    lrf = n;
-  } else {
-    if (!presetId) { toast('Select a preset or enter a custom LRF.', 'warn'); return; }
-    const preset = lrfPresets.find(p => p.id === presetId);
-    if (!preset) { toast('Invalid preset selected.', 'warn'); return; }
-    lrf = Number(preset.lrf);
-  }
-
-  const n = selectedAssets.size;
-  selectedAssets.forEach(id => {
-    const a = assets.find(x => x.id === id);
-    if (a) { a.lrf = lrf; a.updatedAt = new Date().toISOString(); }
-  });
-  saveAll();
-  closeBulkLRF();
-  toast(`LRF updated for ${n} asset(s).`, 'success');
-  selectedAssets.clear();
-  updateBulkBar();
-  renderAdminAssets();
-}
 
 async function bulkDelete() {
   if (!selectedAssets.size) return;
@@ -4462,13 +4159,13 @@ async function bulkDelete() {
 
 // ── Sample CSV ────────────────────────────────────────────────────────
 function downloadSampleCSV() {
-  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes','Renewal Date'];
+  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes','Renewal Date'];
   const rows = [
-    ['Forklift #1','SN-10001','Toyota','8FGU25','2022','Heavy Equipment','Dallas','On Lease','45000','0.0185','','Toyota Industries','2023-01-15','2023-02-01','2025-01-31','Annual inspection due Jan 2025','2026-01-01'],
-    ['Scissor Lift #2','SN-10002','JLG','2030ES','2021','Aerial Work Platform','Houston','On Lease','32000','0.0200','','JLG Industries','2022-06-10','2022-07-01','2024-06-30','','2025-07-01'],
-    ['Generator 50kW','SN-10003','Generac','XD5000E','2020','Power Equipment','Pool','Available','18500','0.0175','','Generac','2023-03-20','','','Backup unit',''],
-    ['Compactor Roller','SN-10004','Bomag','BW120AD-5','2019','Compaction','Austin','On Lease','67000','0.0190','','Bomag','2021-11-01','2022-01-01','2024-12-31','Recent service completed','2025-12-01'],
-    ['Air Compressor','SN-10005','Atlas Copco','GA15','2023','Pneumatic Equipment','Pool','Available','9800','0.0165','','Atlas Copco','2023-08-05','','','',''],
+    ['Forklift #1','SN-10001','Toyota','8FGU25','2022','Heavy Equipment','Dallas','On Lease','45000','832.50','Toyota Industries','2023-01-15','2023-02-01','2025-01-31','Annual inspection due Jan 2025','2026-01-01'],
+    ['Scissor Lift #2','SN-10002','JLG','2030ES','2021','Aerial Work Platform','Houston','On Lease','32000','640.00','JLG Industries','2022-06-10','2022-07-01','2024-06-30','','2025-07-01'],
+    ['Generator 50kW','SN-10003','Generac','XD5000E','2020','Power Equipment','Pool','Available','18500','','Generac','2023-03-20','','','Backup unit',''],
+    ['Compactor Roller','SN-10004','Bomag','BW120AD-5','2019','Compaction','Austin','On Lease','67000','1273.00','Bomag','2021-11-01','2022-01-01','2024-12-31','Recent service completed','2025-12-01'],
+    ['Air Compressor','SN-10005','Atlas Copco','GA15','2023','Pneumatic Equipment','Pool','Available','9800','','Atlas Copco','2023-08-05','','','',''],
   ];
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -4585,7 +4282,7 @@ function renderDashboard() {
   const totalAssets  = assets.length;
   const onLease      = assets.filter(a => a.branch).length;
   const inPool       = assets.filter(a => !a.branch).length;
-  const totalMonthly = assets.filter(a => a.branch).reduce((s,a) => s + (monthlyPayment(a.cost,a.lrf)||0), 0);
+  const totalMonthly = assets.filter(a => a.branch).reduce((s,a) => s + (getMonthly(a)||0), 0);
 
   $('dashStats').innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Assets</div><div class="stat-value c-blue">${totalAssets}</div></div>
@@ -4600,7 +4297,7 @@ function renderDashboard() {
   } else {
     tbody.innerHTML = branches.map(b => {
       const bAssets  = assets.filter(a => a.branch === b.name);
-      const bMonthly = bAssets.reduce((s,a) => s + (monthlyPayment(a.cost,a.lrf)||0), 0);
+      const bMonthly = bAssets.reduce((s,a) => s + (getMonthly(a)||0), 0);
       const bPending = requests.filter(r => r.branchName === b.name && r.status === 'pending').length;
       return `<tr>
         <td data-label="Branch"><strong>${esc(b.name)}</strong></td>
@@ -4736,7 +4433,7 @@ function toast(msg, type='success') {
 }
 
 // ── Close overlays on backdrop click ─────────────────────────────────
-['assetFormOverlay','reassignOverlay','requestOverlay','approveAssetOverlay','simpleApproveOverlay','editBranchOverlay','filesOverlay','branchFilesOverlay','inspectionOverlay','bulkReassignOverlay','bulkCategoryOverlay','bulkLRFOverlay','verifyPwOverlay'].forEach(id => {
+['assetFormOverlay','reassignOverlay','requestOverlay','approveAssetOverlay','simpleApproveOverlay','editBranchOverlay','filesOverlay','branchFilesOverlay','inspectionOverlay','bulkReassignOverlay','bulkCategoryOverlay','verifyPwOverlay'].forEach(id => {
   $(id).addEventListener('click', e => { if (e.target === $(id)) $(id).classList.remove('open'); });
 });
 
