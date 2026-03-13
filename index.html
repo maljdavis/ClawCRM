@@ -599,52 +599,8 @@
 
     <!-- INVOICE PANEL -->
     <div class="bpanel" id="bpanel-invoice">
-      <div id="invoiceContainer" style="max-width:800px;margin:0 auto;">
-        <div id="invoiceContent" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;margin-top:8px;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
-            <div>
-              <h2 style="margin:0;font-size:1.4rem;font-weight:700;color:var(--text);">Goodhouse Equipment Co.</h2>
-              <p style="margin:4px 0 0;font-size:.85rem;color:var(--text-muted);">Monthly Equipment Lease Invoice</p>
-            </div>
-            <div style="text-align:right;">
-              <div style="font-size:.85rem;color:var(--text-muted);" id="invoiceDate"></div>
-              <div style="font-size:.85rem;color:var(--text-muted);margin-top:2px;" id="invoiceNumber"></div>
-            </div>
-          </div>
-          <div style="border-top:2px solid var(--accent);margin-bottom:20px;"></div>
-          <div style="margin-bottom:20px;">
-            <div style="font-size:.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Bill To</div>
-            <div style="font-size:1rem;font-weight:600;" id="invoiceBranch"></div>
-          </div>
-          <div class="table-wrap" style="margin-bottom:20px;">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:28%">Asset</th>
-                  <th style="width:14%">Serial #</th>
-                  <th style="width:18%">Make / Model / Year</th>
-                  <th style="width:12%">Category</th>
-                  <th style="width:14%">Lease Period</th>
-                  <th style="width:14%;text-align:right">Monthly Cost</th>
-                </tr>
-              </thead>
-              <tbody id="invoiceTableBody"></tbody>
-              <tfoot>
-                <tr style="font-weight:700;font-size:1.05rem;border-top:2px solid var(--border);">
-                  <td colspan="5" style="text-align:right;padding-right:12px;">Total Due</td>
-                  <td style="text-align:right;color:var(--success);" id="invoiceTotal"></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;border-top:1px solid var(--border);padding-top:14px;">
-            Payment is due upon receipt. For questions regarding this invoice, please contact Goodhouse Equipment Co.
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;" class="no-print">
-          <button class="btn btn-ghost btn-sm" onclick="printInvoice()">&#128438; Print / PDF</button>
-        </div>
-      </div>
+      <div id="branchInvoiceList"></div>
+      <div id="branchInvoiceDetail" style="display:none;max-width:800px;margin:0 auto;"></div>
     </div>
   </div>
 </div>
@@ -668,6 +624,7 @@
         <button class="tab-btn" id="tab-forsale"   onclick="setAdminTab('forsale')">For Sale</button>
         <button class="tab-btn" id="tab-branches"  onclick="setAdminTab('branches')">Branches</button>
         <button class="tab-btn" id="tab-inspections" onclick="setAdminTab('inspections')">Inspections</button>
+        <button class="tab-btn" id="tab-invoicing" onclick="setAdminTab('invoicing')">Invoicing</button>
         <button class="tab-btn" id="tab-activity"  onclick="setAdminTab('activity')">Activity</button>
       </nav>
     </div>
@@ -895,6 +852,41 @@
     </div>
 
     <!-- ACTIVITY TAB -->
+    <div class="tab-panel" id="panel-invoicing">
+      <div class="section-hdr">
+        <div><h2>Monthly Invoicing</h2><p>Generate and push invoices to branches</p></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+        <select id="invoiceBranchSelect" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:.85rem;min-width:200px;">
+          <option value="">-- Select Branch --</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="previewAdminInvoice()">Preview Invoice</button>
+        <button class="btn btn-sm" style="background:var(--success);color:#fff;" onclick="pushInvoice()" id="pushInvoiceBtn" disabled>Push Invoice to Branch</button>
+        <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="pushAllInvoices()">Push All Branches</button>
+      </div>
+      <div id="adminInvoicePreview" style="max-width:800px;"></div>
+      <div class="section-hdr" style="margin-top:28px;">
+        <div><h2>Sent Invoices</h2><p>History of pushed invoices</p></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:14%">Invoice #</th>
+              <th style="width:16%">Branch</th>
+              <th style="width:14%">Period</th>
+              <th style="width:8%">Assets</th>
+              <th style="width:14%;text-align:right">Total</th>
+              <th style="width:14%">Sent Date</th>
+              <th style="width:auto"></th>
+            </tr>
+          </thead>
+          <tbody id="sentInvoicesBody"></tbody>
+        </table>
+        <div class="empty" id="sentInvoicesEmpty" style="display:none"><div class="icon">📄</div><p>No invoices sent yet.</p></div>
+      </div>
+    </div>
+
     <div class="tab-panel" id="panel-activity">
       <div class="section-hdr">
         <div><h2>Activity Log</h2><p>Record of admin actions</p></div>
@@ -1315,6 +1307,7 @@ const ADMIN_KEY       = 'assetTracker_admin';
 const TELEM_KEY       = 'assetTracker_telematics';
 const FILES_KEY_PREFIX = 'assetTracker_files_';
 const SALES_KEY = 'assetTracker_sales';
+const INVOICES_KEY = 'assetTracker_invoices';
 
 function loadAssetFiles(id) {
   try { return JSON.parse(localStorage.getItem(FILES_KEY_PREFIX + id) || '[]'); } catch { return []; }
@@ -1479,6 +1472,7 @@ let assets       = JSON.parse(localStorage.getItem(ASSETS_KEY)   || '[]').map(a 
 let branches     = JSON.parse(localStorage.getItem(BRANCHES_KEY) || '[]');
 let requests     = JSON.parse(localStorage.getItem(REQUESTS_KEY) || '[]');
 let saleListings = JSON.parse(localStorage.getItem(SALES_KEY) || '[]');
+let invoices     = JSON.parse(localStorage.getItem(INVOICES_KEY) || '[]');
 let adminPw      = localStorage.getItem(ADMIN_KEY) || 'admin';
 let telematicsUrl = localStorage.getItem(TELEM_KEY) || '';
 
@@ -1506,6 +1500,7 @@ function saveAllLocal() {
   try { localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches)); } catch(e) {}
   try { localStorage.setItem(REQUESTS_KEY, JSON.stringify(requests)); } catch(e) {}
   try { localStorage.setItem(SALES_KEY, JSON.stringify(saleListings)); } catch(e) {}
+  try { localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices)); } catch(e) {}
   assets.forEach(a => saveAssetFiles(a.id, a.files));
 }
 function saveAll() {
@@ -1683,6 +1678,12 @@ async function liveSync() {
 
 
       await supa.from('settings').upsert([{ key: 'telematics_url', value: telematicsUrl || '' }], { onConflict: 'key' });
+
+      // Sync invoices
+      if (invoices.length) {
+        const invRows = invoices.map(inv => ({ id: inv.id, branch: inv.branch, period: inv.period, items: JSON.stringify(inv.items), total: inv.total, asset_count: inv.assetCount, sent_at: inv.sentAt }));
+        await supa.from('invoices').upsert(invRows, { onConflict: 'id' }).catch(e => console.warn('Invoice sync (table may not exist yet):', e));
+      }
 
       // Admin sale listing changes go through direct .update()/.upsert() calls in each action
       // function to avoid overwriting branch changes with stale in-memory data.
@@ -1987,14 +1988,19 @@ async function loadLiveData() {
   let saleQ = supa.from('sale_listings').select('*');
   if (!isAdmin && currentProfile?.branchName) saleQ = saleQ.eq('branch', currentProfile.branchName);
 
+  // Invoice query
+  let invQ = supa.from('invoices').select('*');
+  if (!isAdmin && currentProfile?.branchName) invQ = invQ.eq('branch', currentProfile.branchName);
+
   // Fire all queries in parallel
-  const [setRes, brRes, aRes, fcRes, rRes, saleRes] = await Promise.all([
+  const [setRes, brRes, aRes, fcRes, rRes, saleRes, invRes] = await Promise.all([
     supa.from('settings').select('key,value').eq('key', 'telematics_url').maybeSingle(),
     supa.from('branches').select('name').order('name'),
     assetQ,
     supa.from('asset_files').select('asset_id'),
     reqQ,
     saleQ,
+    invQ.catch(() => ({ data: null, error: true })),
   ]);
 
   // Settings
@@ -2081,6 +2087,20 @@ async function loadLiveData() {
     try { localStorage.setItem(SALES_KEY, JSON.stringify(saleListings)); } catch(e) {} // keep localStorage in sync without triggering a write-back
   }
 
+  // Invoices
+  if (invRes && !invRes.error && Array.isArray(invRes.data)) {
+    invoices = invRes.data.map(inv => ({
+      id: inv.id,
+      branch: inv.branch,
+      period: inv.period,
+      items: typeof inv.items === 'string' ? JSON.parse(inv.items) : (inv.items || []),
+      total: inv.total,
+      assetCount: inv.asset_count,
+      sentAt: inv.sent_at,
+    }));
+    try { localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices)); } catch(e) {}
+  }
+
   applyLiveAdminUI();
   if (isAdmin) updatePendingBadge();
 }
@@ -2098,6 +2118,7 @@ async function refreshLiveData() {
     if (adminTab === 'forsale')    { populateAdminSaleBranchFilter(); renderAdminForSaleTab(); updatePendingBadge(); }
     if (adminTab === 'branches')    { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; }
     if (adminTab === 'inspections') loadAdminInspections();
+    if (adminTab === 'invoicing')   { populateInvoiceBranchSelect(); renderSentInvoices(); }
     if (adminTab === 'activity')    loadActivityLog();
   } else {
     checkRequestNotifications();
@@ -2105,6 +2126,7 @@ async function refreshLiveData() {
     renderBranchAssets();
     renderMyRequests();
     if (currentBranchTab === 'forsale') renderForSaleTab();
+    if (currentBranchTab === 'invoice') renderBranchInvoices();
   }
 }
 
@@ -2138,7 +2160,7 @@ function showAdminView() {
 // ── Admin Tabs ────────────────────────────────────────────────────────
 function setAdminTab(tab) {
   adminTab = tab;
-  ['dashboard','assets','requests','forsale','branches','inspections','activity'].forEach(t => {
+  ['dashboard','assets','requests','forsale','branches','inspections','invoicing','activity'].forEach(t => {
     $('tab-' + t).classList.toggle('active', t === tab);
     $('panel-' + t).classList.toggle('active', t === tab);
   });
@@ -2148,6 +2170,7 @@ function setAdminTab(tab) {
   if (tab === 'forsale')      { reloadSaleListings(); populateAdminSaleBranchFilter(); renderAdminForSaleTab(); updatePendingBadge(); }
   if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; }
   if (tab === 'inspections')  loadAdminInspections();
+  if (tab === 'invoicing')    { populateInvoiceBranchSelect(); renderSentInvoices(); }
   if (tab === 'activity')     loadActivityLog();
   updatePendingBadge();
 }
@@ -2205,7 +2228,7 @@ function setBranchTab(tab) {
   });
   if (tab === 'assets') { renderBranchAssets(); renderMyRequests(); }
   if (tab === 'forsale') { reloadSaleListings(); renderForSaleTab(); }
-  if (tab === 'invoice') { renderInvoice(); }
+  if (tab === 'invoice') { renderBranchInvoices(); }
 }
 
 // ── For Sale ──────────────────────────────────────────────────────────
@@ -2892,48 +2915,227 @@ function renderBranchAssets() {
   }).join('');
 }
 
-// ── Invoice ──────────────────────────────────────────────────────────
-function renderInvoice() {
-  const mine = branchAssets();
+// ── Invoicing ────────────────────────────────────────────────────────
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function saveInvoices() {
+  localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices));
+}
+
+function invoiceId(branch, date) {
+  const d = date || new Date();
+  return 'INV-' + branch.replace(/[^A-Za-z0-9]/g,'').substring(0,8).toUpperCase() + '-' + d.getFullYear() + String(d.getMonth()+1).padStart(2,'0');
+}
+
+function buildInvoiceHTML(inv) {
+  const rows = (inv.items || []).map(it => `<tr>
+    <td data-label="Asset"><strong>${esc(it.name)}</strong></td>
+    <td data-label="Serial">${esc(it.serial||'—')}</td>
+    <td data-label="Make/Model">${esc(it.makeModelYear||'—')}</td>
+    <td data-label="Category">${esc(it.category||'—')}</td>
+    <td data-label="Lease Period">${esc(it.period||'—')}</td>
+    <td data-label="Monthly Cost" style="text-align:right;font-weight:600;color:var(--success)">${it.monthly > 0 ? fmt$(it.monthly) : '—'}</td>
+  </tr>`).join('');
+  return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;" class="invoice-printable">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
+      <div>
+        <h2 style="margin:0;font-size:1.4rem;font-weight:700;color:var(--text);">Goodhouse Equipment Co.</h2>
+        <p style="margin:4px 0 0;font-size:.85rem;color:var(--text-muted);">Monthly Equipment Lease Invoice</p>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:.85rem;color:var(--text-muted);">${esc(inv.period)}</div>
+        <div style="font-size:.85rem;color:var(--text-muted);margin-top:2px;">${esc(inv.id)}</div>
+      </div>
+    </div>
+    <div style="border-top:2px solid var(--accent);margin-bottom:20px;"></div>
+    <div style="margin-bottom:20px;">
+      <div style="font-size:.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Bill To</div>
+      <div style="font-size:1rem;font-weight:600;">${esc(inv.branch)}</div>
+    </div>
+    <div class="table-wrap" style="margin-bottom:20px;">
+      <table>
+        <thead><tr>
+          <th style="width:28%">Asset</th><th style="width:14%">Serial #</th><th style="width:18%">Make / Model / Year</th>
+          <th style="width:12%">Category</th><th style="width:14%">Lease Period</th><th style="width:14%;text-align:right">Monthly Cost</th>
+        </tr></thead>
+        <tbody>${rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">No line items</td></tr>'}</tbody>
+        <tfoot><tr style="font-weight:700;font-size:1.05rem;border-top:2px solid var(--border);">
+          <td colspan="5" style="text-align:right;padding-right:12px;">Total Due</td>
+          <td style="text-align:right;color:var(--success);">${fmt$(inv.total)}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;border-top:1px solid var(--border);padding-top:14px;">
+      Payment is due upon receipt. For questions regarding this invoice, please contact Goodhouse Equipment Co.
+    </div>
+  </div>`;
+}
+
+function generateInvoiceData(branchName) {
   const now = new Date();
-  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const invoiceMonth = monthNames[now.getMonth()] + ' ' + now.getFullYear();
-  const invoiceNum = 'INV-' + currentBranch.replace(/[^A-Za-z0-9]/g,'').substring(0,6).toUpperCase() + '-' + String(now.getFullYear()) + String(now.getMonth()+1).padStart(2,'0');
-
-  $('invoiceDate').textContent = invoiceMonth;
-  $('invoiceNumber').textContent = invoiceNum;
-  $('invoiceBranch').textContent = currentBranch;
-
-  const tbody = $('invoiceTableBody');
-  if (mine.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">No assets currently leased to this branch.</td></tr>';
-    $('invoiceTotal').textContent = fmt$(0);
-    return;
-  }
-
+  const bAssets = assets.filter(a => a.branch === branchName);
   let total = 0;
-  tbody.innerHTML = mine.map(a => {
+  const items = bAssets.map(a => {
     const m = getMonthly(a) || 0;
     total += m;
     const period = a.leaseStart && a.leaseEnd ? fmtDate(a.leaseStart) + ' – ' + fmtDate(a.leaseEnd) : a.leaseStart ? fmtDate(a.leaseStart) + ' – Present' : '—';
-    return `<tr>
-      <td data-label="Asset"><strong>${esc(a.name)}</strong></td>
-      <td data-label="Serial">${esc(a.serial||'—')}</td>
-      <td data-label="Make/Model">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
-      <td data-label="Category">${esc(a.category||'—')}</td>
-      <td data-label="Lease Period">${period}</td>
-      <td data-label="Monthly Cost" style="text-align:right;font-weight:600;color:var(--success)">${m > 0 ? fmt$(m) : '—'}</td>
-    </tr>`;
-  }).join('');
-  $('invoiceTotal').textContent = fmt$(total);
+    return { name: a.name, serial: a.serial || '', makeModelYear: [a.make,a.model,a.year].filter(Boolean).join(' · ') || '', category: a.category || '', period, monthly: m };
+  });
+  return {
+    id: invoiceId(branchName, now),
+    branch: branchName,
+    period: MONTH_NAMES[now.getMonth()] + ' ' + now.getFullYear(),
+    items,
+    total,
+    assetCount: bAssets.length,
+    sentAt: now.toISOString()
+  };
 }
 
-function printInvoice() {
-  const branch = currentBranch || 'Branch';
-  const now = new Date();
-  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  document.getElementById('printTitle').textContent = branch + ' — Monthly Invoice — ' + monthNames[now.getMonth()] + ' ' + now.getFullYear();
-  document.getElementById('printDate').textContent = 'Goodhouse Equipment Co.';
+// ── Admin Invoicing ──
+function populateInvoiceBranchSelect() {
+  const sel = $('invoiceBranchSelect');
+  const val = sel.value;
+  sel.innerHTML = '<option value="">-- Select Branch --</option>' + branches.map(b =>
+    `<option value="${escAttr(b.name)}">${esc(b.name)}</option>`).join('');
+  sel.value = val;
+}
+
+function previewAdminInvoice() {
+  const branch = $('invoiceBranchSelect').value;
+  if (!branch) { toast('Select a branch first.', 'warn'); return; }
+  const inv = generateInvoiceData(branch);
+  $('adminInvoicePreview').innerHTML = buildInvoiceHTML(inv);
+  $('pushInvoiceBtn').disabled = false;
+}
+
+function pushInvoice() {
+  const branch = $('invoiceBranchSelect').value;
+  if (!branch) { toast('Select a branch first.', 'warn'); return; }
+  const inv = generateInvoiceData(branch);
+  const existing = invoices.findIndex(x => x.id === inv.id);
+  if (existing >= 0) invoices[existing] = inv;
+  else invoices.unshift(inv);
+  saveInvoices();
+  saveAll();
+  logAudit('invoice_sent', inv.id, `Invoice pushed to ${branch}: ${fmt$(inv.total)}`);
+  toast(`Invoice ${inv.id} pushed to ${branch}.`, 'success');
+  renderSentInvoices();
+  $('pushInvoiceBtn').disabled = true;
+  $('adminInvoicePreview').innerHTML = '';
+}
+
+function pushAllInvoices() {
+  if (!branches.length) { toast('No branches configured.', 'warn'); return; }
+  const activeBranches = branches.filter(b => assets.some(a => a.branch === b.name));
+  if (!activeBranches.length) { toast('No branches have assets on lease.', 'warn'); return; }
+  if (!confirm(`Push invoices to ${activeBranches.length} branch(es) with active leases?`)) return;
+  let count = 0;
+  activeBranches.forEach(b => {
+    const inv = generateInvoiceData(b.name);
+    const existing = invoices.findIndex(x => x.id === inv.id);
+    if (existing >= 0) invoices[existing] = inv;
+    else invoices.unshift(inv);
+    count++;
+  });
+  saveInvoices();
+  saveAll();
+  logAudit('invoice_sent_bulk', `${count} branches`, `Bulk invoices pushed for ${MONTH_NAMES[new Date().getMonth()]} ${new Date().getFullYear()}`);
+  toast(`Invoices pushed to ${count} branch(es).`, 'success');
+  renderSentInvoices();
+  $('adminInvoicePreview').innerHTML = '';
+}
+
+function renderSentInvoices() {
+  const tbody = $('sentInvoicesBody');
+  const emptyEl = $('sentInvoicesEmpty');
+  if (!invoices.length) {
+    tbody.innerHTML = '';
+    emptyEl.style.display = '';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  tbody.innerHTML = invoices.slice(0, 100).map(inv => `<tr>
+    <td data-label="Invoice #"><strong>${esc(inv.id)}</strong></td>
+    <td data-label="Branch">${esc(inv.branch)}</td>
+    <td data-label="Period">${esc(inv.period)}</td>
+    <td data-label="Assets">${inv.assetCount}</td>
+    <td data-label="Total" style="text-align:right;font-weight:600;color:var(--success)">${fmt$(inv.total)}</td>
+    <td data-label="Sent">${fmtDate(inv.sentAt?.slice(0,10))}</td>
+    <td><button class="btn btn-ghost btn-xs" onclick="viewAdminInvoice('${escAttr(inv.id)}')">View</button>
+        <button class="btn btn-ghost btn-xs" onclick="deleteInvoice('${escAttr(inv.id)}')">Delete</button></td>
+  </tr>`).join('');
+}
+
+function viewAdminInvoice(invId) {
+  const inv = invoices.find(x => x.id === invId);
+  if (!inv) return;
+  $('adminInvoicePreview').innerHTML = buildInvoiceHTML(inv) +
+    `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+      <button class="btn btn-ghost btn-sm" onclick="printInvoiceById('${escAttr(invId)}')">&#128438; Print / PDF</button>
+    </div>`;
+}
+
+function deleteInvoice(invId) {
+  if (!confirm('Delete this invoice?')) return;
+  invoices = invoices.filter(x => x.id !== invId);
+  saveInvoices();
+  renderSentInvoices();
+  $('adminInvoicePreview').innerHTML = '';
+  toast('Invoice deleted.', 'success');
+}
+
+// ── Branch Invoice View ──
+function renderBranchInvoices() {
+  const mine = invoices.filter(inv => inv.branch === currentBranch).sort((a,b) => b.sentAt.localeCompare(a.sentAt));
+  const listEl = $('branchInvoiceList');
+  const detailEl = $('branchInvoiceDetail');
+  detailEl.style.display = 'none';
+
+  if (!mine.length) {
+    listEl.innerHTML = '<div class="empty" style="padding:40px"><div class="icon">📄</div><p>No invoices received yet.</p></div>';
+    return;
+  }
+  listEl.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th style="width:18%">Invoice #</th><th style="width:20%">Period</th><th style="width:10%">Assets</th>
+      <th style="width:18%;text-align:right">Total Due</th><th style="width:16%">Received</th><th style="width:auto"></th>
+    </tr></thead>
+    <tbody>${mine.map(inv => `<tr>
+      <td data-label="Invoice #"><strong>${esc(inv.id)}</strong></td>
+      <td data-label="Period">${esc(inv.period)}</td>
+      <td data-label="Assets">${inv.assetCount}</td>
+      <td data-label="Total" style="text-align:right;font-weight:600;color:var(--success)">${fmt$(inv.total)}</td>
+      <td data-label="Received">${fmtDate(inv.sentAt?.slice(0,10))}</td>
+      <td><button class="btn btn-primary btn-xs" onclick="viewBranchInvoice('${escAttr(inv.id)}')">View / Print</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function viewBranchInvoice(invId) {
+  const inv = invoices.find(x => x.id === invId);
+  if (!inv) return;
+  const detailEl = $('branchInvoiceDetail');
+  $('branchInvoiceList').style.display = 'none';
+  detailEl.style.display = '';
+  detailEl.innerHTML = `<div style="margin-bottom:12px;">
+      <button class="btn btn-ghost btn-sm no-print" onclick="backToBranchInvoices()">&larr; Back to Invoices</button>
+    </div>` + buildInvoiceHTML(inv) +
+    `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;" class="no-print">
+      <button class="btn btn-ghost btn-sm" onclick="printInvoiceById('${escAttr(invId)}')">&#128438; Print / PDF</button>
+    </div>`;
+}
+
+function backToBranchInvoices() {
+  $('branchInvoiceList').style.display = '';
+  $('branchInvoiceDetail').style.display = 'none';
+}
+
+function printInvoiceById(invId) {
+  const inv = invoices.find(x => x.id === invId);
+  if (!inv) return;
+  document.getElementById('printTitle').textContent = inv.branch + ' — Monthly Invoice — ' + inv.period;
+  document.getElementById('printDate').textContent = 'Goodhouse Equipment Co. | ' + inv.id;
   window.print();
 }
 
@@ -3697,7 +3899,7 @@ function importCSV(input) {
       'branch': 'branch', 'location': 'branch',
       'status': 'status',
       'cost': 'cost', 'cost ($)': 'cost', 'price': 'cost', 'value': 'cost', 'equipment cost': 'cost',
-      'monthly': 'monthly', 'monthly ($)': 'monthly', 'monthly lease': 'monthly',
+      'monthly': 'monthly', 'monthly ($)': 'monthly', 'monthly lease': 'monthly', 'monthly cost': 'monthly', 'monthly( $)': 'monthly', 'monthly($)': 'monthly', 'monthly ($ )': 'monthly',
       'vendor': 'vendor', 'supplier': 'vendor',
       'acquired': 'acquired', 'acquired date': 'acquired', 'purchase date': 'acquired',
       'lease start': 'leaseStart', 'start date': 'leaseStart',
@@ -3706,7 +3908,8 @@ function importCSV(input) {
       'renewal date': 'renewal', 'renewal': 'renewal', 'renewal due': 'renewal',
     };
     headerCols.forEach((h, i) => {
-      const key = HEADER_ALIASES[h.replace(/[<>]/g, '').trim().toLowerCase()];
+      const norm = h.replace(/[<>]/g, '').replace(/[\u00A0\u2007\u202F]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+      const key = HEADER_ALIASES[norm];
       if (key && !(key in colMap)) colMap[key] = i;
     });
 
@@ -3869,7 +4072,8 @@ function processAssetRows(rows, replaceAll) {
     'mileage': 'mileage', 'miles': 'mileage', 'odometer': 'mileage', 'mileage/hours': 'mileage', 'hours': 'mileage',
   };
   headerCols.forEach((h, i) => {
-    const key = HEADER_ALIASES[h.replace(/[<>]/g, '').trim().toLowerCase()];
+    const norm = h.replace(/[<>]/g, '').replace(/[\u00A0\u2007\u202F]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+    const key = HEADER_ALIASES[norm];
     if (key && !(key in colMap)) colMap[key] = i;
   });
 
