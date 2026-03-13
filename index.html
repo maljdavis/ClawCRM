@@ -774,96 +774,38 @@
       </div>
 
       <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
-        <div class="section-hdr"><div><h2>Google Sheets Sync</h2><p>Auto-sync assets from your Google Sheet or paste data manually</p></div></div>
-
-        <!-- Mode toggle -->
-        <div style="display:flex;gap:6px;margin-bottom:14px;">
-          <button class="btn btn-sm" id="gsModeUrl" onclick="switchGSMode('url')" style="font-weight:600;">Auto-Sync (URL)</button>
-          <button class="btn btn-ghost btn-sm" id="gsModePaste" onclick="switchGSMode('paste')">Paste Data</button>
+        <div class="section-hdr"><div><h2>Import from Google Sheets</h2><p>Copy from your spreadsheet, paste here &mdash; your data stays private</p></div></div>
+        <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:14px;margin-bottom:14px;font-size:.82rem;line-height:1.6;color:var(--text-muted);">
+          <strong style="color:var(--text)">How to import:</strong> In Google Sheets, select all your data (including the header row), press <kbd style="background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:.78rem">Ctrl+A</kbd> then <kbd style="background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:.78rem">Ctrl+C</kbd>, then paste into the box below.<br>
+          Existing assets with the same serial or name are <strong>updated</strong>, not duplicated. New branches found in the data are auto-created.
         </div>
-
-        <!-- URL-based auto-sync mode (via private Apps Script) -->
-        <div id="gsUrlMode">
-          <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:14px;margin-bottom:14px;font-size:.82rem;line-height:1.7;color:var(--text-muted);">
-            <strong style="color:var(--text)">Private sync &mdash; your sheet is never published.</strong> One-time setup:<br>
-            1. In your Google Sheet, go to <strong>Extensions &rarr; Apps Script</strong><br>
-            2. Delete any code in the editor, paste the script below, then click <strong>Save</strong><br>
-            3. Click <strong>Deploy &rarr; New deployment</strong> &rarr; Type: <strong>Web app</strong> &rarr; Execute as: <strong>Me</strong> &rarr; Who has access: <strong>Anyone</strong> &rarr; <strong>Deploy</strong><br>
-            4. Copy the <strong>Web app URL</strong> and paste it below. Set a secret passphrase in both places.
-          </div>
-          <div style="position:relative;margin-bottom:14px;">
-            <label style="font-size:.78rem;font-weight:600;color:var(--text);display:block;margin-bottom:4px;">Apps Script code (copy this into your sheet):</label>
-            <pre id="gsScriptCode" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-size:.75rem;line-height:1.5;overflow-x:auto;white-space:pre;color:var(--text);margin:0;max-height:180px;overflow-y:auto;">function doGet(e) {
-  var SECRET = 'CHANGE_ME'; // set your secret passphrase
-  if (e.parameter.key !== SECRET)
-    return ContentService.createTextOutput('Unauthorized').setMimeType(ContentService.MimeType.TEXT);
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var data = sheet.getDataRange().getValues();
-  var csv = data.map(function(row) {
-    return row.map(function(cell) {
-      var s = String(cell == null ? '' : cell);
-      if (cell instanceof Date) {
-        s = Utilities.formatDate(cell, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-      }
-      return '"' + s.replace(/"/g, '""') + '"';
-    }).join(',');
-  }).join('\n');
-  return ContentService.createTextOutput(csv).setMimeType(ContentService.MimeType.TEXT);
-}</pre>
-            <button class="btn btn-ghost btn-xs" onclick="copyGSScript()" style="position:absolute;top:4px;right:8px;font-size:.7rem;">Copy</button>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <div class="field">
-              <label>Apps Script Web App URL</label>
-              <input id="gsSheetUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
-            </div>
-            <div class="field">
-              <label>Secret Passphrase</label>
-              <input id="gsSheetKey" type="password" placeholder="Same passphrase you set in the script" />
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
-            <button class="btn btn-primary btn-sm" onclick="fetchGoogleSheet()">Sync Now</button>
-            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;flex:1;">
-              <label style="font-size:.8rem;display:flex;align-items:center;gap:5px;color:var(--text-muted);"><input type="checkbox" id="gsAutoSync" onchange="saveGSheetSettings()" /> Auto-sync on login</label>
-              <label style="font-size:.8rem;display:flex;align-items:center;gap:5px;color:var(--text-muted);"><input type="checkbox" id="gsReplaceOnSync" onchange="saveGSheetSettings()" /> Replace all on sync (vs merge)</label>
-              <div id="gsLastSync" style="font-size:.76rem;color:var(--text-muted);"></div>
-            </div>
-          </div>
-          <div id="gsSyncStatus" style="font-size:.82rem;margin-top:8px;"></div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <button class="btn btn-sm" id="gsTabAssets" onclick="switchGSTab('assets')" style="font-weight:600;">Assets</button>
+          <button class="btn btn-ghost btn-sm" id="gsTabBranches" onclick="switchGSTab('branches')">Branches</button>
+          <button class="btn btn-ghost btn-sm" id="gsTabLRF" onclick="switchGSTab('lrf')">LRF Presets</button>
         </div>
-
-        <!-- Paste mode -->
-        <div id="gsPasteMode" style="display:none;">
-          <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:14px;margin-bottom:14px;font-size:.82rem;line-height:1.6;color:var(--text-muted);">
-            <strong style="color:var(--text)">How it works:</strong> Select your data in Google Sheets (including the header row), press <kbd style="background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:.78rem">Ctrl+C</kbd>, then paste below. Existing records with the same serial/name are updated, not duplicated.
-          </div>
-          <div style="display:flex;gap:6px;margin-bottom:10px;">
-            <button class="btn btn-sm" id="gsTabAssets" onclick="switchGSTab('assets')" style="font-weight:600;">Assets</button>
-            <button class="btn btn-ghost btn-sm" id="gsTabBranches" onclick="switchGSTab('branches')">Branches</button>
-            <button class="btn btn-ghost btn-sm" id="gsTabLRF" onclick="switchGSTab('lrf')">LRF Presets</button>
-          </div>
-          <div id="gsTabContent-assets">
-            <textarea id="gsPasteAssets" rows="6" placeholder="Paste rows from Google Sheets here (header row + data rows)..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
-            <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:8px;">
-              <div id="gsAssetsPreview" style="font-size:.78rem;color:var(--text-muted);"></div>
-              <div style="display:flex;gap:8px;">
-                <label style="font-size:.8rem;display:flex;align-items:center;gap:5px;color:var(--text-muted);"><input type="checkbox" id="gsAssetsReplace" /> Replace all</label>
-                <button class="btn btn-primary btn-sm" onclick="importGSAssets()">Import Assets</button>
-              </div>
+        <div id="gsTabContent-assets">
+          <textarea id="gsPasteAssets" rows="7" oninput="previewGSPaste()" placeholder="Paste your Google Sheets data here...&#10;&#10;Header row is detected automatically. Columns can be in any order.&#10;Recognized: Asset Name, Serial, Make, Model, Year, Category, Branch, Cost, Sales Tax, Buyout &amp; Enhancement, Freight, LRF, HP, Mileage, Vendor, Lease Start, Lease End, Notes..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
+          <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;">
+            <div id="gsAssetsPreview" style="font-size:.78rem;color:var(--text-muted);"></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <label style="font-size:.8rem;display:flex;align-items:center;gap:5px;color:var(--text-muted);"><input type="checkbox" id="gsAssetsReplace" /> Replace all (clear existing first)</label>
+              <button class="btn btn-primary btn-sm" onclick="importGSAssets()">Import Assets</button>
             </div>
           </div>
-          <div id="gsTabContent-branches" style="display:none;">
-            <textarea id="gsPasteBranches" rows="5" placeholder="Paste branch rows here (Branch Name, Password)..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
-            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-              <button class="btn btn-primary btn-sm" onclick="importGSBranches()">Import Branches</button>
-            </div>
+        </div>
+        <div id="gsTabContent-branches" style="display:none;">
+          <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:6px;">Columns: <strong>Branch Name</strong>, <strong>Password</strong> (one row per branch)</div>
+          <textarea id="gsPasteBranches" rows="5" placeholder="Paste branch rows here..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+            <button class="btn btn-primary btn-sm" onclick="importGSBranches()">Import Branches</button>
           </div>
-          <div id="gsTabContent-lrf" style="display:none;">
-            <textarea id="gsPasteLRF" rows="4" placeholder="Paste LRF rows here (Name, LRF)..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
-            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-              <button class="btn btn-primary btn-sm" onclick="importGSLRF()">Import LRF Presets</button>
-            </div>
+        </div>
+        <div id="gsTabContent-lrf" style="display:none;">
+          <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:6px;">Columns: <strong>Name</strong>, <strong>LRF</strong> (up to 3 presets)</div>
+          <textarea id="gsPasteLRF" rows="4" placeholder="Paste LRF preset rows here..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+            <button class="btn btn-primary btn-sm" onclick="importGSLRF()">Import LRF Presets</button>
           </div>
         </div>
       </div>
@@ -2278,7 +2220,6 @@ function showAdminView() {
   tBtn.href = telematicsUrl || '#';
   tBtn.style.display = telematicsUrl ? '' : 'none';
   setAdminTab('dashboard');
-  autoSyncGoogleSheet();
 }
 
 // ── Admin Tabs ────────────────────────────────────────────────────────
@@ -2292,7 +2233,7 @@ function setAdminTab(tab) {
   if (tab === 'assets')       { populateBranchFilter(); renderAdminAssets(); }
   if (tab === 'requests')     { populateReqBranchFilter(); renderRequests(); }
   if (tab === 'forsale')      { reloadSaleListings(); populateAdminSaleBranchFilter(); renderAdminForSaleTab(); updatePendingBadge(); }
-  if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; lrfFieldsDirty = false; renderRatesUI(true); restoreGSheetUI(); }
+  if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; lrfFieldsDirty = false; renderRatesUI(true); }
   if (tab === 'inspections')  loadAdminInspections();
   if (tab === 'activity')     loadActivityLog();
   updatePendingBadge();
@@ -3971,96 +3912,6 @@ function parseCSVRow(row) {
 }
 
 // ── Google Sheets Import ──────────────────────────────────────────────
-const GSHEET_KEY = 'assetTracker_gsheet';
-
-function loadGSheetSettings() {
-  try { return JSON.parse(localStorage.getItem(GSHEET_KEY) || '{}'); } catch { return {}; }
-}
-function saveGSheetSettings() {
-  const settings = loadGSheetSettings();
-  settings.url = ($('gsSheetUrl') ? $('gsSheetUrl').value.trim() : settings.url) || '';
-  settings.key = ($('gsSheetKey') ? $('gsSheetKey').value.trim() : settings.key) || '';
-  settings.autoSync = $('gsAutoSync') ? $('gsAutoSync').checked : !!settings.autoSync;
-  settings.replaceOnSync = $('gsReplaceOnSync') ? $('gsReplaceOnSync').checked : !!settings.replaceOnSync;
-  localStorage.setItem(GSHEET_KEY, JSON.stringify(settings));
-}
-function restoreGSheetUI() {
-  const s = loadGSheetSettings();
-  if ($('gsSheetUrl')) $('gsSheetUrl').value = s.url || '';
-  if ($('gsSheetKey')) $('gsSheetKey').value = s.key || '';
-  if ($('gsAutoSync')) $('gsAutoSync').checked = !!s.autoSync;
-  if ($('gsReplaceOnSync')) $('gsReplaceOnSync').checked = !!s.replaceOnSync;
-  if (s.lastSync) {
-    const el = $('gsLastSync');
-    if (el) el.textContent = 'Last sync: ' + new Date(s.lastSync).toLocaleString();
-  }
-}
-function copyGSScript() {
-  const code = $('gsScriptCode').textContent;
-  navigator.clipboard.writeText(code).then(() => toast('Script copied to clipboard.', 'success'));
-}
-
-function switchGSMode(mode) {
-  const isUrl = mode === 'url';
-  $('gsUrlMode').style.display = isUrl ? '' : 'none';
-  $('gsPasteMode').style.display = isUrl ? 'none' : '';
-  $('gsModeUrl').className = isUrl ? 'btn btn-sm' : 'btn btn-ghost btn-sm';
-  $('gsModeUrl').style.fontWeight = isUrl ? '600' : '';
-  $('gsModePaste').className = isUrl ? 'btn btn-ghost btn-sm' : 'btn btn-sm';
-  $('gsModePaste').style.fontWeight = isUrl ? '' : '600';
-}
-
-async function fetchGoogleSheet(silent) {
-  const settings = loadGSheetSettings();
-  const url = $('gsSheetUrl') ? $('gsSheetUrl').value.trim() : settings.url;
-  const key = $('gsSheetKey') ? $('gsSheetKey').value.trim() : settings.key;
-  if (!url) { if (!silent) toast('Enter your Apps Script web app URL first.', 'warn'); return; }
-  if (!key) { if (!silent) toast('Enter the secret passphrase you set in the script.', 'warn'); return; }
-  const statusEl = $('gsSyncStatus');
-  if (statusEl) statusEl.innerHTML = '<span style="color:var(--accent)">Fetching sheet data...</span>';
-
-  // Save settings before fetch so they persist
-  saveGSheetSettings();
-
-  try {
-    const fetchUrl = url + (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key);
-    const resp = await fetch(fetchUrl, { redirect: 'follow' });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const text = await resp.text();
-    if (text.trim() === 'Unauthorized') throw new Error('Wrong passphrase — check the SECRET in your Apps Script matches');
-    const lines = text.split(/\r?\n/).filter(l => l.trim());
-    if (lines.length < 2) throw new Error('Sheet has no data rows');
-
-    const rows = lines.map(l => parseCSVRow(l).map(c => c.trim()));
-    const replaceAll = $('gsReplaceOnSync') ? $('gsReplaceOnSync').checked : loadGSheetSettings().replaceOnSync;
-
-    // Use the same import logic as paste mode
-    const result = processAssetRows(rows, replaceAll);
-
-    // Save settings with last sync timestamp
-    saveGSheetSettings();
-    const settings = loadGSheetSettings();
-    settings.lastSync = new Date().toISOString();
-    localStorage.setItem(GSHEET_KEY, JSON.stringify(settings));
-    restoreGSheetUI();
-
-    if (statusEl) statusEl.innerHTML = `<span style="color:var(--success)">Synced: ${result.added} added, ${result.updated} updated, ${result.skipped} skipped</span>`;
-    if (!silent) toast(`Sheet synced: ${result.added} added, ${result.updated} updated.`, 'success');
-  } catch (e) {
-    console.error('GSheet fetch error:', e);
-    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
-    if (!silent) toast(`Failed to fetch sheet: ${e.message}`, 'error');
-  }
-}
-
-// Auto-sync on login if enabled
-function autoSyncGoogleSheet() {
-  const s = loadGSheetSettings();
-  if (s.autoSync && s.url) {
-    setTimeout(() => fetchGoogleSheet(true), 2000); // delay slightly after login
-  }
-}
-
 function switchGSTab(tab) {
   ['assets','branches','lrf'].forEach(t => {
     const content = $('gsTabContent-' + t);
@@ -4076,6 +3927,16 @@ function switchGSTab(tab) {
       btn.style.fontWeight = '';
     }
   });
+}
+
+function previewGSPaste() {
+  const text = $('gsPasteAssets').value.trim();
+  const el = $('gsAssetsPreview');
+  if (!text) { el.textContent = ''; return; }
+  const rows = parsePastedRows(text);
+  const dataRows = rows.length > 1 ? rows.length - 1 : 0;
+  el.textContent = dataRows ? `${dataRows} data row${dataRows !== 1 ? 's' : ''} detected (+ header)` : 'No data rows found';
+  el.style.color = dataRows ? 'var(--success)' : 'var(--text-muted)';
 }
 
 function parsePastedRows(text) {
