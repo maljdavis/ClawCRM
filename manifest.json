@@ -1,0 +1,26 @@
+{
+  "name": "Goodhouse Asset Tracker",
+  "short_name": "Goodhouse",
+  "description": "Goodhouse Property Management - Track and manage assets across branches",
+  "start_url": "/Claw/",
+  "scope": "/Claw/",
+  "display": "standalone",
+  "background_color": "#191919",
+  "theme_color": "#191919",
+  "orientation": "any",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -35,7 +35,12 @@ create table if not exists public.assets (
   location      text,
   assigned_to   text,
   cost          numeric,
-  lrf           numeric,
+  monthly       numeric,
+  sales_tax     numeric,
+  buyout_enhancement numeric,
+  freight       numeric,
+  hp            text,
+  mileage       text,
   vendor        text,
   acquired_date text,
   lease_start   text,
@@ -417,10 +422,43 @@ create policy "sale_listings: branch update own"
   using (branch = public.my_branch() or public.is_admin());
 
 -- ══════════════════════════════════════════════════════════
--- SEED: Default LRF presets (optional — app seeds these too)
+-- INVOICES (admin-pushed monthly invoices to branches)
 -- ══════════════════════════════════════════════════════════
-insert into public.lrf_presets (id, name, lrf) values
-  ('p1', 'Standard', 0.0185),
-  ('p2', 'Promo',    0.0200),
-  ('p3', 'Special',  0.0165)
-on conflict (id) do nothing;
+
+create table if not exists public.invoices (
+  id           text primary key,
+  branch       text not null,
+  period       text not null,
+  items        jsonb,
+  total        numeric,
+  asset_count  integer,
+  sent_at      timestamptz default now()
+);
+
+alter table public.invoices enable row level security;
+
+drop policy if exists "invoices: admin all"       on public.invoices;
+drop policy if exists "invoices: branch read own" on public.invoices;
+
+-- Admins can do everything
+create policy "invoices: admin all"
+  on public.invoices for all
+  using (public.is_admin())
+  with check (public.is_admin());
+
+-- Branch users can read their own invoices
+create policy "invoices: branch read own"
+  on public.invoices for select
+  using (branch = public.my_branch() or public.is_admin());
+
+-- ══════════════════════════════════════════════════════════
+-- MIGRATIONS: Add new columns to existing tables
+-- ══════════════════════════════════════════════════════════
+
+-- Add monthly and new financial columns to assets
+alter table public.assets add column if not exists monthly            numeric;
+alter table public.assets add column if not exists sales_tax          numeric;
+alter table public.assets add column if not exists buyout_enhancement numeric;
+alter table public.assets add column if not exists freight            numeric;
+alter table public.assets add column if not exists hp                 text;
+alter table public.assets add column if not exists mileage            text;

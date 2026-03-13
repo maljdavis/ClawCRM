@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ["claude/asset-tracker-software-ufdTh"]
+    branches: ["claude/asset-tracker-software-ufdTh", "claude/dashboard-mobile-webapp-KuhXK"]
   workflow_dispatch:
 
 permissions:

@@ -13,7 +13,11 @@
     # Don't send your Supabase URL to external sites via the Referer header
     Referrer-Policy = "same-origin"
     # Force HTTPS for 1 year
-    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    # Disable unnecessary browser APIs
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+    # Prevent cross-origin resource leaks
+    Cross-Origin-Opener-Policy = "same-origin"
 
 [[redirects]]
   # Send any path to the single HTML file (supports direct URL sharing)

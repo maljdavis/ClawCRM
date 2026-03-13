@@ -3,7 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Asset Tracker</title>
+  <title>Goodhouse Asset Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#191919">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co; img-src 'self' data: blob:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Goodhouse">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -36,8 +47,11 @@
     }
     .h-left  { display: flex; align-items: center; gap: 14px; }
     .h-right { display: flex; align-items: center; gap: 10px; }
-    .logo { font-size: 1.1rem; font-weight: 700; }
+    .logo { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; font-weight: 700; }
     .logo span { color: var(--accent); }
+    .logo-icon { width: 32px; height: 32px; flex-shrink: 0; }
+    .login-logo { width: 72px; height: 72px; margin: 0 auto 12px; display: block; }
+    .company-name { font-size: .75rem; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
     .badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
     .badge-branch  { background: var(--accent); color: #fff; }
     .badge-admin   { background: var(--warning); color: #000; }
@@ -102,14 +116,15 @@
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
 
     /* ── Tables ── */
-    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: auto; margin-bottom: 24px; }
-    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
-    thead th { background: var(--surface2); padding: 12px 16px; text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); white-space: nowrap; cursor: pointer; user-select: none; }
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; table-layout: fixed; }
+    thead th { background: var(--surface2); padding: 12px 16px; text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); white-space: nowrap; cursor: pointer; user-select: none; overflow: hidden; text-overflow: ellipsis; }
     thead th:hover { color: var(--text); }
     tbody tr { border-top: 1px solid var(--border); transition: background .1s; }
     tbody tr:hover { background: var(--surface2); }
-    td { padding: 11px 16px; white-space: nowrap; vertical-align: middle; }
-    .actions { display: flex; gap: 6px; }
+    td { padding: 11px 16px; vertical-align: middle; white-space: normal; word-break: break-word; overflow-wrap: break-word; }
+    .cell-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
     /* ── Empty state ── */
     .empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
@@ -160,7 +175,6 @@
     .field input, .field select, .field textarea { width: 100%; }
     .field textarea { resize: vertical; min-height: 90px; }
     .field .hint { font-size: .75rem; color: var(--text-muted); }
-    .field .lrf-preview { font-size: .75rem; color: var(--success); font-weight: 600; }
     .field input[readonly] { color: var(--success); font-weight: 600; }
 
     /* ── Branch admin list ── */
@@ -194,11 +208,13 @@
     @media print {
       body { background: #fff !important; color: #000 !important; }
       header, .toolbar, .info-banner, #renewalBanner, .req-list, #branchRenewals,
-      .section-hdr, .actions, .toast-container, .overlay, .notif-panel { display: none !important; }
+      .section-hdr, .actions, .toast-container, .overlay, .notif-panel, .no-print, .branch-tabs { display: none !important; }
       .screen { display: block !important; }
       #branchView { display: block !important; }
       #adminView { display: none !important; }
       #loginScreen { display: none !important; }
+      .bpanel { display: none !important; }
+      .bpanel.active { display: block !important; }
       .page { padding: 0 !important; max-width: 100% !important; }
       .table-wrap { border: 1px solid #ccc !important; border-radius: 0 !important; overflow: visible !important; box-shadow: none !important; }
       table { font-size: .8rem !important; }
@@ -259,47 +275,146 @@
     @media (max-width: 640px) {
       .form-grid { grid-template-columns: 1fr; }
       .form-grid .full { grid-column: 1; }
-      .h-right { gap: 6px; }
-      .page { padding: 14px; }
+      .page { padding: 12px; }
 
-      /* Header: shrink logo, hide telematics label text */
-      header { padding: 0 12px; gap: 8px; }
+      /* ── Prevent all horizontal scroll ── */
+      body, html { overflow-x: hidden; }
+
+      /* ── Hide non-essential fields on mobile ── */
+      .mobile-hide { display: none !important; }
+
+      /* ── Header: stack on mobile ── */
+      header { padding: 0 10px; gap: 6px; height: auto; min-height: 56px; flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
+      .h-left { flex-wrap: wrap; gap: 8px; width: 100%; }
+      .h-right { gap: 6px; width: 100%; justify-content: flex-end; }
       .logo { font-size: .95rem; }
+      .logo-icon { width: 26px; height: 26px; }
+      .login-logo { width: 56px; height: 56px; }
       .btn-telematics .telem-label { display: none; }
 
-      /* Admin tab nav: scrollable row */
-      .tab-nav { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
-      .tab-btn { padding: 6px 12px; font-size: .8rem; white-space: nowrap; }
+      /* ── Admin tab nav: horizontal scroll ── */
+      .tab-nav { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; -webkit-overflow-scrolling: touch; width: 100%; scrollbar-width: none; }
+      .tab-nav::-webkit-scrollbar { display: none; }
+      .tab-btn { padding: 6px 12px; font-size: .78rem; white-space: nowrap; flex-shrink: 0; }
 
-      /* Stats: 2 columns on mobile */
-      .stats { grid-template-columns: repeat(2, 1fr); }
+      /* ── Stats: 2 columns ── */
+      .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .stat-card { padding: 12px 14px; }
+      .stat-value { font-size: 1.3rem; }
+      .stat-label { font-size: .7rem; }
 
-      /* Branch view: card layout instead of wide table */
-      #branchView .table-wrap { background: none; border: none; overflow: visible; }
-      #branchView table thead { display: none; }
-      #branchView table, #branchView tbody, #branchView tr, #branchView td { display: block; width: 100%; }
-      #branchView tbody tr {
+      /* ── Shared card layout for all tables on mobile ── */
+      .table-wrap { background: none !important; border: none !important; overflow: visible !important; }
+      table { min-width: 0 !important; }
+      table thead { display: none; }
+      table, tbody, tr, td { display: block; width: 100%; box-sizing: border-box; }
+      tbody tr {
         background: var(--surface); border: 1px solid var(--border);
         border-radius: var(--radius); margin-bottom: 10px; padding: 12px 14px;
+        overflow: hidden;
       }
-      #branchView tbody tr:hover { background: var(--surface2); }
-      #branchView td { padding: 4px 0; border: none; white-space: normal; }
-      #branchView td[data-label]::before {
+      tbody tr:hover { background: var(--surface2); }
+      td { padding: 3px 0; border: none; white-space: normal; word-break: break-word; overflow-wrap: break-word; max-width: 100%; }
+      td[data-label]::before {
         content: attr(data-label);
-        display: inline-block; width: 110px; font-size: .72rem;
+        display: block; font-size: .68rem; margin-bottom: 1px;
         color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; font-weight: 600;
       }
-      #branchView td[data-label=""] { margin-top: 10px; }
-      #branchView td[data-label=""]::before { display: none; }
-      #branchView .actions { flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+      td[data-label=""] { margin-top: 8px; }
+      td[data-label=""]::before { display: none; }
 
-      /* Branch toolbar: stack on mobile */
-      #branchView .toolbar { flex-direction: column; align-items: stretch; }
-      #branchView .toolbar button { width: 100%; }
-      #branchView .search-wrap { min-width: 0; }
+      /* ── Action buttons: grid layout to fit in card ── */
+      .actions { display: grid !important; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 6px; }
+      .actions .btn { width: 100%; text-align: center; white-space: nowrap; font-size: .75rem; }
 
-      /* Bulk bar: wrap */
-      .bulk-bar { flex-wrap: wrap; gap: 6px; }
+      /* ── All toolbars: stack vertically ── */
+      .toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+      .toolbar button, .toolbar select { width: 100%; }
+      .search-wrap { min-width: 0; }
+
+      /* ── Bulk bar: wrap on mobile ── */
+      .bulk-bar { flex-wrap: wrap; gap: 6px; padding: 8px 12px; }
+      .bulk-bar .btn { flex: 1; min-width: 0; font-size: .75rem; padding: 6px 8px; text-align: center; }
+      .bulk-count { width: 100%; text-align: center; }
+
+      /* ── Section headers: stack on mobile ── */
+      .section-hdr { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .section-hdr > div:last-child { width: 100%; }
+      .section-hdr > div:last-child > .toolbar,
+      .section-hdr > div:last-child > div { width: 100%; }
+
+      /* ── Branch tabs: scrollable ── */
+      .branch-tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .branch-tabs::-webkit-scrollbar { display: none; }
+      .btab { padding: 8px 16px; font-size: .85rem; white-space: nowrap; flex-shrink: 0; }
+
+      /* ── Modals: full-width on mobile ── */
+      .overlay { padding: 16px 8px; align-items: flex-start; }
+      .modal { padding: 18px; max-width: 100%; border-radius: 10px; }
+      .modal-sm { max-width: 100%; }
+      .modal-hdr h2 { font-size: 1rem; }
+      .modal-footer { flex-wrap: wrap; }
+      .modal-footer .btn { flex: 1; min-width: 0; text-align: center; }
+
+      /* ── Notification panel: full-width ── */
+      .notif-panel { width: calc(100vw - 24px); right: -8px; max-height: 50vh; }
+
+      /* ── Request cards: stack actions ── */
+      .req-card { grid-template-columns: auto 1fr; gap: 8px; padding: 12px; }
+      .req-actions { flex-direction: row; flex-wrap: wrap; width: 100%; grid-column: 1 / -1; }
+      .req-actions .btn { flex: 1; text-align: center; }
+
+      /* ── Branch admin inline grids: stack ── */
+      #panel-branches div[style*="grid-template-columns:1fr 1fr auto"] {
+        grid-template-columns: 1fr !important;
+      }
+      #panel-branches div[style*="grid-template-columns:1fr 1fr auto"] button {
+        width: 100%;
+      }
+      #panel-branches div[style*="grid-template-columns:1fr 1fr;"] {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* ── Branch row: stack on mobile ── */
+      .branch-row { flex-wrap: wrap; gap: 8px; }
+      .branch-row .bname { width: 100%; }
+      .branch-row .actions, .branch-row .btn { width: 100%; }
+
+      /* ── Expiry items: stack ── */
+      .expiry-item { flex-wrap: wrap; gap: 6px; padding: 10px 12px; font-size: .82rem; }
+
+      /* ── Toast: bottom-center on mobile ── */
+      .toast-container { right: 12px; left: 12px; bottom: 16px; }
+      .toast { max-width: 100%; }
+
+      /* ── Buttons: bigger tap targets ── */
+      .btn { padding: 10px 16px; font-size: .85rem; }
+      .btn-sm { padding: 8px 14px; font-size: .8rem; }
+      .btn-xs { padding: 6px 10px; font-size: .75rem; }
+
+      /* ── Inputs: larger for touch ── */
+      select, input[type=text], input[type=password], input[type=number], input[type=date], input[type=url], textarea {
+        padding: 11px 12px; font-size: 16px; /* 16px prevents iOS zoom */
+      }
+
+      /* ── Info banner ── */
+      .info-banner { font-size: .8rem; padding: 10px 12px; }
+
+      /* ── Login: tighter padding ── */
+      .login-box { padding: 24px 18px; }
+
+      /* ── File chips: wrap better ── */
+      .file-list { gap: 6px; }
+      .file-chip { font-size: .72rem; }
+    }
+
+    /* ── Small phones (< 380px) ── */
+    @media (max-width: 380px) {
+      .stats { grid-template-columns: 1fr; }
+      .stat-card { padding: 10px 12px; }
+      .badge { font-size: .68rem; padding: 2px 8px; }
+      .tab-btn { padding: 5px 10px; font-size: .75rem; }
+      .page { padding: 8px; }
     }
   </style>
 </head>
@@ -308,7 +423,12 @@
 <!-- ══════════════ LOGIN ══════════════ -->
 <div class="screen active" id="loginScreen">
   <div class="login-box">
-    <h1>Asset<span>Track</span></h1>
+    <svg class="login-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M15 95V45c0-2 .8-3.8 2.2-5.2L47.8 9.2c2.4-2.4 6-2.4 8.4 0l26.6 30.6c1.4 1.4 2.2 3.2 2.2 5.2v50c0 3.3-2.7 6-6 6H21c-3.3 0-6-2.7-6-6z" fill="#94A39A" rx="6"/>
+      <path d="M25 58c0 0 10 18 24 18" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
+    </svg>
+    <h1>Goodhouse <span>Asset Tracker</span></h1>
+    <p class="company-name">Goodhouse Property Management</p>
     <p class="login-sub" id="loginSubtitle">Select your location and sign in</p>
     <div class="field" id="loginBranchField" style="margin-bottom:14px;">
       <label>Location / Branch</label>
@@ -332,7 +452,13 @@
 <div class="screen" id="branchView">
   <header>
     <div class="h-left">
-      <div class="logo">Asset<span>Track</span></div>
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15 95V45c0-2 .8-3.8 2.2-5.2L47.8 9.2c2.4-2.4 6-2.4 8.4 0l26.6 30.6c1.4 1.4 2.2 3.2 2.2 5.2v50c0 3.3-2.7 6-6 6H21c-3.3 0-6-2.7-6-6z" fill="#94A39A" rx="6"/>
+          <path d="M25 58c0 0 10 18 24 18" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
+        </svg>
+        Goodhouse <span>Asset Tracker</span>
+      </div>
       <div class="badge badge-branch" id="branchBadge"></div>
     </div>
     <div class="h-right">
@@ -359,6 +485,7 @@
     <div class="branch-tabs">
       <button class="btab active" id="btab-assets"  onclick="setBranchTab('assets')">My Assets</button>
       <button class="btab"        id="btab-forsale" onclick="setBranchTab('forsale')">For Sale</button>
+      <button class="btab"        id="btab-invoice" onclick="setBranchTab('invoice')">Invoice</button>
     </div>
 
     <!-- MY ASSETS PANEL -->
@@ -374,14 +501,13 @@
         <table>
           <thead>
             <tr>
-              <th>Asset Name</th>
-              <th>Category</th>
-              <th>Make / Model / Year</th>
-              <th>Status</th>
-              <th>Monthly Lease</th>
-              <th>Lease End</th>
-              <th>Renewal Due</th>
-              <th></th>
+              <th style="width:24%">Asset Name</th>
+              <th style="width:18%">Make / Model / Year</th>
+              <th style="width:10%">Status</th>
+              <th style="width:10%">Monthly Lease</th>
+              <th style="width:10%">Lease End</th>
+              <th style="width:10%">Renewal Due</th>
+              <th style="width:auto"></th>
             </tr>
           </thead>
           <tbody id="branchTableBody"></tbody>
@@ -426,16 +552,16 @@
         <table>
           <thead>
             <tr>
-              <th>Asset</th>
-              <th>Asking Price</th>
-              <th>Monthly Lease</th>
-              <th>Saves/yr</th>
-              <th>Condition</th>
-              <th>Mileage</th>
-              <th>Notes</th>
-              <th>Listed</th>
-              <th>Status</th>
-              <th></th>
+              <th style="width:20%">Asset</th>
+              <th style="width:10%">Asking Price</th>
+              <th style="width:10%">Monthly Lease</th>
+              <th style="width:10%">Saves/yr</th>
+              <th style="width:9%">Condition</th>
+              <th style="width:8%">Mileage</th>
+              <th style="width:13%">Notes</th>
+              <th style="width:8%">Listed</th>
+              <th style="width:8%">Status</th>
+              <th style="width:auto"></th>
             </tr>
           </thead>
           <tbody id="forSaleTableBody"></tbody>
@@ -454,11 +580,11 @@
         <table>
           <thead>
             <tr>
-              <th>Asset</th>
-              <th>Asking Price</th>
-              <th>Sold Price</th>
-              <th>Monthly Lease (saved)</th>
-              <th>Sold Date</th>
+              <th style="width:30%">Asset</th>
+              <th style="width:15%">Asking Price</th>
+              <th style="width:15%">Sold Price</th>
+              <th style="width:20%">Monthly Lease (saved)</th>
+              <th style="width:20%">Sold Date</th>
             </tr>
           </thead>
           <tbody id="soldTableBody"></tbody>
@@ -469,6 +595,11 @@
         </div>
       </div>
     </div>
+
+    <!-- INVOICE PANEL -->
+    <div class="bpanel" id="bpanel-invoice">
+      <div id="branchInvoiceList"></div>
+    </div>
   </div>
 </div>
 
@@ -476,7 +607,13 @@
 <div class="screen" id="adminView">
   <header>
     <div class="h-left">
-      <div class="logo">Asset<span>Track</span></div>
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15 95V45c0-2 .8-3.8 2.2-5.2L47.8 9.2c2.4-2.4 6-2.4 8.4 0l26.6 30.6c1.4 1.4 2.2 3.2 2.2 5.2v50c0 3.3-2.7 6-6 6H21c-3.3 0-6-2.7-6-6z" fill="#94A39A" rx="6"/>
+          <path d="M25 58c0 0 10 18 24 18" stroke="#fff" stroke-width="7" stroke-linecap="round" fill="none"/>
+        </svg>
+        Goodhouse <span>Asset Tracker</span>
+      </div>
       <div class="badge badge-admin">ADMIN</div>
       <nav class="tab-nav">
         <button class="tab-btn" id="tab-dashboard" onclick="setAdminTab('dashboard')">Dashboard</button>
@@ -485,6 +622,7 @@
         <button class="tab-btn" id="tab-forsale"   onclick="setAdminTab('forsale')">For Sale</button>
         <button class="tab-btn" id="tab-branches"  onclick="setAdminTab('branches')">Branches</button>
         <button class="tab-btn" id="tab-inspections" onclick="setAdminTab('inspections')">Inspections</button>
+        <button class="tab-btn" id="tab-invoicing" onclick="setAdminTab('invoicing')">Invoicing</button>
         <button class="tab-btn" id="tab-activity"  onclick="setAdminTab('activity')">Activity</button>
       </nav>
     </div>
@@ -501,7 +639,7 @@
       <div class="section-hdr"><div><h2>Branch Breakdown</h2></div></div>
       <div class="table-wrap" style="margin-bottom:24px">
         <table>
-          <thead><tr><th>Branch</th><th>Assets On Lease</th><th>Monthly Total</th><th>Pending Requests</th></tr></thead>
+          <thead><tr><th style="width:30%">Branch</th><th style="width:20%">Assets On Lease</th><th style="width:25%">Monthly Total</th><th style="width:25%">Pending Requests</th></tr></thead>
           <tbody id="dashBranchBody"></tbody>
         </table>
       </div>
@@ -534,7 +672,6 @@
         <span class="bulk-count" id="bulkCount">0 selected</span>
         <button class="btn btn-primary btn-sm" onclick="openBulkReassign()">Reassign</button>
         <button class="btn btn-ghost btn-sm" onclick="openBulkCategory()">Set Category</button>
-        <button class="btn btn-ghost btn-sm" onclick="openBulkLRF()">Set LRF</button>
         <button class="btn btn-ghost btn-sm" onclick="exportSelectedCSV()">Export CSV</button>
         <button class="btn btn-danger btn-sm" onclick="bulkDelete()">Delete</button>
         <button class="btn btn-ghost btn-sm" onclick="clearSelection()">Clear selection</button>
@@ -543,15 +680,13 @@
         <table>
           <thead>
             <tr>
-              <th style="width:32px"><input type="checkbox" id="selectAllCb" onchange="toggleSelectAll(this.checked)" /></th>
-              <th onclick="setSort('name')">Asset Name</th>
-              <th onclick="setSort('category')">Category</th>
-              <th>Branch / Status</th>
-              <th onclick="setSort('cost')">Cost</th>
-              <th onclick="setSort('lrf')">LRF</th>
-              <th>Monthly</th>
-              <th>Make / Model / Year</th>
-              <th></th>
+              <th style="width:36px"><input type="checkbox" id="selectAllCb" onchange="toggleSelectAll(this.checked)" /></th>
+              <th style="width:24%" onclick="setSort('name')">Asset Name</th>
+              <th style="width:14%">Branch / Status</th>
+              <th style="width:10%" onclick="setSort('cost')">Cost</th>
+              <th style="width:10%">Monthly</th>
+              <th style="width:18%">Make / Model / Year</th>
+              <th style="width:auto"></th>
             </tr>
           </thead>
           <tbody id="adminTableBody"></tbody>
@@ -609,36 +744,33 @@
         <input id="telematicsUrlInput" type="url" placeholder="https://t3.equipmentshare.com/..." style="width:100%;" oninput="saveTelematicsUrl()" />
       </div>
 
+
       <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
-        <div class="section-hdr"><div><h2>Lease Rate Factors (LRF)</h2><p>3 preset lease rate factors you can assign to assets</p></div></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="field">
-            <label>Preset 1 Name</label>
-            <input id="rateName1" type="text" placeholder="e.g. Standard" />
-          </div>
-          <div class="field">
-            <label>Preset 1 LRF</label>
-            <input id="rateVal1" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0185" />
-          </div>
-          <div class="field">
-            <label>Preset 2 Name</label>
-            <input id="rateName2" type="text" placeholder="e.g. Promo" />
-          </div>
-          <div class="field">
-            <label>Preset 2 LRF</label>
-            <input id="rateVal2" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0200" />
-          </div>
-          <div class="field">
-            <label>Preset 3 Name</label>
-            <input id="rateName3" type="text" placeholder="e.g. Special" />
-          </div>
-          <div class="field">
-            <label>Preset 3 LRF</label>
-            <input id="rateVal3" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0165" />
+        <div class="section-hdr"><div><h2>Import from Google Sheets</h2><p>Copy from your spreadsheet, paste here &mdash; your data stays private</p></div></div>
+        <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:14px;margin-bottom:14px;font-size:.82rem;line-height:1.6;color:var(--text-muted);">
+          <strong style="color:var(--text)">How to import:</strong> In Google Sheets, select all your data (including the header row), press <kbd style="background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:.78rem">Ctrl+A</kbd> then <kbd style="background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:.78rem">Ctrl+C</kbd>, then paste into the box below.<br>
+          Existing assets with the same serial or name are <strong>updated</strong>, not duplicated. New branches found in the data are auto-created.
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <button class="btn btn-sm" id="gsTabAssets" onclick="switchGSTab('assets')" style="font-weight:600;">Assets</button>
+          <button class="btn btn-ghost btn-sm" id="gsTabBranches" onclick="switchGSTab('branches')">Branches</button>
+        </div>
+        <div id="gsTabContent-assets">
+          <textarea id="gsPasteAssets" rows="7" oninput="previewGSPaste()" placeholder="Paste your Google Sheets data here...&#10;&#10;Header row is detected automatically. Columns can be in any order.&#10;Recognized: Asset Name, Serial, Make, Model, Year, Category, Branch, Cost, Sales Tax, Buyout &amp; Enhancement, Freight, Monthly, HP, Mileage, Vendor, Lease Start, Lease End, Notes..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
+          <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;">
+            <div id="gsAssetsPreview" style="font-size:.78rem;color:var(--text-muted);"></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <label style="font-size:.8rem;display:flex;align-items:center;gap:5px;color:var(--text-muted);"><input type="checkbox" id="gsAssetsReplace" /> Replace all (clear existing first)</label>
+              <button class="btn btn-primary btn-sm" onclick="importGSAssets()">Import Assets</button>
+            </div>
           </div>
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-          <button class="btn btn-primary btn-sm" onclick="saveRatesFromUI()">Save LRF Presets</button>
+        <div id="gsTabContent-branches" style="display:none;">
+          <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:6px;">Columns: <strong>Branch Name</strong>, <strong>Password</strong> (one row per branch)</div>
+          <textarea id="gsPasteBranches" rows="5" placeholder="Paste branch rows here..." style="width:100%;font-family:monospace;font-size:.8rem;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--surface);color:var(--text);"></textarea>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+            <button class="btn btn-primary btn-sm" onclick="importGSBranches()">Import Branches</button>
+          </div>
         </div>
       </div>
 
@@ -665,7 +797,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Date</th><th>Asset</th><th>Branch</th><th>File</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th style="width:15%">Date</th><th style="width:22%">Asset</th><th style="width:13%">Branch</th><th style="width:18%">File</th><th style="width:20%">Notes</th><th style="width:auto"></th></tr></thead>
           <tbody id="inspTableBody"></tbody>
         </table>
         <div class="empty" id="inspEmpty" style="display:none"><div class="icon">📋</div><p>No inspections submitted yet.</p></div>
@@ -693,18 +825,18 @@
         <table>
           <thead>
             <tr>
-              <th>Asset</th>
-              <th>Branch</th>
-              <th>Asking Price</th>
-              <th>Sold Price</th>
-              <th>Monthly Lease</th>
-              <th>Saves/yr</th>
-              <th>Condition</th>
-              <th>Mileage</th>
-              <th>Notes</th>
-              <th>Status</th>
-              <th>Date</th>
-              <th></th>
+              <th style="width:14%">Asset</th>
+              <th style="width:8%">Branch</th>
+              <th style="width:8%">Asking</th>
+              <th style="width:8%">Sold</th>
+              <th style="width:8%">Monthly</th>
+              <th style="width:8%">Saves/yr</th>
+              <th style="width:7%">Condition</th>
+              <th style="width:7%">Mileage</th>
+              <th style="width:10%">Notes</th>
+              <th style="width:8%">Status</th>
+              <th style="width:7%">Date</th>
+              <th style="width:auto"></th>
             </tr>
           </thead>
           <tbody id="adminForSaleTableBody"></tbody>
@@ -717,6 +849,41 @@
     </div>
 
     <!-- ACTIVITY TAB -->
+    <div class="tab-panel" id="panel-invoicing">
+      <div class="section-hdr">
+        <div><h2>Monthly Invoicing</h2><p>Generate and push invoices to branches</p></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+        <select id="invoiceBranchSelect" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:.85rem;min-width:200px;">
+          <option value="">-- Select Branch --</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="previewAdminInvoice()">Preview Invoice</button>
+        <button class="btn btn-sm" style="background:var(--success);color:#fff;" onclick="pushInvoice()" id="pushInvoiceBtn" disabled>Push Invoice to Branch</button>
+        <button class="btn btn-sm" style="background:var(--accent);color:#fff;" onclick="pushAllInvoices()">Push All Branches</button>
+      </div>
+      <div id="adminInvoicePreview" style="max-width:800px;"></div>
+      <div class="section-hdr" style="margin-top:28px;">
+        <div><h2>Sent Invoices</h2><p>History of pushed invoices</p></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:14%">Invoice #</th>
+              <th style="width:16%">Branch</th>
+              <th style="width:14%">Period</th>
+              <th style="width:8%">Assets</th>
+              <th style="width:14%;text-align:right">Total</th>
+              <th style="width:14%">Sent Date</th>
+              <th style="width:auto"></th>
+            </tr>
+          </thead>
+          <tbody id="sentInvoicesBody"></tbody>
+        </table>
+        <div class="empty" id="sentInvoicesEmpty" style="display:none"><div class="icon">📄</div><p>No invoices sent yet.</p></div>
+      </div>
+    </div>
+
     <div class="tab-panel" id="panel-activity">
       <div class="section-hdr">
         <div><h2>Activity Log</h2><p>Record of admin actions</p></div>
@@ -724,7 +891,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Time</th><th>Action</th><th>Entity</th><th>Actor</th><th>Details</th></tr></thead>
+          <thead><tr><th style="width:18%">Time</th><th style="width:12%">Action</th><th style="width:22%">Entity</th><th style="width:10%">Actor</th><th style="width:38%">Details</th></tr></thead>
           <tbody id="activityTableBody"></tbody>
         </table>
         <div class="empty" id="activityEmpty" style="display:none"><div class="icon">📋</div><p>No activity recorded yet.</p></div>
@@ -763,19 +930,14 @@
       <div class="field"><label>Year *</label><input id="f-year" type="number" min="1900" max="2099" placeholder="e.g. 2022" /></div>
       <div class="field">
         <label>Equipment Cost ($)</label>
-        <input id="f-cost" type="number" min="0" step="0.01" placeholder="0.00" oninput="updateLRFPreview()" />
+        <input id="f-cost" type="number" min="0" step="0.01" placeholder="0.00" />
       </div>
-      <div class="field">
-        <label>LRF Preset (optional)</label>
-        <select id="f-lrfPreset" onchange="applyPresetToAssetForm(this.value)"></select>
-        <div class="hint">Pick a preset to fill the LRF field automatically.</div>
-      </div>
-      <div class="field">
-        <label>LRF — Lease Rate Factor</label>
-        <input id="f-lrf" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0185" oninput="updateLRFPreview()" />
-        <div class="hint">e.g. 0.0185 = 1.85%</div>
-        <div class="lrf-preview" id="lrfPreview"></div>
-      </div>
+      <div class="field"><label>Sales Tax ($)</label><input id="f-salesTax" type="number" min="0" step="0.01" placeholder="0.00" /></div>
+      <div class="field"><label>Buyout &amp; Enhancement ($)</label><input id="f-buyoutEnhancement" type="number" min="0" step="0.01" placeholder="0.00" /></div>
+      <div class="field"><label>Freight ($)</label><input id="f-freight" type="number" min="0" step="0.01" placeholder="0.00" /></div>
+      <div class="field"><label>Monthly Lease ($)</label><input id="f-monthly" type="number" min="0" step="0.01" placeholder="0.00" /></div>
+      <div class="field"><label>HP (Horsepower)</label><input id="f-hp" type="text" placeholder="e.g. 25" /></div>
+      <div class="field"><label>Mileage / Hours</label><input id="f-mileage" type="text" placeholder="e.g. 1200 hrs" /></div>
       <div class="field"><label>Vendor / Supplier</label><input id="f-vendor" type="text" placeholder="e.g. Caterpillar Inc." /></div>
       <div class="field"><label>Date Acquired</label><input id="f-acquiredDate" type="date" /></div>
       <div class="field"><label>Lease Start</label><input id="f-leaseStart" type="date" /></div>
@@ -1026,30 +1188,6 @@
   </div>
 </div>
 
-<!-- ══════════════ MODAL: BULK SET LRF ══════════════ -->
-<div class="overlay" id="bulkLRFOverlay">
-  <div class="modal modal-sm">
-    <div class="modal-hdr">
-      <h2>Set LRF</h2>
-      <button class="close-btn" onclick="closeBulkLRF()">×</button>
-    </div>
-    <p id="bulkLRFCount" style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;"></p>
-    <div class="field">
-      <label>Choose preset</label>
-      <select id="bulkLRFSelect" style="width:100%;" onchange="onBulkLRFSelectChange(this.value)"></select>
-    </div>
-    <div class="field" style="margin-top:12px;">
-      <label>Custom LRF (optional)</label>
-      <input id="bulkLRFCustom" type="number" min="0" max="1" step="0.0001" placeholder="e.g. 0.0185" />
-      <div class="hint">If you enter a custom value, it overrides the preset.</div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeBulkLRF()">Cancel</button>
-      <button class="btn btn-primary" onclick="confirmBulkLRF()">Apply</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══════════════ MODAL: LIST FOR SALE ══════════════ -->
 <div class="overlay" id="forSaleOverlay">
   <div class="modal modal-sm">
@@ -1140,7 +1278,7 @@
       <div style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:6px" id="bulkSalePreviewHdr"></div>
       <div class="table-wrap" style="max-height:260px;overflow-y:auto">
         <table style="font-size:.82rem">
-          <thead><tr><th>Serial</th><th>Asset Found</th><th>Asking Price</th><th>Condition</th><th>Mileage</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th style="width:15%">Serial</th><th style="width:22%">Asset Found</th><th style="width:13%">Asking Price</th><th style="width:12%">Condition</th><th style="width:10%">Mileage</th><th style="width:20%">Notes</th><th style="width:auto"></th></tr></thead>
           <tbody id="bulkSalePreviewBody"></tbody>
         </table>
       </div>
@@ -1164,9 +1302,9 @@ const BRANCHES_KEY    = 'assetTracker_branches';
 const REQUESTS_KEY    = 'assetTracker_requests';
 const ADMIN_KEY       = 'assetTracker_admin';
 const TELEM_KEY       = 'assetTracker_telematics';
-const RATES_KEY       = 'assetTracker_lrfPresets';
 const FILES_KEY_PREFIX = 'assetTracker_files_';
 const SALES_KEY = 'assetTracker_sales';
+const INVOICES_KEY = 'assetTracker_invoices';
 
 function loadAssetFiles(id) {
   try { return JSON.parse(localStorage.getItem(FILES_KEY_PREFIX + id) || '[]'); } catch { return []; }
@@ -1256,12 +1394,12 @@ async function loadAdminInspections() {
 
     empty.style.display = 'none';
     tbody.innerHTML = signed.map(r => `<tr>
-      <td style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">${new Date(r.uploaded_at).toLocaleString()}</td>
-      <td><strong>${esc(assetMap[r.asset_id] || r.asset_id)}</strong></td>
-      <td><span class="badge badge-branch" style="font-size:.7rem">${esc(r.branch_name)}</span></td>
-      <td><a href="${escAttr(r.url)}" target="_blank" style="color:var(--accent);font-weight:500">${esc(r.name)}</a></td>
-      <td style="color:var(--text-muted);font-size:.85rem">${r.notes ? esc(r.notes) : '—'}</td>
-      <td><button class="btn btn-ghost btn-xs" onclick="openInspectionModal('${escAttr(r.asset_id)}')">View Asset</button></td>
+      <td data-label="Date" style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">${new Date(r.uploaded_at).toLocaleString()}</td>
+      <td data-label="Asset"><strong>${esc(assetMap[r.asset_id] || r.asset_id)}</strong></td>
+      <td data-label="Branch"><span class="badge badge-branch" style="font-size:.7rem">${esc(r.branch_name)}</span></td>
+      <td data-label="File"><a href="${escAttr(r.url)}" target="_blank" style="color:var(--accent);font-weight:500">${esc(r.name)}</a></td>
+      <td data-label="Notes" class="mobile-hide" style="color:var(--text-muted);font-size:.85rem">${r.notes ? esc(r.notes) : '—'}</td>
+      <td data-label=""><button class="btn btn-ghost btn-xs" onclick="openInspectionModal('${escAttr(r.asset_id)}')">View Asset</button></td>
     </tr>`).join('');
   } catch(e) { toast('Could not load inspections: ' + e.message, 'warn'); }
 }
@@ -1331,9 +1469,9 @@ let assets       = JSON.parse(localStorage.getItem(ASSETS_KEY)   || '[]').map(a 
 let branches     = JSON.parse(localStorage.getItem(BRANCHES_KEY) || '[]');
 let requests     = JSON.parse(localStorage.getItem(REQUESTS_KEY) || '[]');
 let saleListings = JSON.parse(localStorage.getItem(SALES_KEY) || '[]');
-let adminPw      = localStorage.getItem(ADMIN_KEY) || 'admin';
+let invoices     = JSON.parse(localStorage.getItem(INVOICES_KEY) || '[]');
+let adminPw      = localStorage.getItem(ADMIN_KEY) || 'ADMIN';
 let telematicsUrl = localStorage.getItem(TELEM_KEY) || '';
-let lrfPresets   = loadLRFPresets();
 
 // ── Session State ─────────────────────────────────────────────────────
 let currentBranch     = null;
@@ -1359,6 +1497,7 @@ function saveAllLocal() {
   try { localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches)); } catch(e) {}
   try { localStorage.setItem(REQUESTS_KEY, JSON.stringify(requests)); } catch(e) {}
   try { localStorage.setItem(SALES_KEY, JSON.stringify(saleListings)); } catch(e) {}
+  try { localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices)); } catch(e) {}
   assets.forEach(a => saveAssetFiles(a.id, a.files));
 }
 function saveAll() {
@@ -1476,7 +1615,12 @@ async function liveSync() {
         branch_name: a.branch || null,
         status: a.status || null,
         cost: (a.cost === '' || a.cost == null) ? null : a.cost,
-        lrf:  (a.lrf  === '' || a.lrf  == null) ? null : a.lrf,
+        monthly: (a.monthly === '' || a.monthly == null) ? null : a.monthly,
+        sales_tax: (a.salesTax === '' || a.salesTax == null) ? null : a.salesTax,
+        buyout_enhancement: (a.buyoutEnhancement === '' || a.buyoutEnhancement == null) ? null : a.buyoutEnhancement,
+        freight: (a.freight === '' || a.freight == null) ? null : a.freight,
+        hp: a.hp || null,
+        mileage: a.mileage || null,
         vendor: a.vendor || null,
         acquired_date: a.acquiredDate || null,
         lease_start:  a.leaseStart  || null,
@@ -1491,7 +1635,7 @@ async function liveSync() {
         if (assetErr) {
           // Any recently-added column may not exist yet if schema.sql hasn't been run.
           // Strip all migrated columns and retry so existing fields always save.
-          const MIGRATED = ['make', 'model', 'year', 'renewal_date'];
+          const MIGRATED = ['make', 'model', 'year', 'renewal_date', 'monthly', 'sales_tax', 'buyout_enhancement', 'freight', 'hp', 'mileage'];
           const isSchemaGap = MIGRATED.some(c => assetErr.message?.includes(c));
           if (isSchemaGap) {
             console.warn('DB schema outdated — run schema.sql in Supabase. Missing:', assetErr.message);
@@ -1534,10 +1678,14 @@ async function liveSync() {
         }
       }
 
-      const presetRows = lrfPresets.map(p => ({ id: p.id, name: p.name, lrf: p.lrf, updated_at: now }));
-      await supa.from('lrf_presets').upsert(presetRows, { onConflict: 'id' });
 
       await supa.from('settings').upsert([{ key: 'telematics_url', value: telematicsUrl || '' }], { onConflict: 'key' });
+
+      // Sync invoices
+      if (invoices.length) {
+        const invRows = invoices.map(inv => ({ id: inv.id, branch: inv.branch, period: inv.period, items: JSON.stringify(inv.items), total: inv.total, asset_count: inv.assetCount, sent_at: inv.sentAt }));
+        await supa.from('invoices').upsert(invRows, { onConflict: 'id' }).catch(e => console.warn('Invoice sync (table may not exist yet):', e));
+      }
 
       // Admin sale listing changes go through direct .update()/.upsert() calls in each action
       // function to avoid overwriting branch changes with stale in-memory data.
@@ -1588,57 +1736,14 @@ async function liveSync() {
   }
 }
 
-function defaultLRFPresets() {
-  return [
-    { id: 'p1', name: 'Standard', lrf: 0.0185 },
-    { id: 'p2', name: 'Promo',    lrf: 0.0200 },
-    { id: 'p3', name: 'Special',  lrf: 0.0165 },
-  ];
-}
-
-function normalizeLRFPresets(value) {
-  const defaults = defaultLRFPresets();
-  const list = Array.isArray(value) ? value : [];
-  return defaults.map((d, i) => {
-    const src = list[i] || {};
-    const name = String(src.name ?? d.name).trim() || d.name;
-    const lrfNum = Number(src.lrf);
-    const lrf = Number.isFinite(lrfNum) ? lrfNum : d.lrf;
-    return { id: d.id, name, lrf };
-  });
-}
-
-function loadLRFPresets() {
-  try {
-    const raw = localStorage.getItem(RATES_KEY);
-    if (!raw) {
-      const defaults = defaultLRFPresets();
-      localStorage.setItem(RATES_KEY, JSON.stringify(defaults));
-      return defaults;
-    }
-    const parsed = JSON.parse(raw);
-    const normalized = normalizeLRFPresets(parsed);
-    localStorage.setItem(RATES_KEY, JSON.stringify(normalized));
-    return normalized;
-  } catch {
-    const defaults = defaultLRFPresets();
-    localStorage.setItem(RATES_KEY, JSON.stringify(defaults));
-    return defaults;
-  }
-}
-
-function saveLRFPresets(presets) {
-  lrfPresets = normalizeLRFPresets(presets);
-  localStorage.setItem(RATES_KEY, JSON.stringify(lrfPresets));
-  populateLRFPresetSelects();
-  queueLiveSync();
-}
-
 // ── First run ─────────────────────────────────────────────────────────
 if (!isLiveConfigured() && branches.length === 0) {
-  branches = [{ name: 'Main', password: 'main' }];
+  branches = [{ name: 'Main', password: 'ADMIN' }];
   localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
 }
+
+// Ensure admin password is set
+if (!localStorage.getItem(ADMIN_KEY)) { adminPw = 'ADMIN'; localStorage.setItem(ADMIN_KEY, adminPw); }
 
 // Migrate old assets that had no branch field: put them in pool
 assets.forEach(a => { if (a.branch === undefined) a.branch = null; });
@@ -1659,8 +1764,42 @@ function branchToEmail(name) {
   return name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '') + '@claw.internal';
 }
 
+// ── Rate Limiting ──
+const loginAttempts = { count: 0, lockUntil: 0 };
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MS = 60000; // 1 minute lockout
+
+function checkRateLimit() {
+  if (Date.now() < loginAttempts.lockUntil) {
+    const secs = Math.ceil((loginAttempts.lockUntil - Date.now()) / 1000);
+    $('loginError').textContent = `Too many attempts. Try again in ${secs}s.`;
+    $('loginError').style.display = 'block';
+    return false;
+  }
+  if (loginAttempts.count >= MAX_LOGIN_ATTEMPTS) {
+    loginAttempts.lockUntil = Date.now() + LOCKOUT_MS;
+    loginAttempts.count = 0;
+    const secs = Math.ceil(LOCKOUT_MS / 1000);
+    $('loginError').textContent = `Too many attempts. Try again in ${secs}s.`;
+    $('loginError').style.display = 'block';
+    return false;
+  }
+  return true;
+}
+
+function recordFailedLogin() {
+  loginAttempts.count++;
+}
+
+function resetLoginAttempts() {
+  loginAttempts.count = 0;
+  loginAttempts.lockUntil = 0;
+}
+
 async function doLogin() {
+  $('loginError').textContent = 'Incorrect password. Try again.';
   $('loginError').style.display = 'none';
+  if (!checkRateLimit()) return;
   if (isLiveConfigured()) return doLiveLogin();
   return doLocalLogin();
 }
@@ -1668,11 +1807,18 @@ async function doLogin() {
 function doLocalLogin() {
   const name = $('loginBranch').value;
   const pw   = $('loginPw').value;
+  if (name === '__admin__') {
+    if (pw === adminPw) { resetLoginAttempts(); isAdmin = true; currentBranch = null; showAdminView(); }
+    else { recordFailedLogin(); $('loginError').style.display = 'block'; }
+    return;
+  }
   const branch = branches.find(b => b.name === name);
   if (branch && branch.password === pw) {
+    resetLoginAttempts();
     currentBranch = name; isAdmin = false;
     showBranchView();
   } else {
+    recordFailedLogin();
     $('loginError').style.display = 'block';
   }
 }
@@ -1686,11 +1832,18 @@ async function doLiveLogin() {
       : branchToEmail(selectedBranch);
     const pw = $('loginPw').value;
     const { error } = await supa.auth.signInWithPassword({ email, password: pw });
-    if (error) { $('loginError').style.display = 'block'; return; }
+    if (error) {
+      // Fall back to local login if Supabase auth fails
+      console.warn('Supabase auth failed, trying local login:', error.message);
+      doLocalLogin();
+      return;
+    }
+    resetLoginAttempts();
     await afterLiveAuth();
   } catch (e) {
     console.error(e);
-    $('loginError').style.display = 'block';
+    // Fall back to local login
+    doLocalLogin();
   }
 }
 
@@ -1700,7 +1853,9 @@ async function loadBranchesForLogin() {
   try {
     const { data } = await supa.from('branches').select('name').order('name');
     if (data && data.length) {
-      branches = data.map(r => ({ name: r.name, password: '—' }));
+      const oldPws = {};
+      branches.forEach(b => { oldPws[b.name] = b.password; });
+      branches = data.map(r => ({ name: r.name, password: oldPws[r.name] || 'ADMIN' }));
       localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
     }
   } catch(e) { /* fall back to cached branches */ }
@@ -1709,10 +1864,11 @@ async function loadBranchesForLogin() {
 
 function adminLogin() {
   if (isLiveConfigured()) return;
+  if (!checkRateLimit()) return;
   const pw = prompt('Enter admin password:');
   if (pw === null) return;
-  if (pw === adminPw) { isAdmin = true; currentBranch = null; showAdminView(); }
-  else alert('Incorrect admin password.');
+  if (pw === adminPw) { resetLoginAttempts(); isAdmin = true; currentBranch = null; showAdminView(); }
+  else { recordFailedLogin(); alert('Incorrect admin password.'); }
 }
 
 function navigateToAsset(id) {
@@ -1739,7 +1895,7 @@ function printView() {
 }
 
 async function logout() {
-  if (!confirm('Log out of Asset Tracker?')) return;
+  if (!confirm('Log out of Goodhouse Asset Tracker?')) return;
   currentBranch = null; isAdmin = false;
   liveReady = false;
   currentProfile = null;
@@ -1763,6 +1919,23 @@ async function logout() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && $('loginScreen').classList.contains('active')) doLogin();
 });
+
+// ── Session Timeout (auto-logout after inactivity) ──
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+let sessionTimer = null;
+function resetSessionTimer() {
+  if (sessionTimer) clearTimeout(sessionTimer);
+  if (!currentBranch && !isAdmin) return;
+  sessionTimer = setTimeout(() => {
+    if (currentBranch || isAdmin) {
+      toast('Session expired due to inactivity.', 'warn');
+      logout();
+    }
+  }, SESSION_TIMEOUT_MS);
+}
+['click', 'keydown', 'scroll', 'touchstart'].forEach(evt =>
+  document.addEventListener(evt, resetSessionTimer, { passive: true })
+);
 
 async function initApp() {
   applyLoginModeUI();
@@ -1832,34 +2005,29 @@ async function loadLiveData() {
   let saleQ = supa.from('sale_listings').select('*');
   if (!isAdmin && currentProfile?.branchName) saleQ = saleQ.eq('branch', currentProfile.branchName);
 
+  // Invoice query
+  let invQ = supa.from('invoices').select('*');
+  if (!isAdmin && currentProfile?.branchName) invQ = invQ.eq('branch', currentProfile.branchName);
+
   // Fire all queries in parallel
-  const [setRes, ratesRes, brRes, aRes, fcRes, rRes, saleRes] = await Promise.all([
+  const [setRes, brRes, aRes, fcRes, rRes, saleRes, invRes] = await Promise.all([
     supa.from('settings').select('key,value').eq('key', 'telematics_url').maybeSingle(),
-    supa.from('lrf_presets').select('id,name,lrf').order('id'),
     supa.from('branches').select('name').order('name'),
     assetQ,
     supa.from('asset_files').select('asset_id'),
     reqQ,
     saleQ,
+    invQ.catch(() => ({ data: null, error: true })),
   ]);
 
   // Settings
   if (!setRes.error && setRes.data) telematicsUrl = setRes.data.value || '';
 
-  // LRF presets
-  if (!ratesRes.error && Array.isArray(ratesRes.data) && ratesRes.data.length) {
-    lrfPresets = normalizeLRFPresets(ratesRes.data.map(r => ({ id: r.id, name: r.name, lrf: r.lrf })));
-  } else if (isAdmin) {
-    // Seed defaults once for admin.
-    const now = new Date().toISOString();
-    const defaults = defaultLRFPresets();
-    await supa.from('lrf_presets').upsert(defaults.map(p => ({ id: p.id, name: p.name, lrf: p.lrf, updated_at: now })), { onConflict: 'id' });
-    lrfPresets = defaults;
-  }
-
   // Branches
   if (!brRes.error && Array.isArray(brRes.data)) {
-    branches = brRes.data.map(b => ({ name: b.name, password: '—' }));
+    const oldPws = {};
+    branches.forEach(b => { oldPws[b.name] = b.password; });
+    branches = brRes.data.map(b => ({ name: b.name, password: oldPws[b.name] || 'ADMIN' }));
   }
 
   // Assets
@@ -1885,7 +2053,12 @@ async function loadLiveData() {
         branch: a.branch_name ?? null,
         status: a.status || (a.branch_name ? 'On Lease' : 'Available'),
         cost: a.cost ?? '',
-        lrf: a.lrf ?? '',
+        monthly: a.monthly ?? '',
+        salesTax: a.sales_tax ?? '',
+        buyoutEnhancement: a.buyout_enhancement ?? '',
+        freight: a.freight ?? '',
+        hp: a.hp || '',
+        mileage: a.mileage || '',
         vendor: a.vendor || '',
         acquiredDate: a.acquired_date || '',
         leaseStart:   a.lease_start   || '',
@@ -1938,8 +2111,21 @@ async function loadLiveData() {
     try { localStorage.setItem(SALES_KEY, JSON.stringify(saleListings)); } catch(e) {} // keep localStorage in sync without triggering a write-back
   }
 
+  // Invoices
+  if (invRes && !invRes.error && Array.isArray(invRes.data)) {
+    invoices = invRes.data.map(inv => ({
+      id: inv.id,
+      branch: inv.branch,
+      period: inv.period,
+      items: typeof inv.items === 'string' ? JSON.parse(inv.items) : (inv.items || []),
+      total: inv.total,
+      assetCount: inv.asset_count,
+      sentAt: inv.sent_at,
+    }));
+    try { localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices)); } catch(e) {}
+  }
+
   applyLiveAdminUI();
-  populateLRFPresetSelects();
   if (isAdmin) updatePendingBadge();
 }
 
@@ -1954,8 +2140,9 @@ async function refreshLiveData() {
     if (adminTab === 'assets')     renderAdminAssets();
     if (adminTab === 'requests')   { populateReqBranchFilter(); renderRequests(); updatePendingBadge(); }
     if (adminTab === 'forsale')    { populateAdminSaleBranchFilter(); renderAdminForSaleTab(); updatePendingBadge(); }
-    if (adminTab === 'branches')    { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
+    if (adminTab === 'branches')    { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; }
     if (adminTab === 'inspections') loadAdminInspections();
+    if (adminTab === 'invoicing')   { populateInvoiceBranchSelect(); renderSentInvoices(); }
     if (adminTab === 'activity')    loadActivityLog();
   } else {
     checkRequestNotifications();
@@ -1963,6 +2150,7 @@ async function refreshLiveData() {
     renderBranchAssets();
     renderMyRequests();
     if (currentBranchTab === 'forsale') renderForSaleTab();
+    if (currentBranchTab === 'invoice') renderBranchInvoices();
   }
 }
 
@@ -1996,7 +2184,7 @@ function showAdminView() {
 // ── Admin Tabs ────────────────────────────────────────────────────────
 function setAdminTab(tab) {
   adminTab = tab;
-  ['dashboard','assets','requests','forsale','branches','inspections','activity'].forEach(t => {
+  ['dashboard','assets','requests','forsale','branches','inspections','invoicing','activity'].forEach(t => {
     $('tab-' + t).classList.toggle('active', t === tab);
     $('panel-' + t).classList.toggle('active', t === tab);
   });
@@ -2004,8 +2192,9 @@ function setAdminTab(tab) {
   if (tab === 'assets')       { populateBranchFilter(); renderAdminAssets(); }
   if (tab === 'requests')     { populateReqBranchFilter(); renderRequests(); }
   if (tab === 'forsale')      { reloadSaleListings(); populateAdminSaleBranchFilter(); renderAdminForSaleTab(); updatePendingBadge(); }
-  if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; renderRatesUI(); }
+  if (tab === 'branches')     { renderBranchList(); $('telematicsUrlInput').value = telematicsUrl; }
   if (tab === 'inspections')  loadAdminInspections();
+  if (tab === 'invoicing')    { populateInvoiceBranchSelect(); renderSentInvoices(); }
   if (tab === 'activity')     loadActivityLog();
   updatePendingBadge();
 }
@@ -2041,10 +2230,6 @@ function fmt$(n) {
   if (n === '' || n == null || isNaN(n)) return '—';
   return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
-function fmtPct(n) {
-  if (n === '' || n == null || isNaN(n)) return '—';
-  return (Number(n)*100).toFixed(4).replace(/\.?0+$/,'') + '%';
-}
 function fmtDate(d) {
   if (!d) return '—';
   const parts = String(d).slice(0, 10).split('-');
@@ -2052,21 +2237,22 @@ function fmtDate(d) {
   const [y, m, day] = parts;
   return `${m}/${day}/${y}`;
 }
-function monthlyPayment(cost, lrf) {
-  if (!cost || !lrf || isNaN(cost) || isNaN(lrf)) return null;
-  return Number(cost) * Number(lrf);
+function getMonthly(asset) {
+  const v = Number(asset?.monthly);
+  return Number.isFinite(v) && v > 0 ? v : null;
 }
 
 // ── Branch Tabs ───────────────────────────────────────────────────────
 let currentBranchTab = 'assets';
 function setBranchTab(tab) {
   currentBranchTab = tab;
-  ['assets','forsale'].forEach(t => {
+  ['assets','forsale','invoice'].forEach(t => {
     const btn = $('btab-' + t); if (btn) btn.classList.toggle('active', t === tab);
     const panel = $('bpanel-' + t); if (panel) panel.classList.toggle('active', t === tab);
   });
   if (tab === 'assets') { renderBranchAssets(); renderMyRequests(); }
   if (tab === 'forsale') { reloadSaleListings(); renderForSaleTab(); }
+  if (tab === 'invoice') { renderBranchInvoices(); }
 }
 
 // ── For Sale ──────────────────────────────────────────────────────────
@@ -2097,7 +2283,7 @@ function renderForSaleTab() {
   if (forSaleEmpty) forSaleEmpty.style.display = listed.length ? 'none' : '';
   if (forSaleBody) forSaleBody.innerHTML = listed.map(s => {
     const a = assets.find(x => x.id === s.assetId);
-    const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
+    const mp = a ? getMonthly(a) : null;
     const mpFmt = mp !== null ? fmt$(mp) : '—';
     const yrFmt = mp !== null ? fmt$(mp * 12) : '—';
     const statusBadge = s.status === 'pending'
@@ -2106,20 +2292,20 @@ function renderForSaleTab() {
       ? `<span class="badge badge-pending">Sale Pending</span>`
       : `<span class="badge badge-approved">Active</span>`;
     const actions = s.status === 'active'
-      ? `<button class="btn btn-ghost btn-xs" onclick="openEditListing('${s.id}')">Edit</button>
-         <button class="btn btn-success btn-xs" onclick="openMarkSold('${s.id}')">Mark Sold</button>`
+      ? `<button class="btn btn-ghost btn-xs" onclick="openEditListing('${escAttr(s.id)}')">Edit</button>
+         <button class="btn btn-success btn-xs" onclick="openMarkSold('${escAttr(s.id)}')">Mark Sold</button>`
       : ``;
     return `<tr>
-      <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
-      <td style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
-      <td style="color:var(--warning);font-weight:600">${mpFmt}</td>
-      <td style="color:var(--success);font-weight:600">${yrFmt}</td>
-      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
-      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
-      <td style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
-      <td>${fmtDate(s.createdAt?.slice(0,10))}</td>
-      <td>${statusBadge}</td>
-      <td><div class="actions">${actions}</div></td>
+      <td data-label="Asset"><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
+      <td data-label="Asking" style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
+      <td data-label="Monthly" class="mobile-hide" style="color:var(--warning);font-weight:600">${mpFmt}</td>
+      <td data-label="Saves/yr" class="mobile-hide" style="color:var(--success);font-weight:600">${yrFmt}</td>
+      <td data-label="Condition" class="mobile-hide" style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
+      <td data-label="Mileage" class="mobile-hide" style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
+      <td data-label="Notes" class="mobile-hide" style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
+      <td data-label="Listed" class="mobile-hide">${fmtDate(s.createdAt?.slice(0,10))}</td>
+      <td data-label="Status">${statusBadge}</td>
+      <td data-label=""><div class="actions">${actions}</div></td>
     </tr>`;
   }).join('');
 
@@ -2128,13 +2314,13 @@ function renderForSaleTab() {
   if (soldEmpty) soldEmpty.style.display = sold.length ? 'none' : '';
   if (soldBody) soldBody.innerHTML = sold.map(s => {
     const a = assets.find(x => x.id === s.assetId);
-    const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
+    const mp = a ? getMonthly(a) : null;
     return `<tr>
-      <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
-      <td>${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
-      <td style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>
-      <td style="color:var(--success);font-weight:600">${mp !== null ? fmt$(mp) : '—'}</td>
-      <td>${fmtDate(s.soldDate)}</td>
+      <td data-label="Asset"><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
+      <td data-label="Asking">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
+      <td data-label="Sold Price" style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>
+      <td data-label="Monthly" class="mobile-hide" style="color:var(--success);font-weight:600">${mp !== null ? fmt$(mp) : '—'}</td>
+      <td data-label="Sold Date">${fmtDate(s.soldDate)}</td>
     </tr>`;
   }).join('');
 }
@@ -2355,37 +2541,37 @@ function renderAdminForSaleTab() {
       ? `<span class="badge badge-pending">Sale Pending</span>`
       : `<span class="badge badge-pending">Pending Approval</span>`;
     const soldCells = s.status === 'sold'
-      ? `<td style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`
-      : `<td style="color:var(--text-muted)">${s.status === 'pending_sold' && s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`;
+      ? `<td data-label="Sold Price" style="color:var(--success);font-weight:600">${s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`
+      : `<td data-label="Sold Price" class="mobile-hide" style="color:var(--text-muted)">${s.status === 'pending_sold' && s.soldPrice ? fmt$(s.soldPrice) : '—'}</td>`;
     const actions = s.status === 'active'
-      ? `<button class="btn btn-ghost btn-xs" onclick="openAdminEditListing('${s.id}')">Edit Listing</button>
-         <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${s.assetId}')">Edit Asset</button>
-         <button class="btn btn-success btn-xs" onclick="openAdminMarkSold('${s.id}')">Mark Sold</button>`
+      ? `<button class="btn btn-ghost btn-xs" onclick="openAdminEditListing('${escAttr(s.id)}')">Edit Listing</button>
+         <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${escAttr(s.assetId)}')">Edit Asset</button>
+         <button class="btn btn-success btn-xs" onclick="openAdminMarkSold('${escAttr(s.id)}')">Mark Sold</button>`
       : s.status === 'pending'
-      ? `<button class="btn btn-ghost btn-xs" onclick="openAssetModal('${s.assetId}')">Edit Asset</button>
-         <button class="btn btn-success btn-xs" onclick="approveListing('${s.id}')">Approve</button>
-         <button class="btn btn-danger btn-xs" onclick="denyListing('${s.id}')">Deny</button>`
+      ? `<button class="btn btn-ghost btn-xs" onclick="openAssetModal('${escAttr(s.assetId)}')">Edit Asset</button>
+         <button class="btn btn-success btn-xs" onclick="approveListing('${escAttr(s.id)}')">Approve</button>
+         <button class="btn btn-danger btn-xs" onclick="denyListing('${escAttr(s.id)}')">Deny</button>`
       : s.status === 'pending_sold'
-      ? `<button class="btn btn-success btn-xs" onclick="adminConfirmSale('${s.id}')">Confirm Sale</button>
-         <button class="btn btn-danger btn-xs" onclick="adminDenySale('${s.id}')">Deny Sale</button>`
+      ? `<button class="btn btn-success btn-xs" onclick="adminConfirmSale('${escAttr(s.id)}')">Confirm Sale</button>
+         <button class="btn btn-danger btn-xs" onclick="adminDenySale('${escAttr(s.id)}')">Deny Sale</button>`
       : ``;
     const date = s.status === 'sold' ? fmtDate(s.soldDate) : fmtDate(s.createdAt?.slice(0,10));
     const a = assets.find(x => x.id === s.assetId);
-    const mp = a ? monthlyPayment(a.cost, a.lrf) : null;
+    const mp = a ? getMonthly(a) : null;
     const mpFmt = mp !== null ? fmt$(mp) : '—';
     const yrFmt = mp !== null ? fmt$(mp * 12) : '—';
     return `<tr>
-      <td><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
-      <td><span class="badge badge-branch" style="font-size:.75rem">${esc(s.branch)}</span></td>
-      <td style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
+      <td data-label="Asset"><strong>${esc(s.assetName)}</strong>${s.assetSerial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(s.assetSerial)}</span>`:''}</td>
+      <td data-label="Branch"><span class="badge badge-branch" style="font-size:.75rem">${esc(s.branch)}</span></td>
+      <td data-label="Asking" style="color:var(--success);font-weight:600">${s.askingPrice ? fmt$(s.askingPrice) : '—'}</td>
       ${soldCells}
-      <td style="color:var(--warning);font-weight:600">${mpFmt}</td>
-      <td style="color:var(--success);font-weight:600">${yrFmt}</td>
-      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
-      <td style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
-      <td style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
-      <td>${statusBadge}</td>
-      <td>${date}</td>
+      <td data-label="Monthly" class="mobile-hide" style="color:var(--warning);font-weight:600">${mpFmt}</td>
+      <td data-label="Saves/yr" class="mobile-hide" style="color:var(--success);font-weight:600">${yrFmt}</td>
+      <td data-label="Condition" class="mobile-hide" style="color:var(--text-muted);font-size:.85rem">${esc(s.condition||'—')}</td>
+      <td data-label="Mileage" class="mobile-hide" style="color:var(--text-muted);font-size:.85rem">${esc(s.mileage||'—')}</td>
+      <td data-label="Notes" class="mobile-hide" style="color:var(--text-muted);max-width:180px;white-space:normal;font-size:.85rem">${esc(s.description||'—')}</td>
+      <td data-label="Status">${statusBadge}</td>
+      <td data-label="Date" class="mobile-hide">${date}</td>
       <td><div class="actions">${actions}</div></td>
     </tr>`;
   }).join('');
@@ -2690,12 +2876,12 @@ function branchAssets() {
 
 function renderBranchStats() {
   const mine = branchAssets();
-  const totalMonthly = mine.reduce((s,a) => s + (monthlyPayment(a.cost,a.lrf)||0), 0);
+  const totalMonthly = mine.reduce((s,a) => s + (getMonthly(a)||0), 0);
   const totalCost    = mine.reduce((s,a) => s + (Number(a.cost)||0), 0);
   $('branchStats').innerHTML = `
     <div class="stat-card"><div class="stat-label">Assets On Lease</div><div class="stat-value c-blue">${mine.length}</div></div>
     <div class="stat-card"><div class="stat-label">Total Asset Value</div><div class="stat-value c-yellow">${fmt$(totalCost)}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Monthly Lease</div><div class="stat-value c-green">${fmt$(totalMonthly)}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Monthly Expense</div><div class="stat-value c-green">${fmt$(totalMonthly)}</div></div>
   `;
 }
 
@@ -2719,38 +2905,359 @@ function renderBranchAssets() {
   const pendingReturns   = new Set(requests.filter(r => r.type === 'return_asset'   && r.status === 'pending').map(r => r.assetId));
   const pendingIssues    = new Set(requests.filter(r => r.type === 'report_issue'    && r.status === 'pending').map(r => r.assetId));
   const pendingTransfers = new Set(requests.filter(r => r.type === 'transfer_asset' && r.status === 'pending').map(r => r.assetId));
-  const mp = a => { const v = monthlyPayment(a.cost,a.lrf); return v !== null ? fmt$(v) : '—'; };
+  const mp = a => { const v = getMonthly(a); return v !== null ? fmt$(v) : '—'; };
 
-  tbody.innerHTML = list.map(a => {
+  // Group by category
+  const catGroups = {};
+  list.forEach(a => { const cat = a.category || 'Uncategorized'; (catGroups[cat] = catGroups[cat] || []).push(a); });
+  const catNames = Object.keys(catGroups).sort();
+
+  const branchRow = a => {
     const returnBtn = pendingReturns.has(a.id)
       ? `<span class="badge badge-pending" style="font-size:.7rem">Return Pending</span>`
-      : `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('return_asset','${a.id}')">Return</button>`;
+      : `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('return_asset','${escAttr(a.id)}')">Return</button>`;
     const issueBtn = pendingIssues.has(a.id)
       ? `<span class="badge badge-pending" style="font-size:.7rem">Issue Reported</span>`
-      : `<button class="btn btn-warn btn-xs" onclick="openRequestModal('report_issue','${a.id}')">Report Issue</button>`;
+      : `<button class="btn btn-warn btn-xs" onclick="openRequestModal('report_issue','${escAttr(a.id)}')">Report Issue</button>`;
     const otherBranches = branches.filter(b => b.name !== currentBranch);
     const transferBtn = pendingTransfers.has(a.id)
       ? `<span class="badge badge-pending" style="font-size:.7rem">Transfer Pending</span>`
-      : (otherBranches.length > 0 ? `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('transfer_asset','${a.id}')">Transfer</button>` : '');
+      : (otherBranches.length > 0 ? `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('transfer_asset','${escAttr(a.id)}')">Transfer</button>` : '');
     const renewalDays = a.renewalDate ? Math.round((new Date(a.renewalDate) - new Date()) / 86400000) : null;
     const renewalCell = renewalDays === null ? '—'
       : renewalDays < 0  ? `<span style="color:#dc2626;font-weight:600">${fmtDate(a.renewalDate)} <span style="font-size:.72rem">(${Math.abs(renewalDays)}d overdue)</span></span>`
       : renewalDays <= 30 ? `<span style="color:#d97706;font-weight:600">${fmtDate(a.renewalDate)} <span style="font-size:.72rem">(${renewalDays}d)</span></span>`
       : fmtDate(a.renewalDate);
     const inspectBtn = liveEnabled
-      ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${a.id}')">📋 Inspect</button>`
+      ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${escAttr(a.id)}')">📋 Inspect</button>`
       : '';
-    return `<tr>
+    return `<tr class="cat-row cat-${escAttr(a.category||'Uncategorized')}">
       <td data-label="Asset"><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
-      <td data-label="Category">${esc(a.category||'—')}</td>
-      <td data-label="Make/Model">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
+      <td data-label="Make/Model" class="mobile-hide">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
       <td data-label="Status"><span class="badge badge-lease">On Lease</span>${(() => { const sl = saleListings.find(x => x.assetId === a.id && x.status !== 'sold'); return sl ? ` <span class="badge badge-pending" style="font-size:.7rem">${sl.status === 'pending' ? 'For Sale Pending' : sl.status === 'pending_sold' ? 'Sale Pending' : 'For Sale'}</span>` : ''; })()}</td>
       <td data-label="Monthly" style="color:var(--success);font-weight:600">${mp(a)}</td>
       <td data-label="Lease End">${fmtDate(a.leaseEnd)}</td>
       <td data-label="Renewal">${renewalCell}</td>
-      <td data-label=""><div class="actions">${returnBtn}${issueBtn}${transferBtn}${inspectBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${a.id}')">📎 Files${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button></div></td>
+      <td data-label=""><div class="actions">${returnBtn}${issueBtn}${transferBtn}${inspectBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${escAttr(a.id)}')">📎 Files${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button></div></td>
     </tr>`;
+  };
+
+  tbody.innerHTML = catNames.map(cat => {
+    const group = catGroups[cat];
+    const catMonthly = group.reduce((s,a) => s + (getMonthly(a)||0), 0);
+    return `<tr class="cat-header" onclick="toggleCatGroup('${escAttr(cat)}')">
+      <td colspan="7" style="background:var(--surface2,#f5f5f5);padding:10px 14px;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:2px solid var(--border);">
+        <span class="cat-arrow" id="catArrow-${escAttr(cat)}">&#9660;</span> ${esc(cat)} <span style="font-weight:400;color:var(--text-muted);font-size:.8rem">(${group.length})</span>
+        <span style="float:right;color:var(--success)">${catMonthly ? fmt$(catMonthly) + '/mo' : ''}</span>
+      </td>
+    </tr>` + group.map(branchRow).join('');
   }).join('');
+}
+
+// ── Invoicing ────────────────────────────────────────────────────────
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function saveInvoices() {
+  localStorage.setItem(INVOICES_KEY, JSON.stringify(invoices));
+}
+
+function invoiceId(branch, date) {
+  const d = date || new Date();
+  return 'INV-' + branch.replace(/[^A-Za-z0-9]/g,'').substring(0,8).toUpperCase() + '-' + d.getFullYear() + String(d.getMonth()+1).padStart(2,'0');
+}
+
+function buildGroupedRows(inv) {
+  // Rebuild grouped from items if not present (for older stored invoices)
+  const grouped = inv.grouped || {};
+  if (!Object.keys(grouped).length && inv.items) {
+    inv.items.forEach(it => { (grouped[it.category || 'Uncategorized'] = grouped[it.category || 'Uncategorized'] || []).push(it); });
+  }
+  return grouped;
+}
+
+function buildInvoiceHTML(inv) {
+  const grouped = buildGroupedRows(inv);
+  const cats = Object.keys(grouped).sort();
+  let sections = '';
+  if (!cats.length) {
+    sections = '<div style="padding:20px;text-align:center;color:var(--text-muted)">No line items</div>';
+  } else {
+    sections = cats.map(cat => {
+      const items = grouped[cat];
+      const catTotal = items.reduce((s,it) => s + (it.monthly||0), 0);
+      const rows = items.map(it => `<tr>
+        <td data-label="Asset"><strong>${esc(it.name)}</strong></td>
+        <td data-label="Serial">${esc(it.serial||'—')}</td>
+        <td data-label="Make/Model">${esc(it.makeModelYear||'—')}</td>
+        <td data-label="Billing Period">${esc(it.period||'—')}</td>
+        <td data-label="Monthly Cost" style="text-align:right;font-weight:600;color:var(--success)">${it.monthly > 0 ? fmt$(it.monthly) : '—'}</td>
+      </tr>`).join('');
+      return `<div style="margin-bottom:16px;">
+        <div style="font-size:.85rem;font-weight:700;color:var(--text);background:var(--surface2,#f5f5f5);padding:8px 12px;border-radius:6px 6px 0 0;border:1px solid var(--border);border-bottom:none;display:flex;justify-content:space-between;">
+          <span>${esc(cat)} (${items.length})</span><span style="color:var(--success)">${fmt$(catTotal)}</span>
+        </div>
+        <div class="table-wrap" style="border-radius:0 0 6px 6px;margin:0;">
+          <table><thead><tr>
+            <th style="width:30%">Asset</th><th style="width:16%">Serial #</th><th style="width:22%">Make / Model / Year</th>
+            <th style="width:16%">Billing Period</th><th style="width:16%;text-align:right">Monthly Cost</th>
+          </tr></thead><tbody>${rows}</tbody></table>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;" class="invoice-printable">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
+      <div>
+        <h2 style="margin:0;font-size:1.4rem;font-weight:700;color:var(--text);">Goodhouse Equipment Co.</h2>
+        <p style="margin:4px 0 0;font-size:.85rem;color:var(--text-muted);">Monthly Equipment Lease Invoice</p>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:.85rem;color:var(--text-muted);">${esc(inv.period)}</div>
+        <div style="font-size:.85rem;color:var(--text-muted);margin-top:2px;">${esc(inv.id)}</div>
+        <div style="font-size:.8rem;color:var(--text-muted);margin-top:2px;">Month to Month</div>
+      </div>
+    </div>
+    <div style="border-top:2px solid var(--accent);margin-bottom:20px;"></div>
+    <div style="margin-bottom:20px;">
+      <div style="font-size:.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Bill To</div>
+      <div style="font-size:1rem;font-weight:600;">${esc(inv.branch)}</div>
+    </div>
+    ${sections}
+    <div style="display:flex;justify-content:flex-end;padding:14px 0;border-top:3px solid var(--border);margin-top:8px;">
+      <div style="font-weight:700;font-size:1.1rem;">Total Due: <span style="color:var(--success);margin-left:12px;">${fmt$(inv.total)}</span></div>
+    </div>
+    <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;border-top:1px solid var(--border);padding-top:14px;">
+      Payment is due upon receipt. For questions regarding this invoice, please contact Goodhouse Equipment Co.
+    </div>
+  </div>`;
+}
+
+function generateInvoiceData(branchName) {
+  const now = new Date();
+  const billingPeriod = MONTH_NAMES[now.getMonth()] + ' ' + now.getFullYear();
+  const bAssets = assets.filter(a => a.branch === branchName);
+  let total = 0;
+  const items = bAssets.map(a => {
+    const m = getMonthly(a) || 0;
+    total += m;
+    return { name: a.name, serial: a.serial || '', makeModelYear: [a.make,a.model,a.year].filter(Boolean).join(' · ') || '', category: a.category || 'Uncategorized', period: billingPeriod, monthly: m };
+  });
+  // Group items by category
+  const grouped = {};
+  items.forEach(it => { (grouped[it.category] = grouped[it.category] || []).push(it); });
+  return {
+    id: invoiceId(branchName, now),
+    branch: branchName,
+    period: billingPeriod,
+    items,
+    grouped,
+    total,
+    assetCount: bAssets.length,
+    sentAt: now.toISOString()
+  };
+}
+
+// ── Admin Invoicing ──
+function populateInvoiceBranchSelect() {
+  const sel = $('invoiceBranchSelect');
+  const val = sel.value;
+  sel.innerHTML = '<option value="">-- Select Branch --</option>' + branches.map(b =>
+    `<option value="${escAttr(b.name)}">${esc(b.name)}</option>`).join('');
+  sel.value = val;
+}
+
+function previewAdminInvoice() {
+  const branch = $('invoiceBranchSelect').value;
+  if (!branch) { toast('Select a branch first.', 'warn'); return; }
+  const inv = generateInvoiceData(branch);
+  openInvoicePDF(inv);
+  $('pushInvoiceBtn').disabled = false;
+}
+
+function pushInvoice() {
+  const branch = $('invoiceBranchSelect').value;
+  if (!branch) { toast('Select a branch first.', 'warn'); return; }
+  const inv = generateInvoiceData(branch);
+  const existing = invoices.findIndex(x => x.id === inv.id);
+  if (existing >= 0) invoices[existing] = inv;
+  else invoices.unshift(inv);
+  saveInvoices();
+  saveAll();
+  logAudit('invoice_sent', inv.id, `Invoice pushed to ${branch}: ${fmt$(inv.total)}`);
+  toast(`Invoice ${inv.id} pushed to ${branch}.`, 'success');
+  renderSentInvoices();
+  $('pushInvoiceBtn').disabled = true;
+  $('adminInvoicePreview').innerHTML = '';
+}
+
+function pushAllInvoices() {
+  if (!branches.length) { toast('No branches configured.', 'warn'); return; }
+  const activeBranches = branches.filter(b => assets.some(a => a.branch === b.name));
+  if (!activeBranches.length) { toast('No branches have assets on lease.', 'warn'); return; }
+  if (!confirm(`Push invoices to ${activeBranches.length} branch(es) with active leases?`)) return;
+  let count = 0;
+  activeBranches.forEach(b => {
+    const inv = generateInvoiceData(b.name);
+    const existing = invoices.findIndex(x => x.id === inv.id);
+    if (existing >= 0) invoices[existing] = inv;
+    else invoices.unshift(inv);
+    count++;
+  });
+  saveInvoices();
+  saveAll();
+  logAudit('invoice_sent_bulk', `${count} branches`, `Bulk invoices pushed for ${MONTH_NAMES[new Date().getMonth()]} ${new Date().getFullYear()}`);
+  toast(`Invoices pushed to ${count} branch(es).`, 'success');
+  renderSentInvoices();
+  $('adminInvoicePreview').innerHTML = '';
+}
+
+function renderSentInvoices() {
+  const tbody = $('sentInvoicesBody');
+  const emptyEl = $('sentInvoicesEmpty');
+  if (!invoices.length) {
+    tbody.innerHTML = '';
+    emptyEl.style.display = '';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  tbody.innerHTML = invoices.slice(0, 100).map(inv => `<tr>
+    <td data-label="Invoice #"><strong>${esc(inv.id)}</strong></td>
+    <td data-label="Branch">${esc(inv.branch)}</td>
+    <td data-label="Period">${esc(inv.period)}</td>
+    <td data-label="Assets">${inv.assetCount}</td>
+    <td data-label="Total" style="text-align:right;font-weight:600;color:var(--success)">${fmt$(inv.total)}</td>
+    <td data-label="Sent">${fmtDate(inv.sentAt?.slice(0,10))}</td>
+    <td><button class="btn btn-ghost btn-xs" onclick="viewAdminInvoice('${escAttr(inv.id)}')">View</button>
+        <button class="btn btn-ghost btn-xs" onclick="deleteInvoice('${escAttr(inv.id)}')">Delete</button></td>
+  </tr>`).join('');
+}
+
+function viewAdminInvoice(invId) {
+  const inv = invoices.find(x => x.id === invId);
+  if (!inv) return;
+  openInvoicePDF(inv);
+}
+
+function deleteInvoice(invId) {
+  if (!confirm('Delete this invoice?')) return;
+  invoices = invoices.filter(x => x.id !== invId);
+  saveInvoices();
+  renderSentInvoices();
+  $('adminInvoicePreview').innerHTML = '';
+  toast('Invoice deleted.', 'success');
+}
+
+// ── Branch Invoice View ──
+function renderBranchInvoices() {
+  const mine = invoices.filter(inv => inv.branch === currentBranch).sort((a,b) => b.sentAt.localeCompare(a.sentAt));
+  const listEl = $('branchInvoiceList');
+
+  if (!mine.length) {
+    listEl.innerHTML = '<div class="empty" style="padding:40px"><div class="icon">📄</div><p>No invoices received yet.</p></div>';
+    return;
+  }
+  listEl.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th style="width:18%">Invoice #</th><th style="width:20%">Period</th><th style="width:10%">Assets</th>
+      <th style="width:18%;text-align:right">Total Due</th><th style="width:16%">Received</th><th style="width:auto"></th>
+    </tr></thead>
+    <tbody>${mine.map(inv => `<tr>
+      <td data-label="Invoice #"><strong>${esc(inv.id)}</strong></td>
+      <td data-label="Period">${esc(inv.period)}</td>
+      <td data-label="Assets">${inv.assetCount}</td>
+      <td data-label="Total" style="text-align:right;font-weight:600;color:var(--success)">${fmt$(inv.total)}</td>
+      <td data-label="Received">${fmtDate(inv.sentAt?.slice(0,10))}</td>
+      <td><button class="btn btn-primary btn-xs" onclick="viewBranchInvoice('${escAttr(inv.id)}')">View / Print</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function viewBranchInvoice(invId) {
+  const inv = invoices.find(x => x.id === invId);
+  if (!inv) return;
+  openInvoicePDF(inv);
+}
+
+function printInvoiceById(invId) {
+  const inv = invoices.find(x => x.id === invId);
+  if (!inv) return;
+  openInvoicePDF(inv);
+}
+
+function openInvoicePDF(inv) {
+  const grouped = buildGroupedRows(inv);
+  const cats = Object.keys(grouped).sort();
+
+  let sections = '';
+  if (!cats.length) {
+    sections = '<div style="padding:30px;text-align:center;color:#999;">No assets</div>';
+  } else {
+    sections = cats.map(cat => {
+      const items = grouped[cat];
+      const catTotal = items.reduce((s,it) => s + (it.monthly||0), 0);
+      const rows = items.map(it => `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;"><strong>${esc(it.name)}</strong></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.serial||'—')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.makeModelYear||'—')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.period||'—')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;text-align:right;font-weight:600;">${it.monthly > 0 ? fmt$(it.monthly) : '—'}</td>
+      </tr>`).join('');
+      return `<div style="margin-bottom:20px;">
+        <div style="background:#f0f7f3;padding:10px 14px;border-radius:6px 6px 0 0;border:1px solid #ddd;border-bottom:none;display:flex;justify-content:space-between;font-weight:700;font-size:.9rem;">
+          <span>${esc(cat)} (${items.length})</span><span style="color:#2d6a4f">${fmt$(catTotal)}</span>
+        </div>
+        <table style="border:1px solid #ddd;border-top:none;">
+          <thead><tr>
+            <th style="width:30%">Asset</th><th style="width:16%">Serial #</th><th style="width:22%">Make / Model / Year</th>
+            <th style="width:16%">Billing Period</th><th style="width:16%;text-align:right">Monthly Cost</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+  }
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ${esc(inv.id)}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color:#111; padding:40px; max-width:900px; margin:0 auto; }
+  table { width:100%; border-collapse:collapse; }
+  th { background:#f5f5f5; padding:10px 12px; text-align:left; font-size:.78rem; text-transform:uppercase; letter-spacing:.5px; color:#555; border-bottom:2px solid #ddd; }
+  th:last-child { text-align:right; }
+  @media print { body { padding:20px; } .no-print { display:none !important; } @page { margin: 0.5in; } }
+</style></head><body>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;">
+  <div>
+    <h1 style="font-size:1.5rem;font-weight:700;margin-bottom:4px;">Goodhouse Equipment Co.</h1>
+    <p style="font-size:.9rem;color:#666;">Monthly Equipment Lease Invoice</p>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:.9rem;color:#666;">${esc(inv.period)}</div>
+    <div style="font-size:.9rem;color:#666;margin-top:2px;">${esc(inv.id)}</div>
+    <div style="font-size:.85rem;color:#888;margin-top:2px;">Month to Month</div>
+  </div>
+</div>
+<div style="border-top:3px solid #2d6a4f;margin-bottom:24px;"></div>
+<div style="margin-bottom:24px;">
+  <div style="font-size:.75rem;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Bill To</div>
+  <div style="font-size:1.1rem;font-weight:700;">${esc(inv.branch)}</div>
+</div>
+${sections}
+<div style="display:flex;justify-content:flex-end;padding:14px 0;border-top:3px solid #ddd;margin-top:8px;">
+  <div style="font-weight:700;font-size:1.15rem;">Total Due: <span style="color:#2d6a4f;margin-left:14px;">${fmt$(inv.total)}</span></div>
+</div>
+<div style="margin-top:20px;padding-top:16px;border-top:1px solid #ddd;font-size:.8rem;color:#999;line-height:1.6;">
+  Payment is due upon receipt. For questions regarding this invoice, please contact Goodhouse Equipment Co.
+</div>
+<div class="no-print" style="margin-top:24px;text-align:center;">
+  <button onclick="window.print()" style="padding:10px 28px;font-size:.9rem;background:#2d6a4f;color:#fff;border:none;border-radius:6px;cursor:pointer;">Save as PDF / Print</button>
+</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { toast('Pop-up blocked — allow pop-ups for this site to generate PDFs.', 'warn'); return; }
+  w.document.write(html);
+  w.document.close();
 }
 
 function renderMyRequests() {
@@ -2840,7 +3347,7 @@ function reqCardHTML(r, adminMode) {
                       <button class="btn btn-danger btn-xs"  onclick="denyRequest('${r.id}')">Deny</button>`;
     }
   }
-  const assetLine = r.assetName ? `<span> · <span class="asset-nav-link" onclick="navigateToAsset('${r.assetId}')">${esc(r.assetName)}</span></span>` : '';
+  const assetLine = r.assetName ? `<span> · <span class="asset-nav-link" onclick="navigateToAsset('${escAttr(r.assetId)}')">${esc(r.assetName)}</span></span>` : '';
   const branchLine = adminMode ? `<span> · ${esc(r.branchName)}</span>` : '';
   const noteLine = r.adminNote ? `<div class="req-admin-note">Admin: ${esc(r.adminNote)}</div>` : '';
   const transferLine = r.type === 'transfer_asset' && r.targetBranchName
@@ -2990,7 +3497,7 @@ function setSort(key) {
 function sortedAssets(list) {
   return [...list].sort((a,b) => {
     let va = a[sortKey]??'', vb = b[sortKey]??'';
-    if (['cost','lrf'].includes(sortKey)) return sortAsc?(Number(va)||0)-(Number(vb)||0):(Number(vb)||0)-(Number(va)||0);
+    if (['cost','monthly'].includes(sortKey)) return sortAsc?(Number(va)||0)-(Number(vb)||0):(Number(vb)||0)-(Number(va)||0);
     va=String(va).toLowerCase(); vb=String(vb).toLowerCase();
     return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
   });
@@ -3017,7 +3524,7 @@ function renderAdminAssets() {
   const allTotal   = statList.length;
   const poolCount  = statList.filter(a=>!a.branch).length;
   const leaseCount = statList.filter(a=>a.branch).length;
-  const totalMonthly = statList.filter(a=>a.branch).reduce((s,a)=>s+(monthlyPayment(a.cost,a.lrf)||0),0);
+  const totalMonthly = statList.filter(a=>a.branch).reduce((s,a)=>s+(getMonthly(a)||0),0);
   const filterLabel  = isFiltered ? ' <span style="font-size:.7rem;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">(filtered)</span>' : '';
 
   // Show stats above table
@@ -3033,7 +3540,7 @@ function renderAdminAssets() {
     <div class="stat-card"><div class="stat-label">Assets${filterLabel}</div><div class="stat-value c-blue">${allTotal}</div></div>
     <div class="stat-card"><div class="stat-label">On Lease${filterLabel}</div><div class="stat-value c-green">${leaseCount}</div></div>
     <div class="stat-card"><div class="stat-label">In Pool${filterLabel}</div><div class="stat-value" style="color:var(--text-muted)">${poolCount}</div></div>
-    <div class="stat-card"><div class="stat-label">Monthly Lease${filterLabel}</div><div class="stat-value c-yellow">${fmt$(totalMonthly)}</div></div>
+    <div class="stat-card"><div class="stat-label">Monthly Expense${filterLabel}</div><div class="stat-value c-yellow">${fmt$(totalMonthly)}</div></div>
   `;
 
   const tbody = $('adminTableBody');
@@ -3046,29 +3553,43 @@ function renderAdminAssets() {
   }
   $('adminEmpty').style.display = 'none';
 
-  tbody.innerHTML = list.map(a => {
+  // Group by category
+  const catGroups = {};
+  list.forEach(a => { const cat = a.category || 'Uncategorized'; (catGroups[cat] = catGroups[cat] || []).push(a); });
+  const catNames = Object.keys(catGroups).sort();
+
+  const assetRow = a => {
     const branchCell = a.branch
       ? `<span class="badge badge-lease" style="font-size:.75rem">${esc(a.branch)}</span>${(() => { const sl = saleListings.find(x => x.assetId === a.id && x.status !== 'sold'); return sl ? ` <span class="badge badge-pending" style="font-size:.7rem">${sl.status === 'pending' ? 'For Sale Pending' : sl.status === 'pending_sold' ? 'Sale Pending' : 'For Sale'}</span>` : ''; })()}`
       : `<span class="badge badge-pool" style="font-size:.75rem">Pool</span>`;
-    const mp = monthlyPayment(a.cost, a.lrf);
+    const mp = getMonthly(a);
     const checked = selectedAssets.has(a.id) ? 'checked' : '';
-    return `<tr data-asset-id="${a.id}">
-      <td><input type="checkbox" class="asset-cb" data-id="${a.id}" onchange="toggleAssetSelect('${a.id}',this.checked)" ${checked}></td>
-      <td><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
-      <td>${esc(a.category||'—')}</td>
-      <td>${branchCell}</td>
-      <td>${fmt$(a.cost)}</td>
-      <td>${fmtPct(a.lrf)}</td>
-      <td>${mp!==null?fmt$(mp):'—'}</td>
-      <td>${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
-      <td><div class="actions">
-        <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${a.id}')">Edit</button>
-        <button class="btn btn-primary btn-xs" onclick="openReassign('${a.id}')">Reassign</button>
-        <button class="btn btn-ghost btn-xs" onclick="openFilesModal('${a.id}')">📎${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button>
-        ${liveEnabled?`<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${a.id}')">📋 Inspect</button>`:''}
-        <button class="btn btn-danger btn-xs" onclick="deleteAsset('${a.id}')">Del</button>
+    return `<tr data-asset-id="${escAttr(a.id)}">
+      <td class="mobile-hide"><input type="checkbox" class="asset-cb" data-id="${escAttr(a.id)}" onchange="toggleAssetSelect('${escAttr(a.id)}',this.checked)" ${checked}></td>
+      <td data-label="Asset"><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
+      <td data-label="Branch">${branchCell}</td>
+      <td data-label="Cost">${fmt$(a.cost)}</td>
+      <td data-label="Monthly">${mp!==null?fmt$(mp):'—'}</td>
+      <td data-label="Make/Model" class="mobile-hide">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
+      <td data-label=""><div class="actions">
+        <button class="btn btn-ghost btn-xs" onclick="openAssetModal('${escAttr(a.id)}')">Edit</button>
+        <button class="btn btn-primary btn-xs" onclick="openReassign('${escAttr(a.id)}')">Reassign</button>
+        <button class="btn btn-ghost btn-xs" onclick="openFilesModal('${escAttr(a.id)}')">📎${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button>
+        ${liveEnabled?`<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${escAttr(a.id)}')">📋 Inspect</button>`:''}
+        <button class="btn btn-danger btn-xs" onclick="deleteAsset('${escAttr(a.id)}')">Del</button>
       </div></td>
     </tr>`;
+  };
+
+  tbody.innerHTML = catNames.map(cat => {
+    const group = catGroups[cat];
+    const catMonthly = group.filter(a=>a.branch).reduce((s,a)=>s+(getMonthly(a)||0),0);
+    return `<tr class="cat-header" onclick="toggleCatGroup('${escAttr(cat)}')">
+      <td colspan="7" style="background:var(--surface2,#f5f5f5);padding:10px 14px;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:2px solid var(--border);">
+        <span class="cat-arrow" id="catArrow-${escAttr(cat)}">&#9660;</span> ${esc(cat)} <span style="font-weight:400;color:var(--text-muted);font-size:.8rem">(${group.length})</span>
+        <span style="float:right;color:var(--success)">${catMonthly ? fmt$(catMonthly) + '/mo' : ''}</span>
+      </td>
+    </tr>` + group.map(a => assetRow(a).replace('<tr ', `<tr class="cat-row cat-${escAttr(cat)}" `)).join('');
   }).join('');
 
   // Sync select-all checkbox
@@ -3086,14 +3607,14 @@ function openAssetModal(id) {
   editingAssetId = id || null;
   $('assetModalTitle').textContent = id ? 'Edit Asset' : 'Add Asset';
   const a = id ? assets.find(x=>x.id===id) : {};
-  ['name','serial','make','model','year','category','vendor','acquiredDate','leaseStart','leaseEnd','renewalDate','notes'].forEach(f => {
+  ['name','serial','make','model','year','category','vendor','acquiredDate','leaseStart','leaseEnd','renewalDate','notes','hp','mileage'].forEach(f => {
     const el = $('f-'+f); if (el) el.value = a?.[f]??'';
   });
   $('f-cost').value = a?.cost??'';
-  $('f-lrf').value  = a?.lrf??'';
-  populateLRFPresetSelects();
-  const presetSel = $('f-lrfPreset');
-  if (presetSel) presetSel.value = presetIdForLRF(a?.lrf);
+  $('f-monthly').value = a?.monthly??'';
+  $('f-salesTax').value = a?.salesTax??'';
+  $('f-buyoutEnhancement').value = a?.buyoutEnhancement??'';
+  $('f-freight').value = a?.freight??'';
   // Populate branch dropdown
   $('f-branch').innerHTML = `<option value="">— Asset Pool (unassigned) —</option>` +
     branches.map(b => `<option value="${escAttr(b.name)}"${(a?.branch===b.name)?' selected':''}>${esc(b.name)}</option>`).join('');
@@ -3107,45 +3628,9 @@ function openAssetModal(id) {
   } else {
     listingWrap.style.display = 'none';
   }
-  updateLRFPreview();
   $('assetFormOverlay').classList.add('open');
 }
 function closeAssetModal() { $('assetFormOverlay').classList.remove('open'); editingAssetId = null; }
-
-function updateLRFPreview() {
-  const cost = parseFloat($('f-cost').value);
-  const lrf  = parseFloat($('f-lrf').value);
-  const mp   = monthlyPayment(cost, lrf);
-  $('lrfPreview').textContent = mp !== null ? `Monthly lease: ${fmt$(mp)}` : '';
-}
-
-function presetIdForLRF(lrf) {
-  const n = Number(lrf);
-  if (!Number.isFinite(n)) return '';
-  const match = lrfPresets.find(p => Math.abs(Number(p.lrf) - n) < 1e-10);
-  return match ? match.id : '';
-}
-
-function populateLRFPresetSelects() {
-  const assetSel = $('f-lrfPreset');
-  if (assetSel) {
-    assetSel.innerHTML = `<option value="">— Select preset —</option>` +
-      lrfPresets.map(p => `<option value="${escAttr(p.id)}">${esc(p.name)} — ${fmtPct(p.lrf)}</option>`).join('');
-  }
-  const bulkSel = $('bulkLRFSelect');
-  if (bulkSel) {
-    bulkSel.innerHTML = `<option value="">— Select preset —</option>` +
-      lrfPresets.map(p => `<option value="${escAttr(p.id)}">${esc(p.name)} — ${fmtPct(p.lrf)}</option>`).join('');
-  }
-}
-
-function applyPresetToAssetForm(presetId) {
-  if (!presetId) return;
-  const preset = lrfPresets.find(p => p.id === presetId);
-  if (!preset) return;
-  $('f-lrf').value = preset.lrf;
-  updateLRFPreview();
-}
 
 function saveAsset() {
   const name = $('f-name').value.trim();
@@ -3183,7 +3668,12 @@ function saveAsset() {
     branch:      branchVal,
     status:      assetStatus,
     cost:        $('f-cost').value !== '' ? parseFloat($('f-cost').value) : '',
-    lrf:         $('f-lrf').value  !== '' ? parseFloat($('f-lrf').value)  : '',
+    salesTax:    $('f-salesTax').value !== '' ? parseFloat($('f-salesTax').value) : '',
+    buyoutEnhancement: $('f-buyoutEnhancement').value !== '' ? parseFloat($('f-buyoutEnhancement').value) : '',
+    freight:     $('f-freight').value !== '' ? parseFloat($('f-freight').value) : '',
+    monthly:     $('f-monthly').value !== '' ? parseFloat($('f-monthly').value) : '',
+    hp:          $('f-hp').value.trim(),
+    mileage:     $('f-mileage').value.trim(),
     vendor:      $('f-vendor').value.trim(),
     acquiredDate:$('f-acquiredDate').value,
     leaseStart:   $('f-leaseStart').value,
@@ -3273,7 +3763,7 @@ function renderBranchList() {
   assets.forEach(a => {
     if (!a.branch) return;
     counts[a.branch]   = (counts[a.branch]   || 0) + 1;
-    monthlys[a.branch] = (monthlys[a.branch] || 0) + (monthlyPayment(a.cost, a.lrf) || 0);
+    monthlys[a.branch] = (monthlys[a.branch] || 0) + (getMonthly(a) || 0);
   });
   $('branchList').innerHTML = branches.length
     ? branches.map(b => `
@@ -3415,39 +3905,12 @@ function changeAdminPw() {
   toast('Admin password updated.', 'success');
 }
 
-// ── LRF Presets ───────────────────────────────────────────────────────
-function renderRatesUI() {
-  if (!$('rateName1')) return;
-  const list = normalizeLRFPresets(lrfPresets);
-  $('rateName1').value = list[0].name;
-  $('rateVal1').value  = list[0].lrf;
-  $('rateName2').value = list[1].name;
-  $('rateVal2').value  = list[1].lrf;
-  $('rateName3').value = list[2].name;
-  $('rateVal3').value  = list[2].lrf;
-  populateLRFPresetSelects();
-}
-
-function saveRatesFromUI() {
-  const rows = [
-    { id: 'p1', name: $('rateName1').value.trim(), lrf: Number($('rateVal1').value) },
-    { id: 'p2', name: $('rateName2').value.trim(), lrf: Number($('rateVal2').value) },
-    { id: 'p3', name: $('rateName3').value.trim(), lrf: Number($('rateVal3').value) },
-  ];
-  for (const r of rows) {
-    if (!r.name) { toast('Preset names cannot be empty.', 'warn'); return; }
-    if (!Number.isFinite(r.lrf) || r.lrf <= 0 || r.lrf >= 1) { toast('Each preset LRF must be a number between 0 and 1.', 'warn'); return; }
-  }
-  saveLRFPresets(rows);
-  toast('LRF presets saved.', 'success');
-}
-
 // ── Export CSV ────────────────────────────────────────────────────────
 function exportCSV() {
-  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
+  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','Sales Tax','Buyout & Enhancement','Freight','Monthly ($)','HP','Mileage','Vendor','Acquired','Lease Start','Lease End','Renewal Date','Notes'];
   const rows = [headers, ...assets.map(a => {
-    const mp = monthlyPayment(a.cost, a.lrf);
-    return [a.name,a.serial,a.make,a.model,a.year,a.category,a.branch||'Pool',a.status,a.cost,a.lrf,mp!=null?mp.toFixed(2):'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.notes]
+    const mp = getMonthly(a);
+    return [a.name,a.serial,a.make,a.model,a.year,a.category,a.branch||'Pool',a.status,a.cost,a.salesTax||'',a.buyoutEnhancement||'',a.freight||'',mp!=null?mp.toFixed(2):'',a.hp||'',a.mileage||'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.renewalDate||'',a.notes]
       .map(v=>`"${String(v??'').replace(/"/g,'""')}"`);
   })];
   const blob = new Blob([rows.map(r=>r.join(',')).join('\r\n')],{type:'text/csv'});
@@ -3460,10 +3923,10 @@ function exportCSV() {
 
 function exportSelectedCSV() {
   if (!selectedAssets.size) return;
-  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
+  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes'];
   const rows = [headers, ...assets.filter(a => selectedAssets.has(a.id)).map(a => {
-    const mp = monthlyPayment(a.cost, a.lrf);
-    return [a.name,a.serial,a.make,a.model,a.year,a.category,a.branch||'Pool',a.status,a.cost,a.lrf,mp!=null?mp.toFixed(2):'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.notes]
+    const mp = getMonthly(a);
+    return [a.name,a.serial,a.make,a.model,a.year,a.category,a.branch||'Pool',a.status,a.cost,mp!=null?mp.toFixed(2):'',a.vendor,a.acquiredDate,a.leaseStart,a.leaseEnd,a.notes]
       .map(v=>`"${String(v??'').replace(/"/g,'""')}"`);
   })];
   const blob = new Blob([rows.map(r=>r.join(',')).join('\r\n')],{type:'text/csv'});
@@ -3543,34 +4006,97 @@ function importCSV(input) {
   reader.onload = e => {
     const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) { toast('CSV has no data rows.', 'warn'); input.value = ''; return; }
+    const MAX_FIELD_LEN = 500;
+    const MAX_ROWS = 5000;
+    const sanitize = s => (s || '').trim().slice(0, MAX_FIELD_LEN).replace(/[<>]/g, '');
+    const parseNum = s => parseFloat((s || '').replace(/[$,\s]/g, ''));
+    const parseDateFlex = s => {
+      if (!s) return '';
+      const t = s.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+      const m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      if (m) {
+        const yr = m[3].length === 2 ? '20' + m[3] : m[3];
+        return `${yr}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+      }
+      return '';
+    };
+
+    // Build column map from header row
+    const headerCols = parseCSVRow(lines[0]);
+    const colMap = {};
+    const HEADER_ALIASES = {
+      'asset name': 'name', 'name': 'name', 'asset': 'name',
+      'serial': 'serial', 'serial number': 'serial', 'serial #': 'serial', 'sn': 'serial',
+      'make': 'make', 'manufacturer': 'make',
+      'model': 'model',
+      'year': 'year', 'yr': 'year',
+      'category': 'category', 'cat': 'category', 'type': 'category', 'catagory': 'category',
+      'branch': 'branch', 'location': 'branch',
+      'status': 'status',
+      'cost': 'cost', 'cost ($)': 'cost', 'price': 'cost', 'value': 'cost', 'equipment cost': 'cost',
+      'monthly': 'monthly', 'monthly ($)': 'monthly', 'monthly lease': 'monthly', 'monthly cost': 'monthly', 'monthly( $)': 'monthly', 'monthly($)': 'monthly', 'monthly ($ )': 'monthly',
+      'vendor': 'vendor', 'supplier': 'vendor',
+      'acquired': 'acquired', 'acquired date': 'acquired', 'purchase date': 'acquired',
+      'lease start': 'leaseStart', 'start date': 'leaseStart',
+      'lease end': 'leaseEnd', 'end date': 'leaseEnd',
+      'notes': 'notes', 'note': 'notes', 'description': 'notes', 'comments': 'notes',
+      'renewal date': 'renewal', 'renewal': 'renewal', 'renewal due': 'renewal',
+    };
+    headerCols.forEach((h, i) => {
+      const norm = h.replace(/[<>]/g, '').replace(/[\u00A0\u2007\u202F]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+      const key = HEADER_ALIASES[norm];
+      if (key && !(key in colMap)) colMap[key] = i;
+    });
+
+    // Fall back to positional mapping if no header match for required 'name' column
+    const useHeaders = 'name' in colMap;
+    const col = field => useHeaders ? colMap[field] : undefined;
+    const C_NAME     = col('name')       ?? 0;
+    const C_SERIAL   = col('serial')     ?? 1;
+    const C_MAKE     = col('make')       ?? 2;
+    const C_MODEL    = col('model')      ?? 3;
+    const C_YEAR     = col('year')       ?? 4;
+    const C_CATEGORY = col('category')   ?? 5;
+    const C_BRANCH   = col('branch')     ?? 6;
+    const C_COST     = col('cost')       ?? 8;
+    const C_MONTHLY  = col('monthly')    ?? 9;
+    const C_VENDOR   = col('vendor')     ?? 11;
+    const C_ACQUIRED = col('acquired')   ?? 12;
+    const C_LSTART   = col('leaseStart') ?? 13;
+    const C_LEND     = col('leaseEnd')   ?? 14;
+    const C_NOTES    = col('notes')      ?? 15;
+    const C_RENEWAL  = col('renewal')    ?? 16;
+
     let added = 0, skipped = 0;
-    for (let i = 1; i < lines.length; i++) {
+    for (let i = 1; i < Math.min(lines.length, MAX_ROWS + 1); i++) {
       const cols = parseCSVRow(lines[i]);
-      const name = (cols[0] || '').trim();
+      const name = sanitize(cols[C_NAME]);
       if (!name) { skipped++; continue; }
-      const branchRaw = (cols[6] || '').trim();
+      const branchRaw = sanitize(cols[C_BRANCH]);
       const branchVal = (!branchRaw || branchRaw.toLowerCase() === 'pool') ? null
         : (branches.find(b => b.name.toLowerCase() === branchRaw.toLowerCase())?.name || null);
-      const cost = parseFloat(cols[8]);
-      const lrf  = parseFloat(cols[9]);
+      const cost = parseNum(cols[C_COST]);
+      const monthly = parseNum(cols[C_MONTHLY]);
+      if (!isNaN(cost) && (cost < 0 || cost > 100000000)) { skipped++; continue; }
       assets.push({
         id:          uid(),
         name,
-        serial:      (cols[1]  || '').trim(),
-        make:        (cols[2]  || '').trim(),
-        model:       (cols[3]  || '').trim(),
-        year:        (cols[4]  || '').trim(),
-        category:    (cols[5]  || '').trim(),
+        serial:      sanitize(cols[C_SERIAL]),
+        make:        sanitize(cols[C_MAKE]),
+        model:       sanitize(cols[C_MODEL]),
+        year:        sanitize(cols[C_YEAR]),
+        category:    sanitize(cols[C_CATEGORY]),
         branch:      branchVal,
         status:      branchVal ? 'On Lease' : 'Available',
         cost:        isNaN(cost) ? '' : cost,
-        lrf:         isNaN(lrf)  ? '' : lrf,
-        vendor:      (cols[11] || '').trim(),
-        acquiredDate:(cols[12] || '').trim(),
-        leaseStart:   (cols[13] || '').trim(),
-        leaseEnd:     (cols[14] || '').trim(),
-        notes:        (cols[15] || '').trim(),
-        renewalDate:  (cols[16] || '').trim(),
+        monthly:     isNaN(monthly) ? '' : monthly,
+        vendor:      sanitize(cols[C_VENDOR]),
+        acquiredDate: parseDateFlex(cols[C_ACQUIRED]),
+        leaseStart:   parseDateFlex(cols[C_LSTART]),
+        leaseEnd:     parseDateFlex(cols[C_LEND]),
+        notes:        sanitize(cols[C_NOTES]),
+        renewalDate:  parseDateFlex(cols[C_RENEWAL]),
         files:        [],
         createdAt:   new Date().toISOString(),
         updatedAt:   new Date().toISOString(),
@@ -3602,6 +4128,212 @@ function parseCSVRow(row) {
   cols.push(cur);
   return cols;
 }
+
+// ── Google Sheets Import ──────────────────────────────────────────────
+function switchGSTab(tab) {
+  ['assets','branches'].forEach(t => {
+    const content = $('gsTabContent-' + t);
+    const btn = $('gsTab' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (!content || !btn) return;
+    if (t === tab) {
+      content.style.display = '';
+      btn.className = 'btn btn-sm';
+      btn.style.fontWeight = '600';
+    } else {
+      content.style.display = 'none';
+      btn.className = 'btn btn-ghost btn-sm';
+      btn.style.fontWeight = '';
+    }
+  });
+}
+
+function previewGSPaste() {
+  const text = $('gsPasteAssets').value.trim();
+  const el = $('gsAssetsPreview');
+  if (!text) { el.textContent = ''; return; }
+  const rows = parsePastedRows(text);
+  const dataRows = rows.length > 1 ? rows.length - 1 : 0;
+  el.textContent = dataRows ? `${dataRows} data row${dataRows !== 1 ? 's' : ''} detected (+ header)` : 'No data rows found';
+  el.style.color = dataRows ? 'var(--success)' : 'var(--text-muted)';
+}
+
+function parsePastedRows(text) {
+  // Google Sheets pastes as tab-separated; also support comma-separated
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return [];
+  const isTabSep = lines[0].includes('\t');
+  return lines.map(line => isTabSep ? line.split('\t').map(c => c.trim()) : parseCSVRow(line).map(c => c.trim()));
+}
+
+// Shared asset row processing (used by both paste import and URL fetch)
+function processAssetRows(rows, replaceAll) {
+  const MAX_FIELD_LEN = 500;
+  const sanitize = s => (s || '').trim().slice(0, MAX_FIELD_LEN).replace(/[<>]/g, '');
+  const parseNum = s => parseFloat((s || '').replace(/[$,\s%]/g, ''));
+  const parseDateFlex = s => {
+    if (!s) return '';
+    const t = s.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    const m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (m) {
+      const yr = m[3].length === 2 ? '20' + m[3] : m[3];
+      return `${yr}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+    }
+    return '';
+  };
+
+  const headerCols = rows[0];
+  const colMap = {};
+  const HEADER_ALIASES = {
+    'asset name': 'name', 'name': 'name', 'asset': 'name', 'equipment': 'name', 'equipment name': 'name',
+    'serial': 'serial', 'serial number': 'serial', 'serial #': 'serial', 'sn': 'serial',
+    'make': 'make', 'manufacturer': 'make', 'brand': 'make',
+    'model': 'model',
+    'year': 'year', 'yr': 'year',
+    'category': 'category', 'cat': 'category', 'type': 'category', 'catagory': 'category', 'asset type': 'category', 'catagory': 'category',
+    'branch': 'branch', 'location': 'branch', 'site': 'branch',
+    'status': 'status',
+    'cost': 'cost', 'cost ($)': 'cost', 'price': 'cost', 'value': 'cost', 'equipment cost': 'cost',
+    'sales tax': 'salesTax', 'tax': 'salesTax', 'sales tax ($)': 'salesTax',
+    'buyout & enhancement': 'buyoutEnhancement', 'buyout': 'buyoutEnhancement', 'enhancement': 'buyoutEnhancement', 'buyout and enhancement': 'buyoutEnhancement', 'buyout enhancement': 'buyoutEnhancement',
+    'freight': 'freight', 'shipping': 'freight', 'freight ($)': 'freight',
+    'hp': 'hp', 'horsepower': 'hp', 'horse power': 'hp',
+    'monthly': 'monthly', 'monthly lease': 'monthly', 'monthly ($)': 'monthly', 'monthly cost': 'monthly',
+    'vendor': 'vendor', 'supplier': 'vendor',
+    'acquired': 'acquired', 'acquired date': 'acquired', 'purchase date': 'acquired',
+    'lease start': 'leaseStart', 'start date': 'leaseStart',
+    'lease end': 'leaseEnd', 'end date': 'leaseEnd', 'lease end': 'leaseEnd',
+    'notes': 'notes', 'note': 'notes', 'description': 'notes', 'comments': 'notes',
+    'renewal date': 'renewal', 'renewal': 'renewal', 'renewal due': 'renewal',
+    'mileage': 'mileage', 'miles': 'mileage', 'odometer': 'mileage', 'mileage/hours': 'mileage', 'hours': 'mileage',
+  };
+  headerCols.forEach((h, i) => {
+    const norm = h.replace(/[<>]/g, '').replace(/[\u00A0\u2007\u202F]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+    const key = HEADER_ALIASES[norm];
+    if (key && !(key in colMap)) colMap[key] = i;
+  });
+
+  const col = field => colMap[field];
+  const get = (row, field) => { const c = col(field); return c !== undefined ? (row[c] || '') : ''; };
+
+  if (replaceAll) assets.length = 0;
+
+  let added = 0, updated = 0, skipped = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const name = sanitize(get(r, 'name'));
+    if (!name) { skipped++; continue; }
+
+    const serial = sanitize(get(r, 'serial'));
+    const branchRaw = sanitize(get(r, 'branch'));
+    const branchVal = (!branchRaw || branchRaw.toLowerCase() === 'pool') ? null
+      : (branches.find(b => b.name.toLowerCase() === branchRaw.toLowerCase())?.name || branchRaw);
+    if (branchVal && !branches.find(b => b.name === branchVal)) {
+      branches.push({ name: branchVal, password: 'ADMIN' });
+    }
+    const cost = parseNum(get(r, 'cost'));
+    const salesTax = parseNum(get(r, 'salesTax'));
+    const buyoutEnh = parseNum(get(r, 'buyoutEnhancement'));
+    const freight = parseNum(get(r, 'freight'));
+    const monthly = parseNum(get(r, 'monthly'));
+
+    let existing = null;
+    if (!replaceAll) {
+      if (serial) existing = assets.find(a => a.serial && a.serial.toLowerCase() === serial.toLowerCase());
+      if (!existing) existing = assets.find(a => a.name.toLowerCase() === name.toLowerCase());
+    }
+
+    const assetData = {
+      name, serial,
+      make:        sanitize(get(r, 'make')),
+      model:       sanitize(get(r, 'model')),
+      year:        sanitize(get(r, 'year')),
+      category:    sanitize(get(r, 'category')),
+      branch:      branchVal,
+      status:      branchVal ? 'On Lease' : 'Available',
+      cost:        isNaN(cost) ? '' : cost,
+      salesTax:    isNaN(salesTax) ? '' : salesTax,
+      buyoutEnhancement: isNaN(buyoutEnh) ? '' : buyoutEnh,
+      freight:     isNaN(freight) ? '' : freight,
+      monthly:     isNaN(monthly) ? '' : monthly,
+      hp:          sanitize(get(r, 'hp')),
+      mileage:     sanitize(get(r, 'mileage')),
+      vendor:      sanitize(get(r, 'vendor')),
+      acquiredDate: parseDateFlex(get(r, 'acquired')),
+      leaseStart:   parseDateFlex(get(r, 'leaseStart')),
+      leaseEnd:     parseDateFlex(get(r, 'leaseEnd')),
+      notes:        sanitize(get(r, 'notes')),
+      renewalDate:  parseDateFlex(get(r, 'renewal')),
+      updatedAt:   new Date().toISOString(),
+    };
+
+    if (existing) {
+      Object.assign(existing, assetData);
+      updated++;
+    } else {
+      assets.push({ id: uid(), ...assetData, files: [], createdAt: new Date().toISOString() });
+      added++;
+    }
+  }
+
+  saveAll();
+  renderAdminAssets();
+  renderBranchList();
+  return { added, updated, skipped };
+}
+
+function importGSAssets() {
+  const text = $('gsPasteAssets').value.trim();
+  if (!text) { toast('Paste your data first.', 'warn'); return; }
+  const rows = parsePastedRows(text);
+  if (rows.length < 2) { toast('Need a header row + at least one data row.', 'warn'); return; }
+
+  const replaceAll = $('gsAssetsReplace').checked;
+  const result = processAssetRows(rows, replaceAll);
+  $('gsPasteAssets').value = '';
+  const parts = [];
+  if (result.added) parts.push(`${result.added} added`);
+  if (result.updated) parts.push(`${result.updated} updated`);
+  if (result.skipped) parts.push(`${result.skipped} skipped`);
+  toast(`Assets imported: ${parts.join(', ')}.`, 'success');
+}
+
+function importGSBranches() {
+  const text = $('gsPasteBranches').value.trim();
+  if (!text) { toast('Paste your branch data first.', 'warn'); return; }
+  const rows = parsePastedRows(text);
+  if (rows.length < 2) { toast('Need a header row + at least one data row.', 'warn'); return; }
+
+  const headerCols = rows[0];
+  const colMap = {};
+  const ALIASES = {
+    'branch': 0, 'branch name': 0, 'name': 0, 'location': 0, 'site': 0,
+    'password': 1, 'pw': 1, 'pass': 1,
+  };
+  headerCols.forEach((h, i) => {
+    const key = h.replace(/[<>]/g, '').trim().toLowerCase();
+    if (key in ALIASES && !(ALIASES[key] in colMap)) colMap[ALIASES[key]] = i;
+  });
+  const nameCol = colMap[0] ?? 0;
+  const pwCol = colMap[1] ?? 1;
+
+  let added = 0, skipped = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const name = (rows[i][nameCol] || '').trim().slice(0, 100).replace(/[<>]/g, '');
+    if (!name) { skipped++; continue; }
+    if (branches.find(b => b.name.toLowerCase() === name.toLowerCase())) { skipped++; continue; }
+    const pw = (rows[i][pwCol] || '').trim() || name.toLowerCase().replace(/\s+/g, '');
+    branches.push({ name, password: pw });
+    added++;
+  }
+
+  saveAll();
+  renderBranchList();
+  populateLoginBranches();
+  $('gsPasteBranches').value = '';
+  toast(`Branches imported: ${added} added, ${skipped} skipped (already exist).`, 'success');
+}
+
 
 // ── Asset Files ───────────────────────────────────────────────────────
 let filesAssetId = null;
@@ -3764,6 +4496,14 @@ if (branchListEl) {
 }
 
 // ── Bulk selection ────────────────────────────────────────────────────
+function toggleCatGroup(cat) {
+  const rows = document.querySelectorAll('.cat-' + CSS.escape(cat));
+  const arrow = $('catArrow-' + cat);
+  const hidden = rows.length && rows[0].style.display === 'none';
+  rows.forEach(r => { r.style.display = hidden ? '' : 'none'; });
+  if (arrow) arrow.innerHTML = hidden ? '&#9660;' : '&#9654;';
+}
+
 function toggleSelectAll(checked) {
   lastFilteredIds.forEach(id => checked ? selectedAssets.add(id) : selectedAssets.delete(id));
   document.querySelectorAll('input.asset-cb').forEach(cb => { cb.checked = checked; });
@@ -3841,49 +4581,6 @@ function confirmBulkCategory() {
   renderAdminAssets();
 }
 
-function openBulkLRF() {
-  if (!selectedAssets.size) return;
-  $('bulkLRFCount').textContent = `${selectedAssets.size} asset(s) will be updated.`;
-  populateLRFPresetSelects();
-  $('bulkLRFSelect').value = '';
-  $('bulkLRFCustom').value = '';
-  $('bulkLRFOverlay').classList.add('open');
-}
-function closeBulkLRF() { $('bulkLRFOverlay').classList.remove('open'); }
-
-function onBulkLRFSelectChange(_presetId) {
-  // Leave custom field untouched; custom overrides preset if provided.
-}
-
-function confirmBulkLRF() {
-  const customRaw = $('bulkLRFCustom').value;
-  const presetId  = $('bulkLRFSelect').value;
-  const hasCustom = customRaw !== '';
-
-  let lrf = null;
-  if (hasCustom) {
-    const n = Number(customRaw);
-    if (!Number.isFinite(n) || n <= 0 || n >= 1) { toast('Custom LRF must be a number between 0 and 1.', 'warn'); return; }
-    lrf = n;
-  } else {
-    if (!presetId) { toast('Select a preset or enter a custom LRF.', 'warn'); return; }
-    const preset = lrfPresets.find(p => p.id === presetId);
-    if (!preset) { toast('Invalid preset selected.', 'warn'); return; }
-    lrf = Number(preset.lrf);
-  }
-
-  const n = selectedAssets.size;
-  selectedAssets.forEach(id => {
-    const a = assets.find(x => x.id === id);
-    if (a) { a.lrf = lrf; a.updatedAt = new Date().toISOString(); }
-  });
-  saveAll();
-  closeBulkLRF();
-  toast(`LRF updated for ${n} asset(s).`, 'success');
-  selectedAssets.clear();
-  updateBulkBar();
-  renderAdminAssets();
-}
 
 async function bulkDelete() {
   if (!selectedAssets.size) return;
@@ -3909,13 +4606,13 @@ async function bulkDelete() {
 
 // ── Sample CSV ────────────────────────────────────────────────────────
 function downloadSampleCSV() {
-  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','LRF','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes','Renewal Date'];
+  const headers = ['Asset Name','Serial','Make','Model','Year','Category','Branch','Status','Cost ($)','Monthly ($)','Vendor','Acquired','Lease Start','Lease End','Notes','Renewal Date'];
   const rows = [
-    ['Forklift #1','SN-10001','Toyota','8FGU25','2022','Heavy Equipment','Dallas','On Lease','45000','0.0185','','Toyota Industries','2023-01-15','2023-02-01','2025-01-31','Annual inspection due Jan 2025','2026-01-01'],
-    ['Scissor Lift #2','SN-10002','JLG','2030ES','2021','Aerial Work Platform','Houston','On Lease','32000','0.0200','','JLG Industries','2022-06-10','2022-07-01','2024-06-30','','2025-07-01'],
-    ['Generator 50kW','SN-10003','Generac','XD5000E','2020','Power Equipment','Pool','Available','18500','0.0175','','Generac','2023-03-20','','','Backup unit',''],
-    ['Compactor Roller','SN-10004','Bomag','BW120AD-5','2019','Compaction','Austin','On Lease','67000','0.0190','','Bomag','2021-11-01','2022-01-01','2024-12-31','Recent service completed','2025-12-01'],
-    ['Air Compressor','SN-10005','Atlas Copco','GA15','2023','Pneumatic Equipment','Pool','Available','9800','0.0165','','Atlas Copco','2023-08-05','','','',''],
+    ['Forklift #1','SN-10001','Toyota','8FGU25','2022','Heavy Equipment','Dallas','On Lease','45000','832.50','Toyota Industries','2023-01-15','2023-02-01','2025-01-31','Annual inspection due Jan 2025','2026-01-01'],
+    ['Scissor Lift #2','SN-10002','JLG','2030ES','2021','Aerial Work Platform','Houston','On Lease','32000','640.00','JLG Industries','2022-06-10','2022-07-01','2024-06-30','','2025-07-01'],
+    ['Generator 50kW','SN-10003','Generac','XD5000E','2020','Power Equipment','Pool','Available','18500','','Generac','2023-03-20','','','Backup unit',''],
+    ['Compactor Roller','SN-10004','Bomag','BW120AD-5','2019','Compaction','Austin','On Lease','67000','1273.00','Bomag','2021-11-01','2022-01-01','2024-12-31','Recent service completed','2025-12-01'],
+    ['Air Compressor','SN-10005','Atlas Copco','GA15','2023','Pneumatic Equipment','Pool','Available','9800','','Atlas Copco','2023-08-05','','','',''],
   ];
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -3953,11 +4650,11 @@ async function loadActivityLog() {
     if (error || !data?.length) { empty.style.display = ''; return; }
     empty.style.display = 'none';
     tbody.innerHTML = data.map(r => `<tr>
-      <td style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">${new Date(r.created_at).toLocaleString()}</td>
-      <td><span class="act-action">${esc(r.action)}</span></td>
-      <td>${r.entity_name ? `<strong>${esc(r.entity_name)}</strong>` : (r.entity_id ? `<span style="color:var(--text-muted)">${esc(r.entity_id)}</span>` : '—')}</td>
-      <td>${r.actor_role ? `<span class="badge badge-${r.actor_role==='admin'?'admin':'branch'}" style="font-size:.7rem">${esc(r.actor_role)}</span>` : '—'}</td>
-      <td class="act-detail">${r.details ? esc(r.details) : '—'}</td>
+      <td data-label="Time" style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">${new Date(r.created_at).toLocaleString()}</td>
+      <td data-label="Action"><span class="act-action">${esc(r.action)}</span></td>
+      <td data-label="Entity">${r.entity_name ? `<strong>${esc(r.entity_name)}</strong>` : (r.entity_id ? `<span style="color:var(--text-muted)">${esc(r.entity_id)}</span>` : '—')}</td>
+      <td data-label="Actor" class="mobile-hide">${r.actor_role ? `<span class="badge badge-${r.actor_role==='admin'?'admin':'branch'}" style="font-size:.7rem">${esc(r.actor_role)}</span>` : '—'}</td>
+      <td data-label="Details" class="mobile-hide act-detail">${r.details ? esc(r.details) : '—'}</td>
     </tr>`).join('');
   } catch(e) { toast('Could not load activity log.', 'warn'); }
 }
@@ -4032,7 +4729,7 @@ function renderDashboard() {
   const totalAssets  = assets.length;
   const onLease      = assets.filter(a => a.branch).length;
   const inPool       = assets.filter(a => !a.branch).length;
-  const totalMonthly = assets.filter(a => a.branch).reduce((s,a) => s + (monthlyPayment(a.cost,a.lrf)||0), 0);
+  const totalMonthly = assets.filter(a => a.branch).reduce((s,a) => s + (getMonthly(a)||0), 0);
 
   $('dashStats').innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Assets</div><div class="stat-value c-blue">${totalAssets}</div></div>
@@ -4047,13 +4744,13 @@ function renderDashboard() {
   } else {
     tbody.innerHTML = branches.map(b => {
       const bAssets  = assets.filter(a => a.branch === b.name);
-      const bMonthly = bAssets.reduce((s,a) => s + (monthlyPayment(a.cost,a.lrf)||0), 0);
+      const bMonthly = bAssets.reduce((s,a) => s + (getMonthly(a)||0), 0);
       const bPending = requests.filter(r => r.branchName === b.name && r.status === 'pending').length;
       return `<tr>
-        <td><strong>${esc(b.name)}</strong></td>
-        <td>${bAssets.length}</td>
-        <td style="color:var(--success);font-weight:600">${bMonthly ? fmt$(bMonthly) : '—'}</td>
-        <td>${bPending ? `<span class="badge badge-pending">${bPending} pending</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td data-label="Branch"><strong>${esc(b.name)}</strong></td>
+        <td data-label="Assets">${bAssets.length}</td>
+        <td data-label="Monthly" style="color:var(--success);font-weight:600">${bMonthly ? fmt$(bMonthly) : '—'}</td>
+        <td data-label="Requests">${bPending ? `<span class="badge badge-pending">${bPending} pending</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
       </tr>`;
     }).join('');
   }
@@ -4075,7 +4772,7 @@ function renderDashboard() {
       const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`;
       return `<div class="expiry-item">
         <div class="expiry-days ${cls}">${label}</div>
-        <div style="flex:1"><strong class="asset-nav-link" onclick="navigateToAsset('${a.id}')">${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
+        <div style="flex:1"><strong class="asset-nav-link" onclick="navigateToAsset('${escAttr(a.id)}')">${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
         <span style="font-size:.8rem;color:var(--text-muted)">${esc(a.branch||'')} · ends ${fmtDate(a.leaseEnd)}</span></div>
       </div>`;
     }).join('') + '</div>';
@@ -4096,7 +4793,7 @@ function renderDashboard() {
       const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`;
       return `<div class="expiry-item">
         <div class="expiry-days ${cls}">${label}</div>
-        <div style="flex:1"><strong class="asset-nav-link" onclick="navigateToAsset('${a.id}')">${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
+        <div style="flex:1"><strong class="asset-nav-link" onclick="navigateToAsset('${escAttr(a.id)}')">${esc(a.name)}</strong>${a.serial?` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>`:''}<br>
         <span style="font-size:.8rem;color:var(--text-muted)">${esc(a.branch||'Pool')} · renewal ${fmtDate(a.renewalDate)}</span></div>
       </div>`;
     }).join('') + '</div>';
@@ -4148,7 +4845,7 @@ function renderBranchRenewals(renewals) {
         <strong>${esc(a.name)}</strong>${a.serial ? ` <span style="color:var(--text-muted);font-size:.8rem">(${esc(a.serial)})</span>` : ''}<br>
         <span style="font-size:.8rem;color:var(--text-muted)">Renewal due ${fmtDate(a.renewalDate)}${a.category ? ' · ' + esc(a.category) : ''}</span>
       </div>
-      ${liveEnabled ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${a.id}')">📋 Submit Inspection</button>` : ''}
+      ${liveEnabled ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${escAttr(a.id)}')">📋 Submit Inspection</button>` : ''}
     </div>`;
   }).join('') + '</div>';
 }
@@ -4183,7 +4880,7 @@ function toast(msg, type='success') {
 }
 
 // ── Close overlays on backdrop click ─────────────────────────────────
-['assetFormOverlay','reassignOverlay','requestOverlay','approveAssetOverlay','simpleApproveOverlay','editBranchOverlay','filesOverlay','branchFilesOverlay','inspectionOverlay','bulkReassignOverlay','bulkCategoryOverlay','bulkLRFOverlay','verifyPwOverlay'].forEach(id => {
+['assetFormOverlay','reassignOverlay','requestOverlay','approveAssetOverlay','simpleApproveOverlay','editBranchOverlay','filesOverlay','branchFilesOverlay','inspectionOverlay','bulkReassignOverlay','bulkCategoryOverlay','verifyPwOverlay'].forEach(id => {
   $(id).addEventListener('click', e => { if (e.target === $(id)) $(id).classList.remove('open'); });
 });
 
@@ -4197,6 +4894,15 @@ document.addEventListener('click', e => {
 
 // ── Init ──────────────────────────────────────────────────────────────
 initApp();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.warn('SW registration failed:', err));
+  });
+}
 </script>
 </body>
 </html>
