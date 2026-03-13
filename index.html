@@ -782,23 +782,53 @@
           <button class="btn btn-ghost btn-sm" id="gsModePaste" onclick="switchGSMode('paste')">Paste Data</button>
         </div>
 
-        <!-- URL-based auto-sync mode -->
+        <!-- URL-based auto-sync mode (via private Apps Script) -->
         <div id="gsUrlMode">
-          <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:14px;margin-bottom:14px;font-size:.82rem;line-height:1.6;color:var(--text-muted);">
-            <strong style="color:var(--text)">Setup (one time):</strong> In Google Sheets go to <strong>File &rarr; Share &rarr; Publish to web</strong>. Select your sheet tab, choose <strong>CSV</strong>, and click Publish. Paste the URL below.<br>
-            <span style="font-size:.76rem;">The published link is a long unguessable URL &mdash; only people with the exact link can access it. It is not indexed by search engines.</span>
+          <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:14px;margin-bottom:14px;font-size:.82rem;line-height:1.7;color:var(--text-muted);">
+            <strong style="color:var(--text)">Private sync &mdash; your sheet is never published.</strong> One-time setup:<br>
+            1. In your Google Sheet, go to <strong>Extensions &rarr; Apps Script</strong><br>
+            2. Delete any code in the editor, paste the script below, then click <strong>Save</strong><br>
+            3. Click <strong>Deploy &rarr; New deployment</strong> &rarr; Type: <strong>Web app</strong> &rarr; Execute as: <strong>Me</strong> &rarr; Who has access: <strong>Anyone</strong> &rarr; <strong>Deploy</strong><br>
+            4. Copy the <strong>Web app URL</strong> and paste it below. Set a secret passphrase in both places.
           </div>
-          <div class="field">
-            <label>Published CSV URL</label>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input id="gsSheetUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv" style="flex:1" />
-              <button class="btn btn-primary btn-sm" onclick="fetchGoogleSheet()">Sync Now</button>
+          <div style="position:relative;margin-bottom:14px;">
+            <label style="font-size:.78rem;font-weight:600;color:var(--text);display:block;margin-bottom:4px;">Apps Script code (copy this into your sheet):</label>
+            <pre id="gsScriptCode" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-size:.75rem;line-height:1.5;overflow-x:auto;white-space:pre;color:var(--text);margin:0;max-height:180px;overflow-y:auto;">function doGet(e) {
+  var SECRET = 'CHANGE_ME'; // set your secret passphrase
+  if (e.parameter.key !== SECRET)
+    return ContentService.createTextOutput('Unauthorized').setMimeType(ContentService.MimeType.TEXT);
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = sheet.getDataRange().getValues();
+  var csv = data.map(function(row) {
+    return row.map(function(cell) {
+      var s = String(cell == null ? '' : cell);
+      if (cell instanceof Date) {
+        s = Utilities.formatDate(cell, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+      return '"' + s.replace(/"/g, '""') + '"';
+    }).join(',');
+  }).join('\n');
+  return ContentService.createTextOutput(csv).setMimeType(ContentService.MimeType.TEXT);
+}</pre>
+            <button class="btn btn-ghost btn-xs" onclick="copyGSScript()" style="position:absolute;top:4px;right:8px;font-size:.7rem;">Copy</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="field">
+              <label>Apps Script Web App URL</label>
+              <input id="gsSheetUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+            </div>
+            <div class="field">
+              <label>Secret Passphrase</label>
+              <input id="gsSheetKey" type="password" placeholder="Same passphrase you set in the script" />
             </div>
           </div>
-          <div style="display:flex;gap:12px;align-items:center;margin-top:8px;flex-wrap:wrap;">
-            <label style="font-size:.8rem;display:flex;align-items:center;gap:5px;color:var(--text-muted);"><input type="checkbox" id="gsAutoSync" onchange="saveGSheetSettings()" /> Auto-sync on login</label>
-            <label style="font-size:.8rem;display:flex;align-items:center;gap:5px;color:var(--text-muted);"><input type="checkbox" id="gsReplaceOnSync" onchange="saveGSheetSettings()" /> Replace all on sync (vs merge)</label>
-            <div id="gsLastSync" style="font-size:.76rem;color:var(--text-muted);"></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+            <button class="btn btn-primary btn-sm" onclick="fetchGoogleSheet()">Sync Now</button>
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;flex:1;">
+              <label style="font-size:.8rem;display:flex;align-items:center;gap:5px;color:var(--text-muted);"><input type="checkbox" id="gsAutoSync" onchange="saveGSheetSettings()" /> Auto-sync on login</label>
+              <label style="font-size:.8rem;display:flex;align-items:center;gap:5px;color:var(--text-muted);"><input type="checkbox" id="gsReplaceOnSync" onchange="saveGSheetSettings()" /> Replace all on sync (vs merge)</label>
+              <div id="gsLastSync" style="font-size:.76rem;color:var(--text-muted);"></div>
+            </div>
           </div>
           <div id="gsSyncStatus" style="font-size:.82rem;margin-top:8px;"></div>
         </div>
@@ -3949,6 +3979,7 @@ function loadGSheetSettings() {
 function saveGSheetSettings() {
   const settings = loadGSheetSettings();
   settings.url = ($('gsSheetUrl') ? $('gsSheetUrl').value.trim() : settings.url) || '';
+  settings.key = ($('gsSheetKey') ? $('gsSheetKey').value.trim() : settings.key) || '';
   settings.autoSync = $('gsAutoSync') ? $('gsAutoSync').checked : !!settings.autoSync;
   settings.replaceOnSync = $('gsReplaceOnSync') ? $('gsReplaceOnSync').checked : !!settings.replaceOnSync;
   localStorage.setItem(GSHEET_KEY, JSON.stringify(settings));
@@ -3956,12 +3987,17 @@ function saveGSheetSettings() {
 function restoreGSheetUI() {
   const s = loadGSheetSettings();
   if ($('gsSheetUrl')) $('gsSheetUrl').value = s.url || '';
+  if ($('gsSheetKey')) $('gsSheetKey').value = s.key || '';
   if ($('gsAutoSync')) $('gsAutoSync').checked = !!s.autoSync;
   if ($('gsReplaceOnSync')) $('gsReplaceOnSync').checked = !!s.replaceOnSync;
   if (s.lastSync) {
     const el = $('gsLastSync');
     if (el) el.textContent = 'Last sync: ' + new Date(s.lastSync).toLocaleString();
   }
+}
+function copyGSScript() {
+  const code = $('gsScriptCode').textContent;
+  navigator.clipboard.writeText(code).then(() => toast('Script copied to clipboard.', 'success'));
 }
 
 function switchGSMode(mode) {
@@ -3975,20 +4011,23 @@ function switchGSMode(mode) {
 }
 
 async function fetchGoogleSheet(silent) {
-  const url = $('gsSheetUrl') ? $('gsSheetUrl').value.trim() : loadGSheetSettings().url;
-  if (!url) { if (!silent) toast('Enter a published CSV URL first.', 'warn'); return; }
-  // Validate it's a Google Sheets published URL
-  if (!url.includes('docs.google.com/spreadsheets')) {
-    if (!silent) toast('Please use a Google Sheets published CSV URL.', 'warn');
-    return;
-  }
+  const settings = loadGSheetSettings();
+  const url = $('gsSheetUrl') ? $('gsSheetUrl').value.trim() : settings.url;
+  const key = $('gsSheetKey') ? $('gsSheetKey').value.trim() : settings.key;
+  if (!url) { if (!silent) toast('Enter your Apps Script web app URL first.', 'warn'); return; }
+  if (!key) { if (!silent) toast('Enter the secret passphrase you set in the script.', 'warn'); return; }
   const statusEl = $('gsSyncStatus');
   if (statusEl) statusEl.innerHTML = '<span style="color:var(--accent)">Fetching sheet data...</span>';
 
+  // Save settings before fetch so they persist
+  saveGSheetSettings();
+
   try {
-    const resp = await fetch(url);
+    const fetchUrl = url + (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key);
+    const resp = await fetch(fetchUrl, { redirect: 'follow' });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const text = await resp.text();
+    if (text.trim() === 'Unauthorized') throw new Error('Wrong passphrase — check the SECRET in your Apps Script matches');
     const lines = text.split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) throw new Error('Sheet has no data rows');
 
