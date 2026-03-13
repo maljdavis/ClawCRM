@@ -600,7 +600,6 @@
     <!-- INVOICE PANEL -->
     <div class="bpanel" id="bpanel-invoice">
       <div id="branchInvoiceList"></div>
-      <div id="branchInvoiceDetail" style="display:none;max-width:800px;margin:0 auto;"></div>
     </div>
   </div>
 </div>
@@ -1740,11 +1739,8 @@ if (!isLiveConfigured() && branches.length === 0) {
   localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
 }
 
-// Force all passwords to ADMIN
-adminPw = 'ADMIN';
-localStorage.setItem(ADMIN_KEY, adminPw);
-branches.forEach(b => { b.password = 'ADMIN'; });
-localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
+// Ensure admin password is set
+if (!localStorage.getItem(ADMIN_KEY)) { adminPw = 'ADMIN'; localStorage.setItem(ADMIN_KEY, adminPw); }
 
 // Migrate old assets that had no branch field: put them in pool
 assets.forEach(a => { if (a.branch === undefined) a.branch = null; });
@@ -1854,7 +1850,9 @@ async function loadBranchesForLogin() {
   try {
     const { data } = await supa.from('branches').select('name').order('name');
     if (data && data.length) {
-      branches = data.map(r => ({ name: r.name, password: '—' }));
+      const oldPws = {};
+      branches.forEach(b => { oldPws[b.name] = b.password; });
+      branches = data.map(r => ({ name: r.name, password: oldPws[r.name] || 'ADMIN' }));
       localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
     }
   } catch(e) { /* fall back to cached branches */ }
@@ -2024,7 +2022,9 @@ async function loadLiveData() {
 
   // Branches
   if (!brRes.error && Array.isArray(brRes.data)) {
-    branches = brRes.data.map(b => ({ name: b.name, password: '—' }));
+    const oldPws = {};
+    branches.forEach(b => { oldPws[b.name] = b.password; });
+    branches = brRes.data.map(b => ({ name: b.name, password: oldPws[b.name] || 'ADMIN' }));
   }
 
   // Assets
@@ -3021,7 +3021,7 @@ function previewAdminInvoice() {
   const branch = $('invoiceBranchSelect').value;
   if (!branch) { toast('Select a branch first.', 'warn'); return; }
   const inv = generateInvoiceData(branch);
-  $('adminInvoicePreview').innerHTML = buildInvoiceHTML(inv);
+  openInvoicePDF(inv);
   $('pushInvoiceBtn').disabled = false;
 }
 
@@ -3086,10 +3086,7 @@ function renderSentInvoices() {
 function viewAdminInvoice(invId) {
   const inv = invoices.find(x => x.id === invId);
   if (!inv) return;
-  $('adminInvoicePreview').innerHTML = buildInvoiceHTML(inv) +
-    `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
-      <button class="btn btn-ghost btn-sm" onclick="printInvoiceById('${escAttr(invId)}')">&#128438; Print / PDF</button>
-    </div>`;
+  openInvoicePDF(inv);
 }
 
 function deleteInvoice(invId) {
@@ -3105,8 +3102,6 @@ function deleteInvoice(invId) {
 function renderBranchInvoices() {
   const mine = invoices.filter(inv => inv.branch === currentBranch).sort((a,b) => b.sentAt.localeCompare(a.sentAt));
   const listEl = $('branchInvoiceList');
-  const detailEl = $('branchInvoiceDetail');
-  detailEl.style.display = 'none';
 
   if (!mine.length) {
     listEl.innerHTML = '<div class="empty" style="padding:40px"><div class="icon">📄</div><p>No invoices received yet.</p></div>';
@@ -3131,28 +3126,69 @@ function renderBranchInvoices() {
 function viewBranchInvoice(invId) {
   const inv = invoices.find(x => x.id === invId);
   if (!inv) return;
-  const detailEl = $('branchInvoiceDetail');
-  $('branchInvoiceList').style.display = 'none';
-  detailEl.style.display = '';
-  detailEl.innerHTML = `<div style="margin-bottom:12px;">
-      <button class="btn btn-ghost btn-sm no-print" onclick="backToBranchInvoices()">&larr; Back to Invoices</button>
-    </div>` + buildInvoiceHTML(inv) +
-    `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;" class="no-print">
-      <button class="btn btn-ghost btn-sm" onclick="printInvoiceById('${escAttr(invId)}')">&#128438; Print / PDF</button>
-    </div>`;
-}
-
-function backToBranchInvoices() {
-  $('branchInvoiceList').style.display = '';
-  $('branchInvoiceDetail').style.display = 'none';
+  openInvoicePDF(inv);
 }
 
 function printInvoiceById(invId) {
   const inv = invoices.find(x => x.id === invId);
   if (!inv) return;
-  document.getElementById('printTitle').textContent = inv.branch + ' — Monthly Invoice — ' + inv.period;
-  document.getElementById('printDate').textContent = 'Goodhouse Equipment Co. | ' + inv.id;
-  window.print();
+  openInvoicePDF(inv);
+}
+
+function openInvoicePDF(inv) {
+  const rows = (inv.items || []).map(it => `<tr>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;"><strong>${esc(it.name)}</strong></td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.serial||'—')}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.makeModelYear||'—')}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.category||'—')}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.period||'—')}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;text-align:right;font-weight:600;">${it.monthly > 0 ? fmt$(it.monthly) : '—'}</td>
+  </tr>`).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ${esc(inv.id)}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color:#111; padding:40px; max-width:900px; margin:0 auto; }
+  table { width:100%; border-collapse:collapse; }
+  th { background:#f5f5f5; padding:10px 12px; text-align:left; font-size:.78rem; text-transform:uppercase; letter-spacing:.5px; color:#555; border-bottom:2px solid #ddd; }
+  th:last-child { text-align:right; }
+  @media print { body { padding:20px; } .no-print { display:none !important; } }
+</style></head><body>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;">
+  <div>
+    <h1 style="font-size:1.5rem;font-weight:700;margin-bottom:4px;">Goodhouse Equipment Co.</h1>
+    <p style="font-size:.9rem;color:#666;">Monthly Equipment Lease Invoice</p>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:.9rem;color:#666;">${esc(inv.period)}</div>
+    <div style="font-size:.9rem;color:#666;margin-top:2px;">${esc(inv.id)}</div>
+  </div>
+</div>
+<div style="border-top:3px solid #2d6a4f;margin-bottom:24px;"></div>
+<div style="margin-bottom:24px;">
+  <div style="font-size:.75rem;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Bill To</div>
+  <div style="font-size:1.1rem;font-weight:700;">${esc(inv.branch)}</div>
+</div>
+<table>
+  <thead><tr><th style="width:26%">Asset</th><th style="width:14%">Serial #</th><th style="width:18%">Make / Model / Year</th><th style="width:12%">Category</th><th style="width:14%">Lease Period</th><th style="width:16%;text-align:right">Monthly Cost</th></tr></thead>
+  <tbody>${rows || '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">No assets</td></tr>'}</tbody>
+  <tfoot><tr style="border-top:3px solid #ddd;">
+    <td colspan="5" style="padding:12px;text-align:right;font-weight:700;font-size:1.1rem;">Total Due</td>
+    <td style="padding:12px;text-align:right;font-weight:700;font-size:1.1rem;color:#2d6a4f;">${fmt$(inv.total)}</td>
+  </tr></tfoot>
+</table>
+<div style="margin-top:24px;padding-top:16px;border-top:1px solid #ddd;font-size:.8rem;color:#999;line-height:1.6;">
+  Payment is due upon receipt. For questions regarding this invoice, please contact Goodhouse Equipment Co.
+</div>
+<div class="no-print" style="margin-top:24px;text-align:center;">
+  <button onclick="window.print()" style="padding:10px 28px;font-size:.9rem;background:#2d6a4f;color:#fff;border:none;border-radius:6px;cursor:pointer;">Save as PDF / Print</button>
+</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { toast('Pop-up blocked — allow pop-ups for this site to generate PDFs.', 'warn'); return; }
+  w.document.write(html);
+  w.document.close();
 }
 
 function renderMyRequests() {
@@ -3911,7 +3947,7 @@ function importCSV(input) {
       'make': 'make', 'manufacturer': 'make',
       'model': 'model',
       'year': 'year', 'yr': 'year',
-      'category': 'category', 'cat': 'category', 'type': 'category',
+      'category': 'category', 'cat': 'category', 'type': 'category', 'catagory': 'category',
       'branch': 'branch', 'location': 'branch',
       'status': 'status',
       'cost': 'cost', 'cost ($)': 'cost', 'price': 'cost', 'value': 'cost', 'equipment cost': 'cost',
@@ -4070,7 +4106,7 @@ function processAssetRows(rows, replaceAll) {
     'make': 'make', 'manufacturer': 'make', 'brand': 'make',
     'model': 'model',
     'year': 'year', 'yr': 'year',
-    'category': 'category', 'cat': 'category', 'type': 'category', 'asset type': 'category',
+    'category': 'category', 'cat': 'category', 'type': 'category', 'catagory': 'category', 'asset type': 'category', 'catagory': 'category',
     'branch': 'branch', 'location': 'branch', 'site': 'branch',
     'status': 'status',
     'cost': 'cost', 'cost ($)': 'cost', 'price': 'cost', 'value': 'cost', 'equipment cost': 'cost',
@@ -4109,7 +4145,7 @@ function processAssetRows(rows, replaceAll) {
     const branchVal = (!branchRaw || branchRaw.toLowerCase() === 'pool') ? null
       : (branches.find(b => b.name.toLowerCase() === branchRaw.toLowerCase())?.name || branchRaw);
     if (branchVal && !branches.find(b => b.name === branchVal)) {
-      branches.push({ name: branchVal, password: branchVal.toLowerCase().replace(/\s+/g, '') });
+      branches.push({ name: branchVal, password: 'ADMIN' });
     }
     const cost = parseNum(get(r, 'cost'));
     const salesTax = parseNum(get(r, 'salesTax'));
