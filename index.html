@@ -1473,7 +1473,7 @@ let branches     = JSON.parse(localStorage.getItem(BRANCHES_KEY) || '[]');
 let requests     = JSON.parse(localStorage.getItem(REQUESTS_KEY) || '[]');
 let saleListings = JSON.parse(localStorage.getItem(SALES_KEY) || '[]');
 let invoices     = JSON.parse(localStorage.getItem(INVOICES_KEY) || '[]');
-let adminPw      = localStorage.getItem(ADMIN_KEY) || 'admin';
+let adminPw      = localStorage.getItem(ADMIN_KEY) || 'ADMIN';
 let telematicsUrl = localStorage.getItem(TELEM_KEY) || '';
 
 // ── Session State ─────────────────────────────────────────────────────
@@ -1736,9 +1736,15 @@ async function liveSync() {
 
 // ── First run ─────────────────────────────────────────────────────────
 if (!isLiveConfigured() && branches.length === 0) {
-  branches = [{ name: 'Main', password: 'main' }];
+  branches = [{ name: 'Main', password: 'ADMIN' }];
   localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
 }
+
+// Force all passwords to ADMIN
+adminPw = 'ADMIN';
+localStorage.setItem(ADMIN_KEY, adminPw);
+branches.forEach(b => { b.password = 'ADMIN'; });
+localStorage.setItem(BRANCHES_KEY, JSON.stringify(branches));
 
 // Migrate old assets that had no branch field: put them in pool
 assets.forEach(a => { if (a.branch === undefined) a.branch = null; });
@@ -1802,6 +1808,11 @@ async function doLogin() {
 function doLocalLogin() {
   const name = $('loginBranch').value;
   const pw   = $('loginPw').value;
+  if (name === '__admin__') {
+    if (pw === adminPw) { resetLoginAttempts(); isAdmin = true; currentBranch = null; showAdminView(); }
+    else { recordFailedLogin(); $('loginError').style.display = 'block'; }
+    return;
+  }
   const branch = branches.find(b => b.name === name);
   if (branch && branch.password === pw) {
     resetLoginAttempts();
@@ -1822,13 +1833,18 @@ async function doLiveLogin() {
       : branchToEmail(selectedBranch);
     const pw = $('loginPw').value;
     const { error } = await supa.auth.signInWithPassword({ email, password: pw });
-    if (error) { recordFailedLogin(); $('loginError').style.display = 'block'; return; }
+    if (error) {
+      // Fall back to local login if Supabase auth fails
+      console.warn('Supabase auth failed, trying local login:', error.message);
+      doLocalLogin();
+      return;
+    }
     resetLoginAttempts();
     await afterLiveAuth();
   } catch (e) {
     console.error(e);
-    recordFailedLogin();
-    $('loginError').style.display = 'block';
+    // Fall back to local login
+    doLocalLogin();
   }
 }
 
