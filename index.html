@@ -1616,6 +1616,11 @@ async function liveSync() {
         status: a.status || null,
         cost: (a.cost === '' || a.cost == null) ? null : a.cost,
         monthly: (a.monthly === '' || a.monthly == null) ? null : a.monthly,
+        sales_tax: (a.salesTax === '' || a.salesTax == null) ? null : a.salesTax,
+        buyout_enhancement: (a.buyoutEnhancement === '' || a.buyoutEnhancement == null) ? null : a.buyoutEnhancement,
+        freight: (a.freight === '' || a.freight == null) ? null : a.freight,
+        hp: a.hp || null,
+        mileage: a.mileage || null,
         vendor: a.vendor || null,
         acquired_date: a.acquiredDate || null,
         lease_start:  a.leaseStart  || null,
@@ -1630,7 +1635,7 @@ async function liveSync() {
         if (assetErr) {
           // Any recently-added column may not exist yet if schema.sql hasn't been run.
           // Strip all migrated columns and retry so existing fields always save.
-          const MIGRATED = ['make', 'model', 'year', 'renewal_date'];
+          const MIGRATED = ['make', 'model', 'year', 'renewal_date', 'monthly', 'sales_tax', 'buyout_enhancement', 'freight', 'hp', 'mileage'];
           const isSchemaGap = MIGRATED.some(c => assetErr.message?.includes(c));
           if (isSchemaGap) {
             console.warn('DB schema outdated — run schema.sql in Supabase. Missing:', assetErr.message);
@@ -2049,6 +2054,11 @@ async function loadLiveData() {
         status: a.status || (a.branch_name ? 'On Lease' : 'Available'),
         cost: a.cost ?? '',
         monthly: a.monthly ?? '',
+        salesTax: a.sales_tax ?? '',
+        buyoutEnhancement: a.buyout_enhancement ?? '',
+        freight: a.freight ?? '',
+        hp: a.hp || '',
+        mileage: a.mileage || '',
         vendor: a.vendor || '',
         acquiredDate: a.acquired_date || '',
         leaseStart:   a.lease_start   || '',
