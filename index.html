@@ -501,8 +501,7 @@
         <table>
           <thead>
             <tr>
-              <th style="width:22%">Asset Name</th>
-              <th style="width:12%">Category</th>
+              <th style="width:24%">Asset Name</th>
               <th style="width:18%">Make / Model / Year</th>
               <th style="width:10%">Status</th>
               <th style="width:10%">Monthly Lease</th>
@@ -682,12 +681,11 @@
           <thead>
             <tr>
               <th style="width:36px"><input type="checkbox" id="selectAllCb" onchange="toggleSelectAll(this.checked)" /></th>
-              <th style="width:22%" onclick="setSort('name')">Asset Name</th>
-              <th style="width:12%" onclick="setSort('category')">Category</th>
+              <th style="width:24%" onclick="setSort('name')">Asset Name</th>
               <th style="width:14%">Branch / Status</th>
               <th style="width:10%" onclick="setSort('cost')">Cost</th>
               <th style="width:10%">Monthly</th>
-              <th style="width:15%">Make / Model / Year</th>
+              <th style="width:18%">Make / Model / Year</th>
               <th style="width:auto"></th>
             </tr>
           </thead>
@@ -2899,7 +2897,12 @@ function renderBranchAssets() {
   const pendingTransfers = new Set(requests.filter(r => r.type === 'transfer_asset' && r.status === 'pending').map(r => r.assetId));
   const mp = a => { const v = getMonthly(a); return v !== null ? fmt$(v) : '—'; };
 
-  tbody.innerHTML = list.map(a => {
+  // Group by category
+  const catGroups = {};
+  list.forEach(a => { const cat = a.category || 'Uncategorized'; (catGroups[cat] = catGroups[cat] || []).push(a); });
+  const catNames = Object.keys(catGroups).sort();
+
+  const branchRow = a => {
     const returnBtn = pendingReturns.has(a.id)
       ? `<span class="badge badge-pending" style="font-size:.7rem">Return Pending</span>`
       : `<button class="btn btn-ghost btn-xs" onclick="openRequestModal('return_asset','${escAttr(a.id)}')">Return</button>`;
@@ -2918,9 +2921,8 @@ function renderBranchAssets() {
     const inspectBtn = liveEnabled
       ? `<button class="btn btn-primary btn-xs" onclick="openInspectionModal('${escAttr(a.id)}')">📋 Inspect</button>`
       : '';
-    return `<tr>
+    return `<tr class="cat-row cat-${escAttr(a.category||'Uncategorized')}">
       <td data-label="Asset"><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
-      <td data-label="Category" class="mobile-hide">${esc(a.category||'—')}</td>
       <td data-label="Make/Model" class="mobile-hide">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
       <td data-label="Status"><span class="badge badge-lease">On Lease</span>${(() => { const sl = saleListings.find(x => x.assetId === a.id && x.status !== 'sold'); return sl ? ` <span class="badge badge-pending" style="font-size:.7rem">${sl.status === 'pending' ? 'For Sale Pending' : sl.status === 'pending_sold' ? 'Sale Pending' : 'For Sale'}</span>` : ''; })()}</td>
       <td data-label="Monthly" style="color:var(--success);font-weight:600">${mp(a)}</td>
@@ -2928,6 +2930,17 @@ function renderBranchAssets() {
       <td data-label="Renewal">${renewalCell}</td>
       <td data-label=""><div class="actions">${returnBtn}${issueBtn}${transferBtn}${inspectBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${escAttr(a.id)}')">📎 Files${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button></div></td>
     </tr>`;
+  };
+
+  tbody.innerHTML = catNames.map(cat => {
+    const group = catGroups[cat];
+    const catMonthly = group.reduce((s,a) => s + (getMonthly(a)||0), 0);
+    return `<tr class="cat-header" onclick="toggleCatGroup('${escAttr(cat)}')">
+      <td colspan="7" style="background:var(--surface2,#f5f5f5);padding:10px 14px;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:2px solid var(--border);">
+        <span class="cat-arrow" id="catArrow-${escAttr(cat)}">&#9660;</span> ${esc(cat)} <span style="font-weight:400;color:var(--text-muted);font-size:.8rem">(${group.length})</span>
+        <span style="float:right;color:var(--success)">${catMonthly ? fmt$(catMonthly) + '/mo' : ''}</span>
+      </td>
+    </tr>` + group.map(branchRow).join('');
   }).join('');
 }
 
@@ -2943,15 +2956,45 @@ function invoiceId(branch, date) {
   return 'INV-' + branch.replace(/[^A-Za-z0-9]/g,'').substring(0,8).toUpperCase() + '-' + d.getFullYear() + String(d.getMonth()+1).padStart(2,'0');
 }
 
+function buildGroupedRows(inv) {
+  // Rebuild grouped from items if not present (for older stored invoices)
+  const grouped = inv.grouped || {};
+  if (!Object.keys(grouped).length && inv.items) {
+    inv.items.forEach(it => { (grouped[it.category || 'Uncategorized'] = grouped[it.category || 'Uncategorized'] || []).push(it); });
+  }
+  return grouped;
+}
+
 function buildInvoiceHTML(inv) {
-  const rows = (inv.items || []).map(it => `<tr>
-    <td data-label="Asset"><strong>${esc(it.name)}</strong></td>
-    <td data-label="Serial">${esc(it.serial||'—')}</td>
-    <td data-label="Make/Model">${esc(it.makeModelYear||'—')}</td>
-    <td data-label="Category">${esc(it.category||'—')}</td>
-    <td data-label="Lease Period">${esc(it.period||'—')}</td>
-    <td data-label="Monthly Cost" style="text-align:right;font-weight:600;color:var(--success)">${it.monthly > 0 ? fmt$(it.monthly) : '—'}</td>
-  </tr>`).join('');
+  const grouped = buildGroupedRows(inv);
+  const cats = Object.keys(grouped).sort();
+  let sections = '';
+  if (!cats.length) {
+    sections = '<div style="padding:20px;text-align:center;color:var(--text-muted)">No line items</div>';
+  } else {
+    sections = cats.map(cat => {
+      const items = grouped[cat];
+      const catTotal = items.reduce((s,it) => s + (it.monthly||0), 0);
+      const rows = items.map(it => `<tr>
+        <td data-label="Asset"><strong>${esc(it.name)}</strong></td>
+        <td data-label="Serial">${esc(it.serial||'—')}</td>
+        <td data-label="Make/Model">${esc(it.makeModelYear||'—')}</td>
+        <td data-label="Billing Period">${esc(it.period||'—')}</td>
+        <td data-label="Monthly Cost" style="text-align:right;font-weight:600;color:var(--success)">${it.monthly > 0 ? fmt$(it.monthly) : '—'}</td>
+      </tr>`).join('');
+      return `<div style="margin-bottom:16px;">
+        <div style="font-size:.85rem;font-weight:700;color:var(--text);background:var(--surface2,#f5f5f5);padding:8px 12px;border-radius:6px 6px 0 0;border:1px solid var(--border);border-bottom:none;display:flex;justify-content:space-between;">
+          <span>${esc(cat)} (${items.length})</span><span style="color:var(--success)">${fmt$(catTotal)}</span>
+        </div>
+        <div class="table-wrap" style="border-radius:0 0 6px 6px;margin:0;">
+          <table><thead><tr>
+            <th style="width:30%">Asset</th><th style="width:16%">Serial #</th><th style="width:22%">Make / Model / Year</th>
+            <th style="width:16%">Billing Period</th><th style="width:16%;text-align:right">Monthly Cost</th>
+          </tr></thead><tbody>${rows}</tbody></table>
+        </div>
+      </div>`;
+    }).join('');
+  }
   return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;" class="invoice-printable">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
       <div>
@@ -2961,6 +3004,7 @@ function buildInvoiceHTML(inv) {
       <div style="text-align:right;">
         <div style="font-size:.85rem;color:var(--text-muted);">${esc(inv.period)}</div>
         <div style="font-size:.85rem;color:var(--text-muted);margin-top:2px;">${esc(inv.id)}</div>
+        <div style="font-size:.8rem;color:var(--text-muted);margin-top:2px;">Month to Month</div>
       </div>
     </div>
     <div style="border-top:2px solid var(--accent);margin-bottom:20px;"></div>
@@ -2968,18 +3012,9 @@ function buildInvoiceHTML(inv) {
       <div style="font-size:.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Bill To</div>
       <div style="font-size:1rem;font-weight:600;">${esc(inv.branch)}</div>
     </div>
-    <div class="table-wrap" style="margin-bottom:20px;">
-      <table>
-        <thead><tr>
-          <th style="width:28%">Asset</th><th style="width:14%">Serial #</th><th style="width:18%">Make / Model / Year</th>
-          <th style="width:12%">Category</th><th style="width:14%">Lease Period</th><th style="width:14%;text-align:right">Monthly Cost</th>
-        </tr></thead>
-        <tbody>${rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">No line items</td></tr>'}</tbody>
-        <tfoot><tr style="font-weight:700;font-size:1.05rem;border-top:2px solid var(--border);">
-          <td colspan="5" style="text-align:right;padding-right:12px;">Total Due</td>
-          <td style="text-align:right;color:var(--success);">${fmt$(inv.total)}</td>
-        </tr></tfoot>
-      </table>
+    ${sections}
+    <div style="display:flex;justify-content:flex-end;padding:14px 0;border-top:3px solid var(--border);margin-top:8px;">
+      <div style="font-weight:700;font-size:1.1rem;">Total Due: <span style="color:var(--success);margin-left:12px;">${fmt$(inv.total)}</span></div>
     </div>
     <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;border-top:1px solid var(--border);padding-top:14px;">
       Payment is due upon receipt. For questions regarding this invoice, please contact Goodhouse Equipment Co.
@@ -2989,19 +3024,23 @@ function buildInvoiceHTML(inv) {
 
 function generateInvoiceData(branchName) {
   const now = new Date();
+  const billingPeriod = MONTH_NAMES[now.getMonth()] + ' ' + now.getFullYear();
   const bAssets = assets.filter(a => a.branch === branchName);
   let total = 0;
   const items = bAssets.map(a => {
     const m = getMonthly(a) || 0;
     total += m;
-    const period = a.leaseStart && a.leaseEnd ? fmtDate(a.leaseStart) + ' – ' + fmtDate(a.leaseEnd) : a.leaseStart ? fmtDate(a.leaseStart) + ' – Present' : '—';
-    return { name: a.name, serial: a.serial || '', makeModelYear: [a.make,a.model,a.year].filter(Boolean).join(' · ') || '', category: a.category || '', period, monthly: m };
+    return { name: a.name, serial: a.serial || '', makeModelYear: [a.make,a.model,a.year].filter(Boolean).join(' · ') || '', category: a.category || 'Uncategorized', period: billingPeriod, monthly: m };
   });
+  // Group items by category
+  const grouped = {};
+  items.forEach(it => { (grouped[it.category] = grouped[it.category] || []).push(it); });
   return {
     id: invoiceId(branchName, now),
     branch: branchName,
-    period: MONTH_NAMES[now.getMonth()] + ' ' + now.getFullYear(),
+    period: billingPeriod,
     items,
+    grouped,
     total,
     assetCount: bAssets.length,
     sentAt: now.toISOString()
@@ -3136,14 +3175,37 @@ function printInvoiceById(invId) {
 }
 
 function openInvoicePDF(inv) {
-  const rows = (inv.items || []).map(it => `<tr>
-    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;"><strong>${esc(it.name)}</strong></td>
-    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.serial||'—')}</td>
-    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.makeModelYear||'—')}</td>
-    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.category||'—')}</td>
-    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.period||'—')}</td>
-    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;text-align:right;font-weight:600;">${it.monthly > 0 ? fmt$(it.monthly) : '—'}</td>
-  </tr>`).join('');
+  const grouped = buildGroupedRows(inv);
+  const cats = Object.keys(grouped).sort();
+
+  let sections = '';
+  if (!cats.length) {
+    sections = '<div style="padding:30px;text-align:center;color:#999;">No assets</div>';
+  } else {
+    sections = cats.map(cat => {
+      const items = grouped[cat];
+      const catTotal = items.reduce((s,it) => s + (it.monthly||0), 0);
+      const rows = items.map(it => `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;"><strong>${esc(it.name)}</strong></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.serial||'—')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.makeModelYear||'—')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;">${esc(it.period||'—')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;font-size:.85rem;text-align:right;font-weight:600;">${it.monthly > 0 ? fmt$(it.monthly) : '—'}</td>
+      </tr>`).join('');
+      return `<div style="margin-bottom:20px;">
+        <div style="background:#f0f7f3;padding:10px 14px;border-radius:6px 6px 0 0;border:1px solid #ddd;border-bottom:none;display:flex;justify-content:space-between;font-weight:700;font-size:.9rem;">
+          <span>${esc(cat)} (${items.length})</span><span style="color:#2d6a4f">${fmt$(catTotal)}</span>
+        </div>
+        <table style="border:1px solid #ddd;border-top:none;">
+          <thead><tr>
+            <th style="width:30%">Asset</th><th style="width:16%">Serial #</th><th style="width:22%">Make / Model / Year</th>
+            <th style="width:16%">Billing Period</th><th style="width:16%;text-align:right">Monthly Cost</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+  }
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ${esc(inv.id)}</title>
 <style>
@@ -3152,7 +3214,7 @@ function openInvoicePDF(inv) {
   table { width:100%; border-collapse:collapse; }
   th { background:#f5f5f5; padding:10px 12px; text-align:left; font-size:.78rem; text-transform:uppercase; letter-spacing:.5px; color:#555; border-bottom:2px solid #ddd; }
   th:last-child { text-align:right; }
-  @media print { body { padding:20px; } .no-print { display:none !important; } }
+  @media print { body { padding:20px; } .no-print { display:none !important; } @page { margin: 0.5in; } }
 </style></head><body>
 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;">
   <div>
@@ -3162,6 +3224,7 @@ function openInvoicePDF(inv) {
   <div style="text-align:right;">
     <div style="font-size:.9rem;color:#666;">${esc(inv.period)}</div>
     <div style="font-size:.9rem;color:#666;margin-top:2px;">${esc(inv.id)}</div>
+    <div style="font-size:.85rem;color:#888;margin-top:2px;">Month to Month</div>
   </div>
 </div>
 <div style="border-top:3px solid #2d6a4f;margin-bottom:24px;"></div>
@@ -3169,15 +3232,11 @@ function openInvoicePDF(inv) {
   <div style="font-size:.75rem;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Bill To</div>
   <div style="font-size:1.1rem;font-weight:700;">${esc(inv.branch)}</div>
 </div>
-<table>
-  <thead><tr><th style="width:26%">Asset</th><th style="width:14%">Serial #</th><th style="width:18%">Make / Model / Year</th><th style="width:12%">Category</th><th style="width:14%">Lease Period</th><th style="width:16%;text-align:right">Monthly Cost</th></tr></thead>
-  <tbody>${rows || '<tr><td colspan="6" style="padding:20px;text-align:center;color:#999;">No assets</td></tr>'}</tbody>
-  <tfoot><tr style="border-top:3px solid #ddd;">
-    <td colspan="5" style="padding:12px;text-align:right;font-weight:700;font-size:1.1rem;">Total Due</td>
-    <td style="padding:12px;text-align:right;font-weight:700;font-size:1.1rem;color:#2d6a4f;">${fmt$(inv.total)}</td>
-  </tr></tfoot>
-</table>
-<div style="margin-top:24px;padding-top:16px;border-top:1px solid #ddd;font-size:.8rem;color:#999;line-height:1.6;">
+${sections}
+<div style="display:flex;justify-content:flex-end;padding:14px 0;border-top:3px solid #ddd;margin-top:8px;">
+  <div style="font-weight:700;font-size:1.15rem;">Total Due: <span style="color:#2d6a4f;margin-left:14px;">${fmt$(inv.total)}</span></div>
+</div>
+<div style="margin-top:20px;padding-top:16px;border-top:1px solid #ddd;font-size:.8rem;color:#999;line-height:1.6;">
   Payment is due upon receipt. For questions regarding this invoice, please contact Goodhouse Equipment Co.
 </div>
 <div class="no-print" style="margin-top:24px;text-align:center;">
@@ -3484,7 +3543,12 @@ function renderAdminAssets() {
   }
   $('adminEmpty').style.display = 'none';
 
-  tbody.innerHTML = list.map(a => {
+  // Group by category
+  const catGroups = {};
+  list.forEach(a => { const cat = a.category || 'Uncategorized'; (catGroups[cat] = catGroups[cat] || []).push(a); });
+  const catNames = Object.keys(catGroups).sort();
+
+  const assetRow = a => {
     const branchCell = a.branch
       ? `<span class="badge badge-lease" style="font-size:.75rem">${esc(a.branch)}</span>${(() => { const sl = saleListings.find(x => x.assetId === a.id && x.status !== 'sold'); return sl ? ` <span class="badge badge-pending" style="font-size:.7rem">${sl.status === 'pending' ? 'For Sale Pending' : sl.status === 'pending_sold' ? 'Sale Pending' : 'For Sale'}</span>` : ''; })()}`
       : `<span class="badge badge-pool" style="font-size:.75rem">Pool</span>`;
@@ -3493,7 +3557,6 @@ function renderAdminAssets() {
     return `<tr data-asset-id="${escAttr(a.id)}">
       <td class="mobile-hide"><input type="checkbox" class="asset-cb" data-id="${escAttr(a.id)}" onchange="toggleAssetSelect('${escAttr(a.id)}',this.checked)" ${checked}></td>
       <td data-label="Asset"><strong>${esc(a.name)}</strong>${a.serial?`<br><span style="font-size:.75rem;color:var(--text-muted)">${esc(a.serial)}</span>`:''}</td>
-      <td data-label="Category" class="mobile-hide">${esc(a.category||'—')}</td>
       <td data-label="Branch">${branchCell}</td>
       <td data-label="Cost">${fmt$(a.cost)}</td>
       <td data-label="Monthly">${mp!==null?fmt$(mp):'—'}</td>
@@ -3506,6 +3569,17 @@ function renderAdminAssets() {
         <button class="btn btn-danger btn-xs" onclick="deleteAsset('${escAttr(a.id)}')">Del</button>
       </div></td>
     </tr>`;
+  };
+
+  tbody.innerHTML = catNames.map(cat => {
+    const group = catGroups[cat];
+    const catMonthly = group.filter(a=>a.branch).reduce((s,a)=>s+(getMonthly(a)||0),0);
+    return `<tr class="cat-header" onclick="toggleCatGroup('${escAttr(cat)}')">
+      <td colspan="7" style="background:var(--surface2,#f5f5f5);padding:10px 14px;font-weight:700;font-size:.9rem;cursor:pointer;border-bottom:2px solid var(--border);">
+        <span class="cat-arrow" id="catArrow-${escAttr(cat)}">&#9660;</span> ${esc(cat)} <span style="font-weight:400;color:var(--text-muted);font-size:.8rem">(${group.length})</span>
+        <span style="float:right;color:var(--success)">${catMonthly ? fmt$(catMonthly) + '/mo' : ''}</span>
+      </td>
+    </tr>` + group.map(a => assetRow(a).replace('<tr ', `<tr class="cat-row cat-${escAttr(cat)}" `)).join('');
   }).join('');
 
   // Sync select-all checkbox
@@ -4412,6 +4486,14 @@ if (branchListEl) {
 }
 
 // ── Bulk selection ────────────────────────────────────────────────────
+function toggleCatGroup(cat) {
+  const rows = document.querySelectorAll('.cat-' + CSS.escape(cat));
+  const arrow = $('catArrow-' + cat);
+  const hidden = rows.length && rows[0].style.display === 'none';
+  rows.forEach(r => { r.style.display = hidden ? '' : 'none'; });
+  if (arrow) arrow.innerHTML = hidden ? '&#9660;' : '&#9654;';
+}
+
 function toggleSelectAll(checked) {
   lastFilteredIds.forEach(id => checked ? selectedAssets.add(id) : selectedAssets.delete(id));
   document.querySelectorAll('input.asset-cb').forEach(cb => { cb.checked = checked; });
