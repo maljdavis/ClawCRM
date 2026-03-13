@@ -208,11 +208,13 @@
     @media print {
       body { background: #fff !important; color: #000 !important; }
       header, .toolbar, .info-banner, #renewalBanner, .req-list, #branchRenewals,
-      .section-hdr, .actions, .toast-container, .overlay, .notif-panel { display: none !important; }
+      .section-hdr, .actions, .toast-container, .overlay, .notif-panel, .no-print, .branch-tabs { display: none !important; }
       .screen { display: block !important; }
       #branchView { display: block !important; }
       #adminView { display: none !important; }
       #loginScreen { display: none !important; }
+      .bpanel { display: none !important; }
+      .bpanel.active { display: block !important; }
       .page { padding: 0 !important; max-width: 100% !important; }
       .table-wrap { border: 1px solid #ccc !important; border-radius: 0 !important; overflow: visible !important; box-shadow: none !important; }
       table { font-size: .8rem !important; }
@@ -483,6 +485,7 @@
     <div class="branch-tabs">
       <button class="btab active" id="btab-assets"  onclick="setBranchTab('assets')">My Assets</button>
       <button class="btab"        id="btab-forsale" onclick="setBranchTab('forsale')">For Sale</button>
+      <button class="btab"        id="btab-invoice" onclick="setBranchTab('invoice')">Invoice</button>
     </div>
 
     <!-- MY ASSETS PANEL -->
@@ -590,6 +593,56 @@
         <div class="empty" id="soldEmpty" style="display:none">
           <div class="icon">✅</div>
           <p>No sold items yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVOICE PANEL -->
+    <div class="bpanel" id="bpanel-invoice">
+      <div id="invoiceContainer" style="max-width:800px;margin:0 auto;">
+        <div id="invoiceContent" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;margin-top:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
+            <div>
+              <h2 style="margin:0;font-size:1.4rem;font-weight:700;color:var(--text);">Goodhouse Equipment Co.</h2>
+              <p style="margin:4px 0 0;font-size:.85rem;color:var(--text-muted);">Monthly Equipment Lease Invoice</p>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:.85rem;color:var(--text-muted);" id="invoiceDate"></div>
+              <div style="font-size:.85rem;color:var(--text-muted);margin-top:2px;" id="invoiceNumber"></div>
+            </div>
+          </div>
+          <div style="border-top:2px solid var(--accent);margin-bottom:20px;"></div>
+          <div style="margin-bottom:20px;">
+            <div style="font-size:.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Bill To</div>
+            <div style="font-size:1rem;font-weight:600;" id="invoiceBranch"></div>
+          </div>
+          <div class="table-wrap" style="margin-bottom:20px;">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:28%">Asset</th>
+                  <th style="width:14%">Serial #</th>
+                  <th style="width:18%">Make / Model / Year</th>
+                  <th style="width:12%">Category</th>
+                  <th style="width:14%">Lease Period</th>
+                  <th style="width:14%;text-align:right">Monthly Cost</th>
+                </tr>
+              </thead>
+              <tbody id="invoiceTableBody"></tbody>
+              <tfoot>
+                <tr style="font-weight:700;font-size:1.05rem;border-top:2px solid var(--border);">
+                  <td colspan="5" style="text-align:right;padding-right:12px;">Total Due</td>
+                  <td style="text-align:right;color:var(--success);" id="invoiceTotal"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;border-top:1px solid var(--border);padding-top:14px;">
+            Payment is due upon receipt. For questions regarding this invoice, please contact Goodhouse Equipment Co.
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;" class="no-print">
+          <button class="btn btn-ghost btn-sm" onclick="printInvoice()">&#128438; Print / PDF</button>
         </div>
       </div>
     </div>
@@ -2146,12 +2199,13 @@ function getMonthly(asset) {
 let currentBranchTab = 'assets';
 function setBranchTab(tab) {
   currentBranchTab = tab;
-  ['assets','forsale'].forEach(t => {
+  ['assets','forsale','invoice'].forEach(t => {
     const btn = $('btab-' + t); if (btn) btn.classList.toggle('active', t === tab);
     const panel = $('bpanel-' + t); if (panel) panel.classList.toggle('active', t === tab);
   });
   if (tab === 'assets') { renderBranchAssets(); renderMyRequests(); }
   if (tab === 'forsale') { reloadSaleListings(); renderForSaleTab(); }
+  if (tab === 'invoice') { renderInvoice(); }
 }
 
 // ── For Sale ──────────────────────────────────────────────────────────
@@ -2836,6 +2890,51 @@ function renderBranchAssets() {
       <td data-label=""><div class="actions">${returnBtn}${issueBtn}${transferBtn}${inspectBtn}<button class="btn btn-ghost btn-xs" onclick="openBranchFiles('${escAttr(a.id)}')">📎 Files${((liveEnabled?a.fileCount:a.files?.length)||0)?` (${liveEnabled?a.fileCount:a.files.length})`:''}</button></div></td>
     </tr>`;
   }).join('');
+}
+
+// ── Invoice ──────────────────────────────────────────────────────────
+function renderInvoice() {
+  const mine = branchAssets();
+  const now = new Date();
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const invoiceMonth = monthNames[now.getMonth()] + ' ' + now.getFullYear();
+  const invoiceNum = 'INV-' + currentBranch.replace(/[^A-Za-z0-9]/g,'').substring(0,6).toUpperCase() + '-' + String(now.getFullYear()) + String(now.getMonth()+1).padStart(2,'0');
+
+  $('invoiceDate').textContent = invoiceMonth;
+  $('invoiceNumber').textContent = invoiceNum;
+  $('invoiceBranch').textContent = currentBranch;
+
+  const tbody = $('invoiceTableBody');
+  if (mine.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">No assets currently leased to this branch.</td></tr>';
+    $('invoiceTotal').textContent = fmt$(0);
+    return;
+  }
+
+  let total = 0;
+  tbody.innerHTML = mine.map(a => {
+    const m = getMonthly(a) || 0;
+    total += m;
+    const period = a.leaseStart && a.leaseEnd ? fmtDate(a.leaseStart) + ' – ' + fmtDate(a.leaseEnd) : a.leaseStart ? fmtDate(a.leaseStart) + ' – Present' : '—';
+    return `<tr>
+      <td data-label="Asset"><strong>${esc(a.name)}</strong></td>
+      <td data-label="Serial">${esc(a.serial||'—')}</td>
+      <td data-label="Make/Model">${[a.make,a.model,a.year].filter(Boolean).map(esc).join(' · ')||'—'}</td>
+      <td data-label="Category">${esc(a.category||'—')}</td>
+      <td data-label="Lease Period">${period}</td>
+      <td data-label="Monthly Cost" style="text-align:right;font-weight:600;color:var(--success)">${m > 0 ? fmt$(m) : '—'}</td>
+    </tr>`;
+  }).join('');
+  $('invoiceTotal').textContent = fmt$(total);
+}
+
+function printInvoice() {
+  const branch = currentBranch || 'Branch';
+  const now = new Date();
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('printTitle').textContent = branch + ' — Monthly Invoice — ' + monthNames[now.getMonth()] + ' ' + now.getFullYear();
+  document.getElementById('printDate').textContent = 'Goodhouse Equipment Co.';
+  window.print();
 }
 
 function renderMyRequests() {
