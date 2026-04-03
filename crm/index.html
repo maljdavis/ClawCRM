@@ -99,7 +99,7 @@ form.addEventListener('submit', async e => {
   const email    = document.getElementById('emailInput').value.trim();
   const password = document.getElementById('passwordInput').value;
 
-  const { error } = await sb.auth.signInWithPassword({ email, password });
+  const { data: signInData, error } = await sb.auth.signInWithPassword({ email, password });
 
   if (error) {
     showError(error.message === 'Invalid login credentials'
@@ -111,7 +111,7 @@ form.addEventListener('submit', async e => {
   }
 
   // Check if platform admin → send to admin panel
-  const { data: profile } = await sb.from('crm_users').select('is_platform_admin').eq('id', session.user.id).single();
+  const { data: profile } = await sb.from('crm_users').select('is_platform_admin').eq('id', signInData.user.id).single();
   window.location.href = profile?.is_platform_admin ? 'admin.html' : 'dashboard.html';
 });
 </script>
