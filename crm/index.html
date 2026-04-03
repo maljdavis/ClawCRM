@@ -75,7 +75,10 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 // Redirect if already logged in
 (async () => {
   const { data: { session } } = await sb.auth.getSession();
-  if (session) window.location.href = 'dashboard.html';
+  if (session) {
+    const { data: profile } = await sb.from('crm_users').select('is_platform_admin').eq('id', session.user.id).single();
+    window.location.href = profile?.is_platform_admin ? 'admin.html' : 'dashboard.html';
+  }
 })();
 
 const form     = document.getElementById('loginForm');
@@ -107,7 +110,9 @@ form.addEventListener('submit', async e => {
     return;
   }
 
-  window.location.href = 'dashboard.html';
+  // Check if platform admin → send to admin panel
+  const { data: profile } = await sb.from('crm_users').select('is_platform_admin').eq('id', session.user.id).single();
+  window.location.href = profile?.is_platform_admin ? 'admin.html' : 'dashboard.html';
 });
 </script>
 </body>

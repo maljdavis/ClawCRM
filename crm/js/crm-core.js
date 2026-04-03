@@ -11,9 +11,10 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ── Session state ─────────────────────────────────────────────
-let CRM_USER   = null;   // auth.user
-let CRM_TENANT = null;   // crm_tenants row
-let CRM_ROLE   = null;   // 'admin' | 'staff'
+let CRM_USER              = null;   // auth.user
+let CRM_TENANT            = null;   // crm_tenants row
+let CRM_ROLE              = null;   // 'admin' | 'staff'
+let CRM_IS_PLATFORM_ADMIN = false;  // platform-level admin
 
 // ── Auth helpers ──────────────────────────────────────────────
 
@@ -38,12 +39,33 @@ async function initCRM() {
     return false;
   }
 
-  CRM_ROLE   = profile.role;
-  CRM_TENANT = profile.crm_tenants;
+  CRM_ROLE              = profile.role;
+  CRM_IS_PLATFORM_ADMIN = !!profile.is_platform_admin;
+
+  // Platform admin: check if impersonating a specific client
+  const impersonateId = localStorage.getItem('crm_impersonate_tenant');
+  if (CRM_IS_PLATFORM_ADMIN && impersonateId) {
+    const { data: impTenant } = await _supabase
+      .from('crm_tenants').select('*').eq('id', impersonateId).single();
+    CRM_TENANT = impTenant || profile.crm_tenants;
+  } else {
+    CRM_TENANT = profile.crm_tenants;
+  }
 
   // Inject tenant name into sidebar
   const el = document.getElementById('tenantName');
-  if (el) el.textContent = CRM_TENANT.name;
+  if (el) {
+    el.textContent = CRM_TENANT.name;
+    // Show "back to admin" link for platform admins viewing a client
+    if (CRM_IS_PLATFORM_ADMIN && impersonateId && impersonateId !== profile.crm_tenants.id) {
+      const backBtn = document.createElement('a');
+      backBtn.href = 'admin.html';
+      backBtn.style.cssText = 'display:block;font-size:.7rem;color:var(--primary);margin-top:2px;text-decoration:none';
+      backBtn.textContent = '← All Clients';
+      backBtn.onclick = () => localStorage.removeItem('crm_impersonate_tenant');
+      el.parentNode.appendChild(backBtn);
+    }
+  }
 
   // Apply tenant brand color
   if (CRM_TENANT.primary_color) {

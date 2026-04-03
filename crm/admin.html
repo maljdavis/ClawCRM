@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Swift Scale Technology</title>
+  <link rel="stylesheet" href="css/crm.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .client-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      cursor: pointer;
+    }
+    .client-card:hover { border-color: var(--primary); box-shadow: 0 4px 20px rgba(37,99,235,.15); }
+    .client-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .client-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+    .client-slug { font-size: .75rem; color: var(--text-muted); margin-bottom: 14px; }
+    .client-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .client-stat { text-align: center; padding: 8px; background: var(--bg-input); border-radius: var(--radius-sm); }
+    .client-stat-val { font-size: 1.2rem; font-weight: 700; }
+    .client-stat-lbl { font-size: .65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing:.04em; }
+    .client-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .ai-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+    .ai-dot.on  { background: var(--success); }
+    .ai-dot.off { background: var(--text-muted); }
+    .add-client-card {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: all var(--transition);
+      color: var(--text-muted);
+    }
+    .add-client-card:hover { border-color: var(--primary); color: var(--primary); background: rgba(37,99,235,.05); }
+    .platform-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(37,99,235,.15); color: var(--primary);
+      padding: 4px 10px; border-radius: 20px; font-size: .75rem; font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand">⚡ ClawCRM</div>
+      <div class="tenant-name">Platform Admin</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item active" href="admin.html"><span class="icon">🏢</span> All Clients</a>
+      <a class="nav-item" href="admin-new-client.html"><span class="icon">➕</span> Add Client</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-item" onclick="signOut()" style="width:100%;border:none;text-align:left"><span class="icon">🚪</span> Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="top-bar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button id="menuToggle" class="btn btn-ghost btn-icon" style="display:none">☰</button>
+        <div>
+          <h1>Client Dashboard</h1>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="platform-badge">🔑 Platform Admin</span>
+        <button class="btn btn-primary btn-sm" onclick="openModal('newClientModal')">+ Add Client</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- Platform stats -->
+      <div class="stat-grid" style="margin-bottom:28px">
+        <div class="stat-card"><div class="stat-label">Total Clients</div><div class="stat-value c-blue" id="statClients">—</div></div>
+        <div class="stat-card"><div class="stat-label">AI Agents Active</div><div class="stat-value c-purple" id="statAI">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Open Jobs</div><div class="stat-value c-yellow" id="statJobs">—</div></div>
+        <div class="stat-card"><div class="stat-label">Revenue (All MTD)</div><div class="stat-value c-green" id="statRevenue">—</div></div>
+      </div>
+
+      <!-- Client cards -->
+      <h2 style="margin-bottom:16px">Your Clients</h2>
+      <div class="client-grid" id="clientGrid">
+        <div class="text-muted text-sm">Loading clients…</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- New Client Modal -->
+<div class="modal-backdrop" id="newClientModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2>Add New Client</h2>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('newClientModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Business Name *</label>
+          <input id="newName" class="form-control" placeholder="Apex Plumbing">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Slug (URL key) *</label>
+          <input id="newSlug" class="form-control" placeholder="apex-plumbing">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Admin Email *</label>
+          <input id="newEmail" type="email" class="form-control" placeholder="owner@apexplumbing.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Temporary Password *</label>
+          <input id="newPassword" class="form-control" placeholder="TempPass123">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Brand Color</label>
+          <input id="newColor" type="color" value="#2563eb" style="width:48px;height:36px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:none">
+        </div>
+        <div class="form-group">
+          <label class="form-label">AI Agent</label>
+          <div class="toggle-wrap" style="margin-top:8px">
+            <label class="toggle"><input type="checkbox" id="newAI" checked><span class="toggle-slider"></span></label>
+            <span class="text-sm">Enable AI voice agent</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('newClientModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="createClient()">Create Client Account</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script src="js/crm-core.js"></script>
+<script>
+let allTenants = [];
+let tenantStats = {};
+
+async function loadAdmin() {
+  const ok = await initCRM();
+  if (!ok) return;
+
+  if (!CRM_IS_PLATFORM_ADMIN) {
+    window.location.href = 'dashboard.html';
+    return;
+  }
+
+  // Load all tenants
+  const { data: tenants } = await _supabase
+    .from('crm_tenants')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  allTenants = tenants || [];
+
+  // Load aggregate stats across all tenants
+  const [jobs, contacts] = await Promise.all([
+    _supabase.from('crm_jobs').select('id,status,amount,tenant_id,updated_at'),
+    _supabase.from('crm_contacts').select('id,tenant_id')
+  ]);
+
+  const allJobs = jobs.data || [];
+  const allContacts = contacts.data || [];
+
+  // Platform-level stats
+  const openJobs = allJobs.filter(j => !['paid','cancelled'].includes(j.status)).length;
+  const mtdStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const revenue  = allJobs
+    .filter(j => j.status === 'paid' && j.updated_at >= mtdStart)
+    .reduce((s, j) => s + (parseFloat(j.amount) || 0), 0);
+
+  document.getElementById('statClients').textContent  = allTenants.length;
+  document.getElementById('statAI').textContent       = allTenants.filter(t => t.ai_enabled).length;
+  document.getElementById('statJobs').textContent     = openJobs;
+  document.getElementById('statRevenue').textContent  = fmt$(revenue);
+
+  // Build per-tenant stats
+  allJobs.forEach(j => {
+    if (!tenantStats[j.tenant_id]) tenantStats[j.tenant_id] = { jobs: 0, openJobs: 0, revenue: 0 };
+    tenantStats[j.tenant_id].jobs++;
+    if (!['paid','cancelled'].includes(j.status)) tenantStats[j.tenant_id].openJobs++;
+    if (j.status === 'paid') tenantStats[j.tenant_id].revenue += parseFloat(j.amount) || 0;
+  });
+
+  allContacts.forEach(c => {
+    if (!tenantStats[c.tenant_id]) tenantStats[c.tenant_id] = { jobs: 0, openJobs: 0, revenue: 0, contacts: 0 };
+    tenantStats[c.tenant_id].contacts = (tenantStats[c.tenant_id].contacts || 0) + 1;
+  });
+
+  renderClients();
+}
+
+function renderClients() {
+  const grid = document.getElementById('clientGrid');
+  if (!allTenants.length) {
+    grid.innerHTML = `<div class="add-client-card" onclick="openModal('newClientModal')">
+      <div style="font-size:2rem">➕</div>
+      <div style="font-weight:600">Add Your First Client</div>
+      <div class="text-sm">Click to onboard a new business</div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = allTenants.map(t => {
+    const s = tenantStats[t.id] || { jobs: 0, openJobs: 0, revenue: 0, contacts: 0 };
+    return `
+      <div class="client-card" onclick="viewClient('${escAttr(t.id)}', '${escAttr(t.slug)}')">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between">
+          <div>
+            <div class="client-name">${esc(t.name)}</div>
+            <div class="client-slug">${esc(t.slug)}</div>
+          </div>
+          <div style="width:16px;height:16px;border-radius:50%;background:${escAttr(t.primary_color || '#2563eb')};flex-shrink:0;margin-top:4px"></div>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat">
+            <div class="client-stat-val c-blue">${s.openJobs}</div>
+            <div class="client-stat-lbl">Open Jobs</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-val c-yellow">${s.contacts || 0}</div>
+            <div class="client-stat-lbl">Contacts</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-val c-green">${fmt$(s.revenue)}</div>
+            <div class="client-stat-lbl">Revenue</div>
+          </div>
+        </div>
+        <div class="client-footer">
+          <div class="text-xs text-muted">
+            <span class="ai-dot ${t.ai_enabled ? 'on' : 'off'}"></span>
+            AI ${t.ai_enabled ? 'Active' : 'Off'}
+            ${t.twilio_phone_number ? ' · ' + esc(fmtPhone(t.twilio_phone_number)) : ''}
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();manageClient('${escAttr(t.id)}')">Manage →</button>
+        </div>
+      </div>
+    `;
+  }).join('') + `
+    <div class="add-client-card" onclick="openModal('newClientModal')">
+      <div style="font-size:2rem">➕</div>
+      <div style="font-weight:600">Add New Client</div>
+      <div class="text-sm">Onboard another business</div>
+    </div>
+  `;
+}
+
+function viewClient(tenantId, slug) {
+  // Store selected tenant and jump to that client's CRM
+  localStorage.setItem('crm_impersonate_tenant', tenantId);
+  window.location.href = 'dashboard.html';
+}
+
+function manageClient(tenantId) {
+  localStorage.setItem('crm_impersonate_tenant', tenantId);
+  window.location.href = 'settings.html';
+}
+
+async function createClient() {
+  const name     = document.getElementById('newName').value.trim();
+  const slug     = document.getElementById('newSlug').value.trim().toLowerCase().replace(/\s+/g,'-');
+  const email    = document.getElementById('newEmail').value.trim();
+  const password = document.getElementById('newPassword').value.trim();
+  const color    = document.getElementById('newColor').value;
+  const aiEnabled = document.getElementById('newAI').checked;
+
+  if (!name || !slug || !email || !password) {
+    toast('All fields are required.', 'error');
+    return;
+  }
+
+  try {
+    // Create via edge function (needs service role)
+    const result = await callEdgeFunction('create-client', {
+      name, slug, email, password, primary_color: color, ai_enabled: aiEnabled
+    });
+
+    toast(`${name} account created!`);
+    closeModal('newClientModal');
+    loadAdmin();
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+// Auto-generate slug from name
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('newName')?.addEventListener('input', e => {
+    const slug = e.target.value.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    document.getElementById('newSlug').value = slug;
+  });
+});
+
+loadAdmin();
+</script>
+</body>
+</html>
