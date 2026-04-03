@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jobs — ClawCRM</title>
+  <link rel="stylesheet" href="css/crm.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand">⚡ ClawCRM</div>
+      <div class="tenant-name" id="tenantName">Loading…</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" data-page="dashboard.html" href="dashboard.html"><span class="icon">📊</span> Dashboard</a>
+      <a class="nav-item" data-page="contacts.html" href="contacts.html"><span class="icon">👥</span> Contacts</a>
+      <a class="nav-item" data-page="jobs.html" href="jobs.html"><span class="icon">🔧</span> Jobs</a>
+      <a class="nav-item" data-page="communications.html" href="communications.html"><span class="icon">💬</span> Communications</a>
+      <a class="nav-item" data-page="settings.html" href="settings.html"><span class="icon">⚙️</span> Settings</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-item" onclick="signOut()" style="width:100%;border:none;text-align:left"><span class="icon">🚪</span> Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="top-bar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button id="menuToggle" class="btn btn-ghost btn-icon" style="display:none">☰</button>
+        <h1>Jobs</h1>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openJobModal()">+ New Job</button>
+    </div>
+
+    <div class="page-body">
+      <div class="kanban-wrap" id="kanbanBoard">
+        <!-- Columns rendered by JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Job detail slide-over -->
+<div class="slideover-backdrop" id="jobDetailBackdrop" onclick="closeSlideover('jobDetail')"></div>
+<div class="slideover" id="jobDetail">
+  <div class="slideover-header">
+    <div>
+      <h2 id="jobDetailTitle">Job</h2>
+      <div id="jobDetailMeta" class="text-muted text-sm"></div>
+    </div>
+    <button class="btn btn-ghost btn-icon btn-sm" onclick="closeSlideover('jobDetail')">✕</button>
+  </div>
+  <div class="slideover-body">
+    <div id="jobDetailInfo"></div>
+    <hr class="divider">
+    <!-- Invoice section -->
+    <div id="jobInvoiceSection" style="margin-bottom:20px"></div>
+    <hr class="divider">
+    <!-- Activity -->
+    <div class="card-header" style="margin-bottom:12px">
+      <h3>Activity</h3>
+      <button class="btn btn-ghost btn-sm" onclick="openJobNote()">+ Note</button>
+    </div>
+    <div class="activity-feed" id="jobActivity"></div>
+  </div>
+  <div class="slideover-footer">
+    <button class="btn btn-ghost flex-1" onclick="openJobModal(currentJob)">Edit Job</button>
+    <button class="btn btn-danger btn-sm" onclick="deleteCurrentJob()">Delete</button>
+  </div>
+</div>
+
+<!-- Add/Edit Job Modal -->
+<div class="modal-backdrop" id="jobModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 id="jobModalTitle">New Job</h2>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('jobModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="jobId">
+      <div class="form-row">
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Job Title *</label>
+          <input id="jobTitle" type="text" class="form-control" placeholder="e.g. Fix kitchen sink leak">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Contact</label>
+          <select id="jobContact" class="form-control">
+            <option value="">— No contact —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="jobStatus" class="form-control">
+            <option value="lead">Lead</option>
+            <option value="quoted">Quoted</option>
+            <option value="booked">Booked</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="invoiced">Invoiced</option>
+            <option value="paid">Paid</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Amount ($)</label>
+          <input id="jobAmount" type="number" step="0.01" class="form-control" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Scheduled Date</label>
+          <input id="jobScheduled" type="datetime-local" class="form-control">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Address</label>
+        <input id="jobAddress" type="text" class="form-control" placeholder="123 Main St, City, State">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea id="jobDescription" class="form-control" rows="3" placeholder="Job details…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('jobModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveJob()">Save Job</button>
+    </div>
+  </div>
+</div>
+
+<!-- Invoice Modal -->
+<div class="modal-backdrop" id="invoiceModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2>Generate Invoice</h2>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('invoiceModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="lineItemsWrap">
+        <!-- Line items rendered here -->
+      </div>
+      <button class="btn btn-ghost btn-sm mt-8" onclick="addLineItem()">+ Add Line Item</button>
+      <hr class="divider">
+      <div style="text-align:right">
+        <div class="text-muted text-sm">Total</div>
+        <div id="invoiceTotal" style="font-size:1.4rem;font-weight:700;color:var(--success)">$0.00</div>
+      </div>
+      <div class="form-group mt-16">
+        <label class="form-label">Due Date</label>
+        <input id="invoiceDue" type="date" class="form-control" style="max-width:200px">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('invoiceModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="generateInvoice()">Create &amp; Get Payment Link</button>
+    </div>
+  </div>
+</div>
+
+<!-- Job Note Modal -->
+<div class="modal-backdrop" id="jobNoteModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add Note</h2>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('jobNoteModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <textarea id="jobNoteBody" class="form-control" rows="4" placeholder="Write a note…"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('jobNoteModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveJobNote()">Save Note</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script src="js/crm-core.js"></script>
+<script>
+const COLUMNS = [
+  { key: 'lead',        label: 'Lead',        color: '#64748b' },
+  { key: 'quoted',      label: 'Quoted',      color: '#f59e0b' },
+  { key: 'booked',      label: 'Booked',      color: '#60a5fa' },
+  { key: 'in_progress', label: 'In Progress', color: '#a78bfa' },
+  { key: 'completed',   label: 'Completed',   color: '#22c55e' },
+  { key: 'invoiced',    label: 'Invoiced',    color: '#f59e0b' },
+  { key: 'paid',        label: 'Paid',        color: '#22c55e' },
+];
+
+let allJobs     = [];
+let allContacts = [];
+let currentJob  = null;
+let lineItems   = [];
+let dragJobId   = null;
+
+async function loadJobs() {
+  const ok = await initCRM();
+  if (!ok) return;
+
+  [allJobs, allContacts] = await Promise.all([
+    dbSelect('crm_jobs', {
+      select: 'id,title,status,amount,contact_id,scheduled_at,address,created_at',
+      order: 'created_at'
+    }),
+    dbSelect('crm_contacts', { select: 'id,name,phone', order: 'name', asc: true })
+  ]);
+
+  renderBoard();
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('new') === '1') openJobModal(null, params.get('contact'));
+  if (params.get('id')) openJobDetail(params.get('id'));
+}
+
+function renderBoard() {
+  const board = document.getElementById('kanbanBoard');
+  board.innerHTML = COLUMNS.map(col => {
+    const cards = allJobs.filter(j => j.status === col.key);
+    return `
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <span class="kanban-col-title" style="color:${col.color}">${col.label}</span>
+          <span class="kanban-count">${cards.length}</span>
+        </div>
+        <div class="kanban-cards" data-status="${col.key}"
+          ondragover="onDragOver(event)"
+          ondragleave="onDragLeave(event)"
+          ondrop="onDrop(event,'${col.key}')">
+          ${cards.map(renderCard).join('') || '<div class="text-muted text-xs" style="padding:8px;text-align:center">Drop here</div>'}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderCard(job) {
+  const contact = allContacts.find(c => c.id === job.contact_id);
+  return `
+    <div class="kanban-card"
+      draggable="true"
+      data-id="${escAttr(job.id)}"
+      ondragstart="onDragStart(event,'${escAttr(job.id)}')"
+      ondragend="onDragEnd(event)"
+      onclick="openJobDetail('${escAttr(job.id)}')">
+      <div class="kanban-card-title">${esc(job.title)}</div>
+      ${contact ? `<div class="kanban-card-meta">👤 ${esc(contact.name || contact.phone)}</div>` : ''}
+      ${job.scheduled_at ? `<div class="kanban-card-meta">📅 ${fmtDate(job.scheduled_at)}</div>` : ''}
+      ${job.address ? `<div class="kanban-card-meta" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📍 ${esc(job.address)}</div>` : ''}
+      ${job.amount ? `<div class="kanban-card-amount">${fmt$(job.amount)}</div>` : ''}
+    </div>
+  `;
+}
+
+// ── Drag & Drop ──────────────────────────────────────────────
+function onDragStart(e, id) {
+  dragJobId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.currentTarget.classList.add('dragging');
+}
+function onDragEnd(e) { e.currentTarget.classList.remove('dragging'); }
+function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+
+async function onDrop(e, newStatus) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!dragJobId) return;
+
+  const job = allJobs.find(j => j.id === dragJobId);
+  if (!job || job.status === newStatus) return;
+
+  const oldStatus = job.status;
+  job.status = newStatus;
+  renderBoard();
+
+  try {
+    await dbUpdate('crm_jobs', job.id, { status: newStatus });
+    await dbInsert('crm_activities', {
+      tenant_id:  CRM_TENANT.id,
+      job_id:     job.id,
+      contact_id: job.contact_id,
+      type:       'status_change',
+      direction:  'outbound',
+      summary:    `Job moved: ${oldStatus} → ${newStatus}`,
+    });
+  } catch (err) {
+    job.status = oldStatus;
+    renderBoard();
+    toast(err.message, 'error');
+  }
+}
+
+// ── Job detail ───────────────────────────────────────────────
+async function openJobDetail(id) {
+  currentJob = allJobs.find(j => j.id === id);
+  if (!currentJob) return;
+
+  const contact = allContacts.find(c => c.id === currentJob.contact_id);
+
+  document.getElementById('jobDetailTitle').textContent = currentJob.title;
+  document.getElementById('jobDetailMeta').textContent =
+    `${currentJob.status.replace('_',' ')} · ${fmtDate(currentJob.created_at)}`;
+
+  document.getElementById('jobDetailInfo').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <div class="form-label">Status</div>
+        ${statusBadge(currentJob.status)}
+      </div>
+      <div>
+        <div class="form-label">Amount</div>
+        <div class="c-green font-bold">${currentJob.amount ? fmt$(currentJob.amount) : '—'}</div>
+      </div>
+      ${contact ? `<div style="grid-column:1/-1">
+        <div class="form-label">Contact</div>
+        <a href="contacts.html?id=${escAttr(contact.id)}" style="color:var(--primary)">${esc(contact.name || contact.phone)}</a>
+      </div>` : ''}
+      ${currentJob.scheduled_at ? `<div>
+        <div class="form-label">Scheduled</div>
+        <div class="text-sm">${fmtDateTime(currentJob.scheduled_at)}</div>
+      </div>` : ''}
+      ${currentJob.address ? `<div style="grid-column:1/-1">
+        <div class="form-label">Address</div>
+        <div class="text-sm">${esc(currentJob.address)}</div>
+      </div>` : ''}
+    </div>
+    ${currentJob.description ? `<div style="margin-top:12px"><div class="form-label">Description</div><div class="text-sm">${esc(currentJob.description)}</div></div>` : ''}
+  `;
+
+  // Invoice section
+  const invSection = document.getElementById('jobInvoiceSection');
+  const invoices = await dbSelect('crm_invoices', {
+    select: '*', eq: { job_id: id }, order: 'created_at', limit: 5
+  });
+
+  if (invoices.length) {
+    invSection.innerHTML = `
+      <div class="card-header" style="margin-bottom:8px"><h3>Invoice</h3></div>
+      ${invoices.map(inv => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div class="text-sm font-bold">${fmt$(inv.amount)}</div>
+            <div class="text-xs text-muted">Due ${fmtDate(inv.due_date)}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            ${statusBadge(inv.status)}
+            ${inv.hosted_invoice_url ? `
+              <button class="btn btn-ghost btn-sm" onclick="copyPaymentLink('${escAttr(inv.hosted_invoice_url)}')">📋 Copy Link</button>
+              <button class="btn btn-primary btn-sm" onclick="sendPaymentSMS('${escAttr(inv.id)}')">💬 Send SMS</button>
+            ` : ''}
+          </div>
+        </div>
+      `).join('')}
+    `;
+  } else {
+    invSection.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <h3>Invoice</h3>
+        <button class="btn btn-success btn-sm" onclick="openInvoiceModal()">Generate Invoice</button>
+      </div>
+      <p class="text-sm" style="margin-top:8px">No invoice yet for this job.</p>
+    `;
+  }
+
+  // Activity
+  const activities = await dbSelect('crm_activities', {
+    select: '*', eq: { job_id: id }, order: 'created_at', limit: 20
+  });
+  const actEl = document.getElementById('jobActivity');
+  actEl.innerHTML = activities.length
+    ? activities.map(a => `
+        <div class="activity-item">
+          ${activityIcon(a.type, a.direction)}
+          <div class="activity-content">
+            <div class="activity-summary">${esc(a.summary || '')}</div>
+            <div class="activity-time">${fmtDateTime(a.created_at)}</div>
+            ${a.body ? `<div class="activity-body">${esc(a.body.slice(0,200))}</div>` : ''}
+          </div>
+        </div>
+      `).join('')
+    : '<div class="text-muted text-sm">No activity yet.</div>';
+
+  openSlideover('jobDetail');
+}
+
+// ── Add/Edit Job ─────────────────────────────────────────────
+function openJobModal(job = null, contactId = '') {
+  document.getElementById('jobModalTitle').textContent = job ? 'Edit Job' : 'New Job';
+  document.getElementById('jobId').value          = job?.id || '';
+  document.getElementById('jobTitle').value        = job?.title || '';
+  document.getElementById('jobStatus').value       = job?.status || 'lead';
+  document.getElementById('jobAmount').value       = job?.amount || '';
+  document.getElementById('jobAddress').value      = job?.address || '';
+  document.getElementById('jobDescription').value  = job?.description || '';
+
+  if (job?.scheduled_at) {
+    const d = new Date(job.scheduled_at);
+    const local = new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+    document.getElementById('jobScheduled').value = local;
+  } else {
+    document.getElementById('jobScheduled').value = '';
+  }
+
+  // Populate contacts dropdown
+  const sel = document.getElementById('jobContact');
+  sel.innerHTML = '<option value="">— No contact —</option>' +
+    allContacts.map(c => `<option value="${escAttr(c.id)}" ${(job?.contact_id || contactId) === c.id ? 'selected' : ''}>${esc(c.name || c.phone)}</option>`).join('');
+
+  openModal('jobModal');
+}
+
+async function saveJob() {
+  const title = document.getElementById('jobTitle').value.trim();
+  if (!title) { toast('Job title is required.', 'error'); return; }
+
+  const id       = document.getElementById('jobId').value;
+  const scheduled = document.getElementById('jobScheduled').value;
+  const payload = {
+    title,
+    status:       document.getElementById('jobStatus').value,
+    contact_id:   document.getElementById('jobContact').value || null,
+    amount:       parseFloat(document.getElementById('jobAmount').value) || null,
+    address:      document.getElementById('jobAddress').value.trim() || null,
+    description:  document.getElementById('jobDescription').value.trim() || null,
+    scheduled_at: scheduled ? new Date(scheduled).toISOString() : null,
+    tenant_id:    CRM_TENANT.id
+  };
+
+  try {
+    if (id) {
+      const updated = await dbUpdate('crm_jobs', id, payload);
+      const idx = allJobs.findIndex(j => j.id === id);
+      if (idx >= 0) allJobs[idx] = { ...allJobs[idx], ...updated };
+      toast('Job updated.');
+    } else {
+      const created = await dbInsert('crm_jobs', payload);
+      allJobs.unshift(created);
+      toast('Job created.');
+    }
+    closeModal('jobModal');
+    renderBoard();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteCurrentJob() {
+  if (!currentJob) return;
+  if (!confirm(`Delete "${currentJob.title}"? This cannot be undone.`)) return;
+  try {
+    await dbDelete('crm_jobs', currentJob.id);
+    allJobs = allJobs.filter(j => j.id !== currentJob.id);
+    closeSlideover('jobDetail');
+    renderBoard();
+    toast('Job deleted.');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ── Invoice ──────────────────────────────────────────────────
+function openInvoiceModal() {
+  lineItems = currentJob?.amount
+    ? [{ desc: currentJob.title, qty: 1, price: currentJob.amount }]
+    : [{ desc: currentJob?.title || '', qty: 1, price: 0 }];
+
+  const due = new Date();
+  due.setDate(due.getDate() + 30);
+  document.getElementById('invoiceDue').value = due.toISOString().slice(0,10);
+
+  renderLineItems();
+  openModal('invoiceModal');
+}
+
+function renderLineItems() {
+  const wrap = document.getElementById('lineItemsWrap');
+  wrap.innerHTML = lineItems.map((item, i) => `
+    <div style="display:grid;grid-template-columns:1fr 60px 100px 36px;gap:8px;margin-bottom:8px;align-items:center">
+      <input class="form-control" type="text" value="${escAttr(item.desc)}" placeholder="Description"
+        oninput="lineItems[${i}].desc=this.value">
+      <input class="form-control" type="number" value="${item.qty}" min="1"
+        oninput="lineItems[${i}].qty=parseFloat(this.value)||1;calcTotal()">
+      <input class="form-control" type="number" step="0.01" value="${item.price}" min="0" placeholder="Price"
+        oninput="lineItems[${i}].price=parseFloat(this.value)||0;calcTotal()">
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="removeLineItem(${i})">✕</button>
+    </div>
+  `).join('');
+  calcTotal();
+}
+
+function addLineItem() {
+  lineItems.push({ desc: '', qty: 1, price: 0 });
+  renderLineItems();
+}
+
+function removeLineItem(i) {
+  lineItems.splice(i, 1);
+  renderLineItems();
+}
+
+function calcTotal() {
+  const total = lineItems.reduce((s, i) => s + (i.qty * i.price), 0);
+  document.getElementById('invoiceTotal').textContent = fmt$(total);
+}
+
+async function generateInvoice() {
+  if (!currentJob) return;
+  const total   = lineItems.reduce((s, i) => s + (i.qty * i.price), 0);
+  const dueDate = document.getElementById('invoiceDue').value;
+
+  try {
+    const result = await callEdgeFunction('stripe-create-invoice', {
+      job_id:     currentJob.id,
+      contact_id: currentJob.contact_id,
+      tenant_id:  CRM_TENANT.id,
+      amount:     total,
+      due_date:   dueDate,
+      line_items: lineItems
+    });
+
+    toast('Invoice created! Payment link ready.');
+    closeModal('invoiceModal');
+    openJobDetail(currentJob.id);
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+function copyPaymentLink(url) {
+  navigator.clipboard.writeText(url).then(() => toast('Payment link copied!'));
+}
+
+async function sendPaymentSMS(invoiceId) {
+  try {
+    await callEdgeFunction('send-invoice-sms', {
+      invoice_id: invoiceId,
+      tenant_id:  CRM_TENANT.id
+    });
+    toast('Payment link sent via SMS!');
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+// ── Job Note ─────────────────────────────────────────────────
+function openJobNote() {
+  document.getElementById('jobNoteBody').value = '';
+  openModal('jobNoteModal');
+}
+
+async function saveJobNote() {
+  const body = document.getElementById('jobNoteBody').value.trim();
+  if (!body || !currentJob) return;
+  try {
+    await dbInsert('crm_activities', {
+      tenant_id:  CRM_TENANT.id,
+      job_id:     currentJob.id,
+      contact_id: currentJob.contact_id,
+      type:       'note',
+      direction:  'outbound',
+      summary:    `Note: ${body.slice(0,60)}`,
+      body
+    });
+    closeModal('jobNoteModal');
+    toast('Note saved.');
+    openJobDetail(currentJob.id);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+loadJobs();
+</script>
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — ClawCRM</title>
+  <link rel="stylesheet" href="css/crm.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand">⚡ ClawCRM</div>
+      <div class="tenant-name" id="tenantName">Loading…</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" data-page="dashboard.html" href="dashboard.html">
+        <span class="icon">📊</span> Dashboard
+      </a>
+      <a class="nav-item" data-page="contacts.html" href="contacts.html">
+        <span class="icon">👥</span> Contacts
+      </a>
+      <a class="nav-item" data-page="jobs.html" href="jobs.html">
+        <span class="icon">🔧</span> Jobs
+      </a>
+      <a class="nav-item" data-page="communications.html" href="communications.html">
+        <span class="icon">💬</span> Communications
+      </a>
+      <a class="nav-item" data-page="settings.html" href="settings.html">
+        <span class="icon">⚙️</span> Settings
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-item" onclick="signOut()" style="width:100%;border:none;text-align:left">
+        <span class="icon">🚪</span> Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="top-bar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button id="menuToggle" class="btn btn-ghost btn-icon" style="display:none">☰</button>
+        <h1>Dashboard</h1>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary btn-sm" onclick="openModal('quickAddModal')">+ Quick Add</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- Stat cards -->
+      <div class="stat-grid" id="statGrid">
+        <div class="stat-card"><div class="stat-label">Open Jobs</div><div class="stat-value c-blue" id="statOpenJobs">—</div></div>
+        <div class="stat-card"><div class="stat-label">Revenue MTD</div><div class="stat-value c-green" id="statRevenue">—</div></div>
+        <div class="stat-card"><div class="stat-label">New Leads (7d)</div><div class="stat-value c-yellow" id="statLeads">—</div></div>
+        <div class="stat-card"><div class="stat-label">Missed Calls (7d)</div><div class="stat-value c-red" id="statMissed">—</div></div>
+      </div>
+
+      <!-- Two-column layout -->
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:20px">
+
+        <!-- Recent Activity -->
+        <div class="card">
+          <div class="card-header">
+            <h2>Recent Activity</h2>
+            <a href="communications.html" class="text-sm text-muted">View all →</a>
+          </div>
+          <div class="activity-feed" id="activityFeed">
+            <div class="empty-state"><div class="empty-icon">📭</div><p>No recent activity</p></div>
+          </div>
+        </div>
+
+        <!-- Right column -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <!-- Jobs by status -->
+          <div class="card">
+            <div class="card-header">
+              <h2>Jobs Overview</h2>
+              <a href="jobs.html" class="text-sm text-muted">View all →</a>
+            </div>
+            <div id="jobsOverview">
+              <div class="text-muted text-sm">Loading…</div>
+            </div>
+          </div>
+
+          <!-- Recent contacts -->
+          <div class="card">
+            <div class="card-header">
+              <h2>Recent Contacts</h2>
+              <a href="contacts.html" class="text-sm text-muted">View all →</a>
+            </div>
+            <div id="recentContacts">
+              <div class="text-muted text-sm">Loading…</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Quick Add Modal -->
+<div class="modal-backdrop" id="quickAddModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Quick Add</h2>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('quickAddModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <button class="btn btn-ghost" style="flex-direction:column;padding:20px;height:auto"
+          onclick="closeModal('quickAddModal');window.location.href='contacts.html?new=1'">
+          <span style="font-size:1.5rem;margin-bottom:6px">👤</span>
+          <span>New Contact</span>
+        </button>
+        <button class="btn btn-ghost" style="flex-direction:column;padding:20px;height:auto"
+          onclick="closeModal('quickAddModal');window.location.href='jobs.html?new=1'">
+          <span style="font-size:1.5rem;margin-bottom:6px">🔧</span>
+          <span>New Job</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script src="js/crm-core.js"></script>
+<script>
+const JOB_STATUSES = ['lead','quoted','booked','in_progress','completed','invoiced','paid'];
+
+async function loadDashboard() {
+  const ok = await initCRM();
+  if (!ok) return;
+
+  const now  = new Date();
+  const mtdStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const weekAgo  = new Date(Date.now() - 7*86400000).toISOString();
+
+  // Parallel data fetch
+  const [jobs, contacts, activities] = await Promise.all([
+    dbSelect('crm_jobs',  { select: 'id,status,amount,title,contact_id', order: 'created_at' }),
+    dbSelect('crm_contacts', { select: 'id,name,phone,status,source,created_at', order: 'created_at', limit: 5 }),
+    dbSelect('crm_activities', { select: '*', order: 'created_at', limit: 20 })
+  ]);
+
+  // Stats
+  const openJobs = jobs.filter(j => !['paid','cancelled'].includes(j.status)).length;
+  const revenue  = jobs
+    .filter(j => j.status === 'paid' && (new Date(j.updated_at) >= new Date(mtdStart)))
+    .reduce((s, j) => s + (parseFloat(j.amount) || 0), 0);
+  const newLeads = contacts.filter(c => new Date(c.created_at) >= new Date(weekAgo)).length;
+  const missed   = activities.filter(a =>
+    a.type === 'call' && a.direction === 'inbound' &&
+    a.summary?.includes('Missed') &&
+    new Date(a.created_at) >= new Date(weekAgo)
+  ).length;
+
+  document.getElementById('statOpenJobs').textContent = openJobs;
+  document.getElementById('statRevenue').textContent  = fmt$(revenue);
+  document.getElementById('statLeads').textContent    = newLeads;
+  document.getElementById('statMissed').textContent   = missed;
+
+  // Activity feed
+  renderActivityFeed(activities.slice(0, 12));
+
+  // Jobs overview
+  renderJobsOverview(jobs);
+
+  // Recent contacts
+  renderRecentContacts(contacts.slice(0, 5));
+}
+
+function renderActivityFeed(activities) {
+  const el = document.getElementById('activityFeed');
+  if (!activities.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>No recent activity</p></div>';
+    return;
+  }
+  el.innerHTML = activities.map(a => `
+    <div class="activity-item">
+      ${activityIcon(a.type, a.direction)}
+      <div class="activity-content">
+        <div class="activity-summary">${esc(a.summary || '')}</div>
+        <div class="activity-time">${timeAgo(a.created_at)}</div>
+        ${a.body ? `<div class="activity-body">${esc(a.body.slice(0,120))}${a.body.length>120?'…':''}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderJobsOverview(jobs) {
+  const el = document.getElementById('jobsOverview');
+  const counts = {};
+  JOB_STATUSES.forEach(s => counts[s] = 0);
+  jobs.forEach(j => { if (counts[j.status] !== undefined) counts[j.status]++; });
+
+  const labels = {
+    lead:'Lead', quoted:'Quoted', booked:'Booked',
+    in_progress:'In Progress', completed:'Completed', invoiced:'Invoiced', paid:'Paid'
+  };
+  el.innerHTML = JOB_STATUSES.map(s => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span class="text-sm">${labels[s]}</span>
+      <span class="badge ${statusBadge(s).match(/badge[\w-]+/)?.[0] || ''}" style="min-width:28px;justify-content:center">${counts[s]}</span>
+    </div>
+  `).join('').replace(/<span class="badge "><\/span>/g,'');
+  // Simpler render:
+  el.innerHTML = JOB_STATUSES.map(s => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span class="text-sm">${labels[s]}</span>
+      <span style="font-weight:700;font-size:.9rem">${counts[s]}</span>
+    </div>
+  `).join('');
+}
+
+function renderRecentContacts(contacts) {
+  const el = document.getElementById('recentContacts');
+  if (!contacts.length) {
+    el.innerHTML = '<div class="text-muted text-sm">No contacts yet.</div>';
+    return;
+  }
+  el.innerHTML = contacts.map(c => `
+    <a href="contacts.html?id=${escAttr(c.id)}" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit">
+      <div style="width:32px;height:32px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0">
+        ${esc((c.name || c.phone || '?')[0].toUpperCase())}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="text-sm font-bold truncate">${esc(c.name || c.phone || 'Unknown')}</div>
+        <div class="text-xs text-muted">${esc(c.source || 'manual')} · ${timeAgo(c.created_at)}</div>
+      </div>
+      ${statusBadge(c.status)}
+    </a>
+  `).join('');
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

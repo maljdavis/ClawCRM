@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRM — Sign In</title>
+  <link rel="stylesheet" href="css/crm.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .divider-text {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: .8rem;
+      margin: 20px 0;
+      position: relative;
+    }
+    .divider-text::before, .divider-text::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 40%;
+      height: 1px;
+      background: var(--border);
+    }
+    .divider-text::before { left: 0; }
+    .divider-text::after  { right: 0; }
+    .error-msg {
+      background: rgba(239,68,68,.1);
+      border: 1px solid rgba(239,68,68,.3);
+      color: #fca5a5;
+      font-size: .8rem;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 16px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="brand-name">⚡ ClawCRM</div>
+      <div class="brand-sub">AI-Powered Service Business CRM</div>
+    </div>
+
+    <div id="errorMsg" class="error-msg"></div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label class="form-label">Work Email</label>
+        <input id="emailInput" type="email" class="form-control" placeholder="you@business.com" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input id="passwordInput" type="password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      <button type="submit" id="loginBtn" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px">
+        Sign In
+      </button>
+    </form>
+
+    <p style="text-align:center;margin-top:20px;font-size:.8rem">
+      Need access? Contact your account administrator.
+    </p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL  = 'https://YOUR_PROJECT.supabase.co';
+const SUPABASE_ANON = 'YOUR_ANON_KEY';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// Redirect if already logged in
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) window.location.href = 'dashboard.html';
+})();
+
+const form     = document.getElementById('loginForm');
+const errorMsg = document.getElementById('errorMsg');
+const loginBtn = document.getElementById('loginBtn');
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.style.display = 'block';
+}
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  errorMsg.style.display = 'none';
+  loginBtn.disabled = true;
+  loginBtn.textContent = 'Signing in…';
+
+  const email    = document.getElementById('emailInput').value.trim();
+  const password = document.getElementById('passwordInput').value;
+
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    showError(error.message === 'Invalid login credentials'
+      ? 'Incorrect email or password.'
+      : error.message);
+    loginBtn.disabled = false;
+    loginBtn.textContent = 'Sign In';
+    return;
+  }
+
+  window.location.href = 'dashboard.html';
+});
+</script>
+</body>
+</html>

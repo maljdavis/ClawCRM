@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contacts — ClawCRM</title>
+  <link rel="stylesheet" href="css/crm.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand">⚡ ClawCRM</div>
+      <div class="tenant-name" id="tenantName">Loading…</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" data-page="dashboard.html" href="dashboard.html"><span class="icon">📊</span> Dashboard</a>
+      <a class="nav-item" data-page="contacts.html" href="contacts.html"><span class="icon">👥</span> Contacts</a>
+      <a class="nav-item" data-page="jobs.html" href="jobs.html"><span class="icon">🔧</span> Jobs</a>
+      <a class="nav-item" data-page="communications.html" href="communications.html"><span class="icon">💬</span> Communications</a>
+      <a class="nav-item" data-page="settings.html" href="settings.html"><span class="icon">⚙️</span> Settings</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-item" onclick="signOut()" style="width:100%;border:none;text-align:left"><span class="icon">🚪</span> Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="top-bar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button id="menuToggle" class="btn btn-ghost btn-icon" style="display:none">☰</button>
+        <h1>Contacts</h1>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openContactModal()">+ Add Contact</button>
+    </div>
+
+    <div class="page-body">
+      <!-- Search & filters -->
+      <div class="search-bar">
+        <div class="search-input-wrap flex-1">
+          <span class="search-icon">🔍</span>
+          <input id="searchInput" type="text" class="form-control" placeholder="Search name, phone, email…" oninput="filterContacts()">
+        </div>
+        <select id="statusFilter" class="form-control" style="width:140px" onchange="filterContacts()">
+          <option value="">All Statuses</option>
+          <option value="lead">Lead</option>
+          <option value="prospect">Prospect</option>
+          <option value="customer">Customer</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <select id="sourceFilter" class="form-control" style="width:140px" onchange="filterContacts()">
+          <option value="">All Sources</option>
+          <option value="missed_call">Missed Call</option>
+          <option value="ai_call">AI Call</option>
+          <option value="web_form">Web Form</option>
+          <option value="manual">Manual</option>
+        </select>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Source</th>
+              <th>Added</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="contactsBody">
+            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted)">Loading contacts…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="contactCount" class="text-muted text-sm mt-8"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Contact detail slide-over -->
+<div class="slideover-backdrop" id="detailBackdrop" onclick="closeSlideover('detail')"></div>
+<div class="slideover" id="detail">
+  <div class="slideover-header">
+    <div>
+      <h2 id="detailName">Contact</h2>
+      <div id="detailMeta" class="text-muted text-sm"></div>
+    </div>
+    <button class="btn btn-ghost btn-icon btn-sm" onclick="closeSlideover('detail')">✕</button>
+  </div>
+  <div class="slideover-body">
+    <!-- Contact info -->
+    <div id="detailInfo" style="margin-bottom:20px"></div>
+    <hr class="divider">
+    <!-- Jobs for this contact -->
+    <div class="card-header" style="margin-bottom:12px">
+      <h3>Jobs</h3>
+      <button class="btn btn-ghost btn-sm" onclick="newJobForContact()">+ Add Job</button>
+    </div>
+    <div id="detailJobs" style="margin-bottom:20px"></div>
+    <hr class="divider">
+    <!-- Activity timeline -->
+    <div class="card-header" style="margin-bottom:12px">
+      <h3>Activity</h3>
+      <button class="btn btn-ghost btn-sm" onclick="openNoteModal()">+ Note</button>
+    </div>
+    <div class="activity-feed" id="detailActivity"></div>
+  </div>
+  <div class="slideover-footer">
+    <button class="btn btn-ghost flex-1" onclick="openContactModal(currentContact)">Edit Contact</button>
+    <button class="btn btn-danger btn-sm" onclick="deleteCurrentContact()">Delete</button>
+  </div>
+</div>
+
+<!-- Add/Edit Contact Modal -->
+<div class="modal-backdrop" id="contactModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="contactModalTitle">Add Contact</h2>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('contactModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="contactId">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Name</label>
+          <input id="contactName" type="text" class="form-control" placeholder="Full name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="contactStatus" class="form-control">
+            <option value="lead">Lead</option>
+            <option value="prospect">Prospect</option>
+            <option value="customer">Customer</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input id="contactPhone" type="tel" class="form-control" placeholder="+1 (555) 000-0000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input id="contactEmail" type="email" class="form-control" placeholder="email@example.com">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Source</label>
+        <select id="contactSource" class="form-control">
+          <option value="manual">Manual</option>
+          <option value="missed_call">Missed Call</option>
+          <option value="ai_call">AI Call</option>
+          <option value="web_form">Web Form</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea id="contactNotes" class="form-control" placeholder="Any notes about this contact…" rows="3"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('contactModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveContact()">Save Contact</button>
+    </div>
+  </div>
+</div>
+
+<!-- Note Modal -->
+<div class="modal-backdrop" id="noteModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add Note</h2>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('noteModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Note</label>
+        <textarea id="noteBody" class="form-control" placeholder="Write a note…" rows="4"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('noteModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNote()">Save Note</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script src="js/crm-core.js"></script>
+<script>
+let allContacts = [];
+let currentContact = null;
+
+async function loadContacts() {
+  const ok = await initCRM();
+  if (!ok) return;
+
+  allContacts = await dbSelect('crm_contacts', {
+    select: '*',
+    order: 'created_at',
+    asc: false
+  });
+
+  filterContacts();
+
+  // Open contact from URL param
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('id')) openDetail(params.get('id'));
+  if (params.get('new') === '1') openContactModal();
+}
+
+function filterContacts() {
+  const q      = document.getElementById('searchInput').value.toLowerCase();
+  const status = document.getElementById('statusFilter').value;
+  const source = document.getElementById('sourceFilter').value;
+
+  const filtered = allContacts.filter(c => {
+    const text = `${c.name||''} ${c.phone||''} ${c.email||''}`.toLowerCase();
+    return text.includes(q)
+      && (!status || c.status === status)
+      && (!source || c.source === source);
+  });
+
+  renderTable(filtered);
+  document.getElementById('contactCount').textContent =
+    `${filtered.length} of ${allContacts.length} contacts`;
+}
+
+function renderTable(contacts) {
+  const tbody = document.getElementById('contactsBody');
+  if (!contacts.length) {
+    tbody.innerHTML = `<tr><td colspan="7">
+      <div class="empty-state"><div class="empty-icon">👥</div>
+      <h3>No contacts yet</h3><p>Add your first contact to get started.</p></div>
+    </td></tr>`;
+    return;
+  }
+  tbody.innerHTML = contacts.map(c => `
+    <tr onclick="openDetail('${escAttr(c.id)}')">
+      <td><strong>${esc(c.name || '—')}</strong></td>
+      <td>${esc(fmtPhone(c.phone))}</td>
+      <td>${esc(c.email || '—')}</td>
+      <td>${statusBadge(c.status)}</td>
+      <td><span class="text-sm text-muted">${esc(c.source || 'manual')}</span></td>
+      <td class="text-muted text-sm">${timeAgo(c.created_at)}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="event.stopPropagation();openContactModal(allContacts.find(x=>x.id==='${escAttr(c.id)}'))">✏️</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function openDetail(id) {
+  currentContact = allContacts.find(c => c.id === id);
+  if (!currentContact) return;
+
+  document.getElementById('detailName').textContent = currentContact.name || fmtPhone(currentContact.phone) || 'Unknown';
+  document.getElementById('detailMeta').textContent = `${currentContact.source || 'manual'} · ${fmtDate(currentContact.created_at)}`;
+
+  document.getElementById('detailInfo').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <div class="form-label">Phone</div>
+        <div>${esc(fmtPhone(currentContact.phone))}</div>
+      </div>
+      <div>
+        <div class="form-label">Email</div>
+        <div>${esc(currentContact.email || '—')}</div>
+      </div>
+      <div>
+        <div class="form-label">Status</div>
+        <div>${statusBadge(currentContact.status)}</div>
+      </div>
+      <div>
+        <div class="form-label">Source</div>
+        <div class="text-sm">${esc(currentContact.source || 'manual')}</div>
+      </div>
+    </div>
+    ${currentContact.notes ? `<div style="margin-top:12px"><div class="form-label">Notes</div><div class="text-sm">${esc(currentContact.notes)}</div></div>` : ''}
+  `;
+
+  openSlideover('detail');
+
+  // Load jobs + activities in parallel
+  const [jobs, activities] = await Promise.all([
+    dbSelect('crm_jobs', { select: '*', eq: { contact_id: id }, order: 'created_at' }),
+    dbSelect('crm_activities', { select: '*', eq: { contact_id: id }, order: 'created_at', limit: 30 })
+  ]);
+
+  // Jobs
+  const jobsEl = document.getElementById('detailJobs');
+  if (!jobs.length) {
+    jobsEl.innerHTML = '<div class="text-muted text-sm">No jobs yet.</div>';
+  } else {
+    jobsEl.innerHTML = jobs.map(j => `
+      <a href="jobs.html?id=${escAttr(j.id)}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit">
+        <div>
+          <div class="text-sm font-bold">${esc(j.title)}</div>
+          <div class="text-xs text-muted">${j.scheduled_at ? fmtDate(j.scheduled_at) : 'Not scheduled'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${j.amount ? `<span class="text-sm c-green">${fmt$(j.amount)}</span>` : ''}
+          ${statusBadge(j.status)}
+        </div>
+      </a>
+    `).join('');
+  }
+
+  // Activities
+  const actEl = document.getElementById('detailActivity');
+  if (!activities.length) {
+    actEl.innerHTML = '<div class="text-muted text-sm">No activity yet.</div>';
+  } else {
+    actEl.innerHTML = activities.map(a => `
+      <div class="activity-item">
+        ${activityIcon(a.type, a.direction)}
+        <div class="activity-content">
+          <div class="activity-summary">${esc(a.summary || '')}</div>
+          <div class="activity-time">${fmtDateTime(a.created_at)}</div>
+          ${a.body ? `<div class="activity-body">${esc(a.body.slice(0,200))}${a.body.length>200?'…':''}</div>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+}
+
+function openContactModal(contact = null) {
+  document.getElementById('contactModalTitle').textContent = contact ? 'Edit Contact' : 'Add Contact';
+  document.getElementById('contactId').value    = contact?.id || '';
+  document.getElementById('contactName').value  = contact?.name || '';
+  document.getElementById('contactPhone').value = contact?.phone || '';
+  document.getElementById('contactEmail').value = contact?.email || '';
+  document.getElementById('contactStatus').value = contact?.status || 'lead';
+  document.getElementById('contactSource').value = contact?.source || 'manual';
+  document.getElementById('contactNotes').value  = contact?.notes || '';
+  openModal('contactModal');
+}
+
+async function saveContact() {
+  const id    = document.getElementById('contactId').value;
+  const name  = document.getElementById('contactName').value.trim();
+  const phone = document.getElementById('contactPhone').value.trim();
+  const email = document.getElementById('contactEmail').value.trim();
+
+  if (!name && !phone) {
+    toast('Name or phone is required.', 'error');
+    return;
+  }
+
+  const payload = {
+    name, phone, email,
+    status: document.getElementById('contactStatus').value,
+    source: document.getElementById('contactSource').value,
+    notes:  document.getElementById('contactNotes').value.trim(),
+    tenant_id: CRM_TENANT.id
+  };
+
+  try {
+    if (id) {
+      const updated = await dbUpdate('crm_contacts', id, payload);
+      const idx = allContacts.findIndex(c => c.id === id);
+      if (idx >= 0) allContacts[idx] = { ...allContacts[idx], ...updated };
+      toast('Contact updated.');
+    } else {
+      const created = await dbInsert('crm_contacts', payload);
+      allContacts.unshift(created);
+      toast('Contact added.');
+    }
+    closeModal('contactModal');
+    filterContacts();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteCurrentContact() {
+  if (!currentContact) return;
+  if (!confirm(`Delete ${currentContact.name || 'this contact'}? This cannot be undone.`)) return;
+  try {
+    await dbDelete('crm_contacts', currentContact.id);
+    allContacts = allContacts.filter(c => c.id !== currentContact.id);
+    closeSlideover('detail');
+    filterContacts();
+    toast('Contact deleted.');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+function newJobForContact() {
+  closeSlideover('detail');
+  window.location.href = `jobs.html?new=1&contact=${currentContact?.id || ''}`;
+}
+
+function openNoteModal() {
+  document.getElementById('noteBody').value = '';
+  openModal('noteModal');
+}
+
+async function saveNote() {
+  const body = document.getElementById('noteBody').value.trim();
+  if (!body) return;
+  try {
+    await dbInsert('crm_activities', {
+      tenant_id:  CRM_TENANT.id,
+      contact_id: currentContact.id,
+      type: 'note',
+      direction: 'outbound',
+      summary: `Note: ${body.slice(0,60)}`,
+      body
+    });
+    closeModal('noteModal');
+    toast('Note saved.');
+    openDetail(currentContact.id);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+loadContacts();
+</script>
+</body>
+</html>

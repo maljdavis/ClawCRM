@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Communications — ClawCRM</title>
+  <link rel="stylesheet" href="css/crm.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand">⚡ ClawCRM</div>
+      <div class="tenant-name" id="tenantName">Loading…</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" data-page="dashboard.html" href="dashboard.html"><span class="icon">📊</span> Dashboard</a>
+      <a class="nav-item" data-page="contacts.html" href="contacts.html"><span class="icon">👥</span> Contacts</a>
+      <a class="nav-item" data-page="jobs.html" href="jobs.html"><span class="icon">🔧</span> Jobs</a>
+      <a class="nav-item" data-page="communications.html" href="communications.html"><span class="icon">💬</span> Communications</a>
+      <a class="nav-item" data-page="settings.html" href="settings.html"><span class="icon">⚙️</span> Settings</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-item" onclick="signOut()" style="width:100%;border:none;text-align:left"><span class="icon">🚪</span> Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="top-bar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button id="menuToggle" class="btn btn-ghost btn-icon" style="display:none">☰</button>
+        <h1>Communications</h1>
+      </div>
+      <div style="display:flex;gap:10px">
+        <input id="commsSearch" type="text" class="form-control" placeholder="Search…" style="width:220px" oninput="filterComms()">
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="all" onclick="switchTab('all', this)">All Activity</button>
+        <button class="tab-btn" data-tab="calls" onclick="switchTab('calls', this)">📞 Calls</button>
+        <button class="tab-btn" data-tab="sms" onclick="switchTab('sms', this)">💬 SMS</button>
+        <button class="tab-btn" data-tab="missed" onclick="switchTab('missed', this)">⚠️ Missed Calls</button>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px" id="commsStats">
+        <div class="stat-card"><div class="stat-label">Total Calls</div><div class="stat-value c-blue" id="sCalls">—</div></div>
+        <div class="stat-card"><div class="stat-label">Missed Calls</div><div class="stat-value c-red" id="sMissed">—</div></div>
+        <div class="stat-card"><div class="stat-label">SMS Sent</div><div class="stat-value c-green" id="sSMS">—</div></div>
+        <div class="stat-card"><div class="stat-label">AI Calls</div><div class="stat-value c-purple" id="sAI">—</div></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Direction</th>
+              <th>Contact / Number</th>
+              <th>Summary</th>
+              <th>Time</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="commsBody">
+            <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="commsCount" class="text-muted text-sm mt-8"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Transcript Modal -->
+<div class="modal-backdrop" id="transcriptModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div>
+        <h2 id="transcriptTitle">Call Transcript</h2>
+        <div id="transcriptMeta" class="text-muted text-sm"></div>
+      </div>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModal('transcriptModal')">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:60vh;overflow-y:auto">
+      <div id="transcriptBody" style="white-space:pre-wrap;font-size:.875rem;line-height:1.7"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('transcriptModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script src="js/crm-core.js"></script>
+<script>
+let allActivities  = [];
+let allContacts    = [];
+let currentTab     = 'all';
+
+async function loadComms() {
+  const ok = await initCRM();
+  if (!ok) return;
+
+  [allActivities, allContacts] = await Promise.all([
+    dbSelect('crm_activities', {
+      select: 'id,type,direction,summary,body,duration_sec,contact_id,created_at',
+      eq:    {},
+      order: 'created_at',
+      asc:   false
+    }),
+    dbSelect('crm_contacts', { select: 'id,name,phone' })
+  ]);
+
+  // Remove generic 'note', 'status_change', 'payment' from comms view — keep call & sms
+  renderStats();
+  filterComms();
+}
+
+function renderStats() {
+  const calls  = allActivities.filter(a => a.type === 'call');
+  const missed = calls.filter(a => a.summary?.toLowerCase().includes('missed'));
+  const sms    = allActivities.filter(a => a.type === 'sms');
+  const ai     = calls.filter(a => a.summary?.toLowerCase().includes('ai call') ||
+                                    a.body?.includes('AI:'));
+
+  document.getElementById('sCalls').textContent  = calls.length;
+  document.getElementById('sMissed').textContent = missed.length;
+  document.getElementById('sSMS').textContent    = sms.length;
+  document.getElementById('sAI').textContent     = ai.length;
+}
+
+function switchTab(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterComms();
+}
+
+function filterComms() {
+  const q = document.getElementById('commsSearch').value.toLowerCase();
+
+  let filtered = allActivities.filter(a => ['call','sms'].includes(a.type));
+
+  if (currentTab === 'calls')  filtered = filtered.filter(a => a.type === 'call');
+  if (currentTab === 'sms')    filtered = filtered.filter(a => a.type === 'sms');
+  if (currentTab === 'missed') filtered = filtered.filter(a =>
+    a.type === 'call' && a.summary?.toLowerCase().includes('missed')
+  );
+
+  if (q) {
+    filtered = filtered.filter(a => {
+      const contact = allContacts.find(c => c.id === a.contact_id);
+      const text = `${a.summary||''} ${a.body||''} ${contact?.name||''} ${contact?.phone||''}`.toLowerCase();
+      return text.includes(q);
+    });
+  }
+
+  renderTable(filtered);
+  document.getElementById('commsCount').textContent =
+    `Showing ${filtered.length} of ${allActivities.filter(a => ['call','sms'].includes(a.type)).length} events`;
+}
+
+function renderTable(activities) {
+  const tbody = document.getElementById('commsBody');
+
+  if (!activities.length) {
+    tbody.innerHTML = `<tr><td colspan="6">
+      <div class="empty-state"><div class="empty-icon">📭</div><h3>No communications yet</h3>
+      <p>Calls and SMS messages will appear here automatically.</p></div>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = activities.map(a => {
+    const contact = allContacts.find(c => c.id === a.contact_id);
+    const isMissed = a.summary?.toLowerCase().includes('missed');
+    const isAI     = a.body?.includes('AI:') || a.body?.includes('Caller:');
+
+    let typeBadge = '';
+    if (a.type === 'call' && isMissed) typeBadge = '<span class="badge badge-missed">Missed Call</span>';
+    else if (a.type === 'call' && isAI) typeBadge = '<span class="badge badge-ai">AI Call</span>';
+    else if (a.type === 'call')  typeBadge = '<span class="badge badge-answered">Call</span>';
+    else if (a.type === 'sms')   typeBadge = `<span class="badge" style="background:rgba(56,189,248,.15);color:var(--info)">SMS</span>`;
+
+    const dirIcon = a.direction === 'inbound' ? '↙️' : '↗️';
+
+    const hasBody = a.body && a.body.length > 0;
+
+    return `
+      <tr onclick="${hasBody ? `openTranscript('${escAttr(a.id)}')` : ''}">
+        <td>${typeBadge}</td>
+        <td><span class="text-sm">${dirIcon} ${a.direction || ''}</span></td>
+        <td>
+          ${contact ? `<a href="contacts.html?id=${escAttr(contact.id)}" onclick="event.stopPropagation()" style="color:var(--primary)">${esc(contact.name || contact.phone)}</a>`
+                    : '<span class="text-muted text-sm">Unknown</span>'}
+        </td>
+        <td class="text-sm">${esc((a.summary || '').slice(0, 80))}</td>
+        <td class="text-muted text-sm">${timeAgo(a.created_at)}</td>
+        <td>
+          ${hasBody ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openTranscript('${escAttr(a.id)}')">View →</button>` : ''}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openTranscript(id) {
+  const activity = allActivities.find(a => a.id === id);
+  if (!activity) return;
+
+  document.getElementById('transcriptTitle').textContent =
+    activity.type === 'call' ? 'Call Transcript' : 'SMS Message';
+  document.getElementById('transcriptMeta').textContent =
+    `${fmtDateTime(activity.created_at)} · ${activity.direction}`;
+
+  let body = activity.body || '';
+
+  // Try parsing JSON body (call status objects)
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed.status) {
+      body = `Call status: ${parsed.status}\nCall SID: ${parsed.call_sid || ''}`;
+    }
+  } catch { /* plain text, leave as-is */ }
+
+  document.getElementById('transcriptBody').textContent = body;
+  openModal('transcriptModal');
+}
+
+loadComms();
+</script>
+</body>
+</html>

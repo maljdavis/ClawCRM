@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — ClawCRM</title>
+  <link rel="stylesheet" href="css/crm.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .webhook-label { font-size:.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;font-weight:600; }
+    .copy-btn { padding:4px 10px;font-size:.75rem; }
+    .test-badge { display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:600; }
+    .test-badge.ok  { background:rgba(34,197,94,.15);color:var(--success); }
+    .test-badge.err { background:rgba(239,68,68,.15);color:var(--danger); }
+    .prompt-preview {
+      background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);
+      padding:12px;font-size:.8rem;color:var(--text-muted);margin-top:8px;
+      white-space:pre-wrap;line-height:1.6;
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand">⚡ ClawCRM</div>
+      <div class="tenant-name" id="tenantName">Loading…</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" data-page="dashboard.html" href="dashboard.html"><span class="icon">📊</span> Dashboard</a>
+      <a class="nav-item" data-page="contacts.html" href="contacts.html"><span class="icon">👥</span> Contacts</a>
+      <a class="nav-item" data-page="jobs.html" href="jobs.html"><span class="icon">🔧</span> Jobs</a>
+      <a class="nav-item" data-page="communications.html" href="communications.html"><span class="icon">💬</span> Communications</a>
+      <a class="nav-item" data-page="settings.html" href="settings.html"><span class="icon">⚙️</span> Settings</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-item" onclick="signOut()" style="width:100%;border:none;text-align:left"><span class="icon">🚪</span> Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="top-bar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button id="menuToggle" class="btn btn-ghost btn-icon" style="display:none">☰</button>
+        <h1>Settings &amp; Setup</h1>
+      </div>
+    </div>
+
+    <div class="page-body" style="max-width:800px">
+
+      <!-- ── Step 1: Business Info ─────────────────────── -->
+      <div class="wizard-step" id="step1">
+        <div class="wizard-step-header" onclick="toggleStep('step1')">
+          <div class="wizard-step-num">1</div>
+          <div class="wizard-step-title">Business Information</div>
+          <div class="wizard-step-status" id="step1Status">Not configured</div>
+          <span style="color:var(--text-muted)">›</span>
+        </div>
+        <div class="wizard-step-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Business Name *</label>
+              <input id="bizName" class="form-control" placeholder="Apex Plumbing">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Business Type</label>
+              <select id="bizType" class="form-control">
+                <option value="">Select type…</option>
+                <option>Plumbing</option>
+                <option>HVAC</option>
+                <option>Electrical</option>
+                <option>Landscaping</option>
+                <option>Cleaning</option>
+                <option>Roofing</option>
+                <option>General Contracting</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Display Phone</label>
+              <input id="bizPhone" type="tel" class="form-control" placeholder="+1 (555) 000-0000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">City / State</label>
+              <input id="bizCity" class="form-control" placeholder="Austin, TX">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Brand Color</label>
+            <div style="display:flex;align-items:center;gap:10px">
+              <input id="bizColor" type="color" value="#2563eb" style="width:48px;height:36px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;background:none">
+              <span id="bizColorHex" class="text-muted text-sm">#2563eb</span>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="saveBusinessInfo()">Save Business Info</button>
+        </div>
+      </div>
+
+      <!-- ── Step 2: Twilio ────────────────────────────── -->
+      <div class="wizard-step" id="step2">
+        <div class="wizard-step-header" onclick="toggleStep('step2')">
+          <div class="wizard-step-num">2</div>
+          <div class="wizard-step-title">Twilio (Phone Calls &amp; SMS)</div>
+          <div class="wizard-step-status" id="step2Status">Not configured</div>
+          <span style="color:var(--text-muted)">›</span>
+        </div>
+        <div class="wizard-step-body">
+          <p style="margin-bottom:16px">Connect your Twilio account to enable missed call text-back and the AI voice agent.</p>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Account SID</label>
+              <input id="twilioSID" class="form-control" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Auth Token</label>
+              <input id="twilioToken" type="password" class="form-control" placeholder="••••••••••••••••••••••••••••••••">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Your Twilio Phone Number</label>
+            <input id="twilioPhone" class="form-control" placeholder="+15551234567">
+          </div>
+
+          <button class="btn btn-primary mb-16" onclick="saveTwilio()">Save Twilio Settings</button>
+
+          <!-- Webhook URLs -->
+          <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-top:8px">
+            <h3 style="margin-bottom:12px">📋 Paste these URLs into your Twilio console:</h3>
+
+            <div class="webhook-label">Voice URL (A call comes in)</div>
+            <div class="webhook-url-box">
+              <code id="webhookVoice">https://YOUR_PROJECT.supabase.co/functions/v1/twilio-voice-webhook</code>
+              <button class="btn btn-ghost copy-btn" onclick="copyWebhook('webhookVoice')">Copy</button>
+            </div>
+
+            <div class="webhook-label" style="margin-top:10px">Status Callback URL (For missed call detection)</div>
+            <div class="webhook-url-box">
+              <code id="webhookMissed">https://YOUR_PROJECT.supabase.co/functions/v1/missed-call-handler</code>
+              <button class="btn btn-ghost copy-btn" onclick="copyWebhook('webhookMissed')">Copy</button>
+            </div>
+
+            <p class="text-xs text-muted mt-8">In Twilio → Phone Numbers → your number → set Method to HTTP POST for both.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Step 3: Missed Call Message ──────────────── -->
+      <div class="wizard-step" id="step3">
+        <div class="wizard-step-header" onclick="toggleStep('step3')">
+          <div class="wizard-step-num">3</div>
+          <div class="wizard-step-title">Missed Call Auto-Reply</div>
+          <div class="wizard-step-status" id="step3Status">Using default</div>
+          <span style="color:var(--text-muted)">›</span>
+        </div>
+        <div class="wizard-step-body">
+          <p style="margin-bottom:12px">This SMS is automatically sent to anyone who calls and gets no answer.</p>
+          <div class="form-group">
+            <label class="form-label">SMS Template</label>
+            <textarea id="smsTemplate" class="form-control" rows="3"
+              placeholder="Hi! Sorry we missed your call. We'll get back to you shortly. — {business_name}"
+              oninput="updateSMSPreview()"></textarea>
+            <div class="text-xs text-muted mt-8">Use <strong>{business_name}</strong> to insert your business name.</div>
+          </div>
+          <div style="margin-top:8px">
+            <div class="form-label">Preview:</div>
+            <div class="prompt-preview" id="smsPreview">…</div>
+          </div>
+          <button class="btn btn-primary mt-16" onclick="saveSMSTemplate()">Save Message</button>
+        </div>
+      </div>
+
+      <!-- ── Step 4: AI Voice Agent ────────────────────── -->
+      <div class="wizard-step" id="step4">
+        <div class="wizard-step-header" onclick="toggleStep('step4')">
+          <div class="wizard-step-num">4</div>
+          <div class="wizard-step-title">AI Voice Agent</div>
+          <div class="wizard-step-status" id="step4Status">Disabled</div>
+          <span style="color:var(--text-muted)">›</span>
+        </div>
+        <div class="wizard-step-body">
+          <div class="toggle-wrap mb-16">
+            <label class="toggle">
+              <input type="checkbox" id="aiEnabled" onchange="updateAIStatus()">
+              <span class="toggle-slider"></span>
+            </label>
+            <span>Enable AI voice agent (Claude-powered)</span>
+          </div>
+          <p style="margin-bottom:12px">The AI agent answers calls when enabled. Customize its personality and knowledge below.</p>
+
+          <div class="form-group">
+            <label class="form-label">AI System Prompt</label>
+            <textarea id="aiPrompt" class="form-control" rows="8"
+              placeholder="You are the AI receptionist for {business_name}…"
+              oninput="updatePromptPreview()"></textarea>
+            <div class="text-xs text-muted mt-8">
+              Tokens: <strong>{business_name}</strong>, <strong>{business_type}</strong>, <strong>{city}</strong>
+            </div>
+          </div>
+
+          <button class="btn btn-ghost btn-sm mb-16" onclick="fillDefaultPrompt()">Use Template Prompt</button>
+
+          <button class="btn btn-primary" onclick="saveAISettings()">Save AI Settings</button>
+        </div>
+      </div>
+
+      <!-- ── Step 5: Stripe ────────────────────────────── -->
+      <div class="wizard-step" id="step5">
+        <div class="wizard-step-header" onclick="toggleStep('step5')">
+          <div class="wizard-step-num">5</div>
+          <div class="wizard-step-title">Stripe (Invoice Payments)</div>
+          <div class="wizard-step-status" id="step5Status">Not configured</div>
+          <span style="color:var(--text-muted)">›</span>
+        </div>
+        <div class="wizard-step-body">
+          <p style="margin-bottom:16px">Connect Stripe to accept online payments from clients via the invoice payment links.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Publishable Key</label>
+              <input id="stripePub" class="form-control" placeholder="pk_live_…">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Secret Key</label>
+              <input id="stripeSecret" type="password" class="form-control" placeholder="sk_live_…">
+            </div>
+          </div>
+          <button class="btn btn-primary mb-16" onclick="saveStripe()">Save Stripe Settings</button>
+
+          <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:16px">
+            <h3 style="margin-bottom:8px">📋 Stripe Webhook Setup:</h3>
+            <div class="webhook-label">Webhook URL (paste in Stripe Dashboard → Webhooks)</div>
+            <div class="webhook-url-box">
+              <code id="webhookStripe">https://YOUR_PROJECT.supabase.co/functions/v1/stripe-webhook</code>
+              <button class="btn btn-ghost copy-btn" onclick="copyWebhook('webhookStripe')">Copy</button>
+            </div>
+            <div class="text-xs text-muted mt-8">
+              Listen for: <strong>invoice.payment_succeeded</strong><br>
+              Then add the <strong>Signing Secret</strong> as <code>STRIPE_WEBHOOK_SECRET</code> in Supabase Edge Function secrets.
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script src="js/crm-core.js"></script>
+<script>
+let tenantData = null;
+
+async function loadSettings() {
+  const ok = await initCRM();
+  if (!ok) return;
+
+  tenantData = CRM_TENANT;
+  populateForm();
+  updateWebhookURLs();
+}
+
+function populateForm() {
+  if (!tenantData) return;
+  const t = tenantData;
+
+  // Step 1
+  document.getElementById('bizName').value  = t.name || '';
+  document.getElementById('bizPhone').value = t.phone || '';
+  if (t.primary_color) {
+    document.getElementById('bizColor').value = t.primary_color;
+    document.getElementById('bizColorHex').textContent = t.primary_color;
+  }
+  if (t.name) markConfigured('step1', '✓ Configured');
+
+  // Step 2
+  document.getElementById('twilioSID').value   = t.twilio_account_sid || '';
+  document.getElementById('twilioToken').value = t.twilio_auth_token ? '••••••••' : '';
+  document.getElementById('twilioPhone').value = t.twilio_phone_number || '';
+  if (t.twilio_account_sid && t.twilio_phone_number) markConfigured('step2', '✓ Connected');
+
+  // Step 3
+  document.getElementById('smsTemplate').value = t.missed_call_sms_template ||
+    "Hi! Sorry we missed your call. We'll get back to you shortly. — {business_name}";
+  updateSMSPreview();
+  if (t.missed_call_sms_template) markConfigured('step3', '✓ Customized');
+
+  // Step 4
+  document.getElementById('aiEnabled').checked = !!t.ai_enabled;
+  document.getElementById('aiPrompt').value     = t.ai_system_prompt || '';
+  updateAIStatus();
+
+  // Step 5
+  document.getElementById('stripePub').value    = t.stripe_publishable_key || '';
+  document.getElementById('stripeSecret').value = t.stripe_secret_key ? '••••••••' : '';
+  if (t.stripe_publishable_key) markConfigured('step5', '✓ Connected');
+}
+
+function updateWebhookURLs() {
+  // Replace YOUR_PROJECT with actual Supabase URL from crm-core
+  const base = 'https://YOUR_PROJECT.supabase.co'; // crm-core.js has SUPABASE_URL
+  document.getElementById('webhookVoice').textContent  = `${base}/functions/v1/twilio-voice-webhook`;
+  document.getElementById('webhookMissed').textContent = `${base}/functions/v1/missed-call-handler`;
+  document.getElementById('webhookStripe').textContent = `${base}/functions/v1/stripe-webhook`;
+}
+
+function toggleStep(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+
+function markConfigured(stepId, label) {
+  const step = document.getElementById(stepId);
+  step.classList.add('configured');
+  document.getElementById(stepId + 'Status').textContent = label;
+}
+
+function copyWebhook(id) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => toast('Copied to clipboard!'));
+}
+
+// Color picker
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('bizColor')?.addEventListener('input', e => {
+    document.getElementById('bizColorHex').textContent = e.target.value;
+    document.documentElement.style.setProperty('--primary', e.target.value);
+  });
+});
+
+function updateSMSPreview() {
+  const template = document.getElementById('smsTemplate').value;
+  const name     = document.getElementById('bizName').value || tenantData?.name || 'Your Business';
+  document.getElementById('smsPreview').textContent =
+    template.replace('{business_name}', name);
+}
+
+function updateAIStatus() {
+  const enabled = document.getElementById('aiEnabled').checked;
+  document.getElementById('step4Status').textContent = enabled ? '✓ Enabled' : 'Disabled';
+  if (enabled) document.getElementById('step4').classList.add('configured');
+  else         document.getElementById('step4').classList.remove('configured');
+}
+
+function fillDefaultPrompt() {
+  const name = tenantData?.name || 'our business';
+  document.getElementById('aiPrompt').value = `You are the AI receptionist for ${name}.
+
+Your job:
+- Greet callers warmly and professionally
+- Answer questions about our services, hours, and pricing
+- Collect the caller's name and best callback number
+- Let them know a team member will follow up within 2 hours
+
+Keep responses brief (under 25 words). Be friendly and conversational.
+
+If asked about emergency services, let them know we offer 24/7 emergency response.
+Always end calls by thanking the caller and confirming you've noted their information.`;
+}
+
+// ── Save functions ────────────────────────────────────────────
+
+async function saveBusinessInfo() {
+  const name  = document.getElementById('bizName').value.trim();
+  const color = document.getElementById('bizColor').value;
+  if (!name) { toast('Business name is required.', 'error'); return; }
+
+  try {
+    await dbUpdate('crm_tenants', CRM_TENANT.id, {
+      name,
+      phone:         document.getElementById('bizPhone').value.trim() || null,
+      primary_color: color
+    });
+    CRM_TENANT.name = name;
+    document.getElementById('tenantName').textContent = name;
+    markConfigured('step1', '✓ Configured');
+    toast('Business info saved!');
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function saveTwilio() {
+  const sid   = document.getElementById('twilioSID').value.trim();
+  const token = document.getElementById('twilioToken').value.trim();
+  const phone = document.getElementById('twilioPhone').value.trim();
+
+  if (!sid || !phone) { toast('Account SID and phone number are required.', 'error'); return; }
+
+  const updates: Record<string, string> = {
+    twilio_account_sid:   sid,
+    twilio_phone_number:  phone
+  };
+  if (token && !token.startsWith('••')) updates.twilio_auth_token = token;
+
+  try {
+    await dbUpdate('crm_tenants', CRM_TENANT.id, updates);
+    markConfigured('step2', '✓ Connected');
+    toast('Twilio settings saved!');
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function saveSMSTemplate() {
+  const template = document.getElementById('smsTemplate').value.trim();
+  if (!template) return;
+  try {
+    await dbUpdate('crm_tenants', CRM_TENANT.id, { missed_call_sms_template: template });
+    markConfigured('step3', '✓ Customized');
+    toast('Auto-reply message saved!');
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function saveAISettings() {
+  const enabled = document.getElementById('aiEnabled').checked;
+  const prompt  = document.getElementById('aiPrompt').value.trim();
+  try {
+    await dbUpdate('crm_tenants', CRM_TENANT.id, {
+      ai_enabled:      enabled,
+      ai_system_prompt: prompt || null
+    });
+    updateAIStatus();
+    toast('AI settings saved!');
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function saveStripe() {
+  const pub    = document.getElementById('stripePub').value.trim();
+  const secret = document.getElementById('stripeSecret').value.trim();
+
+  if (!pub) { toast('Publishable key is required.', 'error'); return; }
+
+  const updates: Record<string, string> = { stripe_publishable_key: pub };
+  if (secret && !secret.startsWith('••')) updates.stripe_secret_key = secret;
+
+  try {
+    await dbUpdate('crm_tenants', CRM_TENANT.id, updates);
+    markConfigured('step5', '✓ Connected');
+    toast('Stripe settings saved!');
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+loadSettings();
+</script>
+</body>
+</html>
