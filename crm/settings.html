@@ -303,7 +303,7 @@ function populateForm() {
 
 function updateWebhookURLs() {
   // Replace YOUR_PROJECT with actual Supabase URL from crm-core
-  const base = 'https://YOUR_PROJECT.supabase.co'; // crm-core.js has SUPABASE_URL
+  const base = 'https://jaglamkwicfvhyokgila.supabase.co';
   document.getElementById('webhookVoice').textContent  = `${base}/functions/v1/twilio-voice-webhook`;
   document.getElementById('webhookMissed').textContent = `${base}/functions/v1/missed-call-handler`;
   document.getElementById('webhookStripe').textContent = `${base}/functions/v1/stripe-webhook`;
